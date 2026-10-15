@@ -141,7 +141,7 @@ const auth = (req, res, next) => {
 }
 app.use(express.static(path.join(__dirname, 'public')))
 
-const FILE_RE = /^[\w .()-]{1,80}\.(litematic|schem|schematic|nbt|mcstructure)$/i
+const FILE_RE = /^[\w .()-]{1,80}\.(litematic|schem|schematic)$/i
 const localIps = Object.values(os.networkInterfaces()).flat().filter(i => i && i.family === 'IPv4' && !i.internal).map(i => i.address)
 const list = () => fs.readdirSync(SCHEM_DIR).filter(f => FILE_RE.test(f)).map(f => ({ name: f, size: fs.statSync(path.join(SCHEM_DIR, f)).size }))
 
@@ -167,7 +167,7 @@ app.post('/api/command', auth, express.json(), async (req, res) => {
 })
 app.put('/api/schematics/:name', auth, express.raw({ type: () => true, limit: '60mb' }), (req, res) => {
   const name = path.basename(req.params.name)
-  if (!FILE_RE.test(name)) return res.status(400).json({ error: 'Use a .litematic, .schem, .schematic, .nbt or .mcstructure file (simple file name).' })
+  if (!FILE_RE.test(name)) return res.status(400).json({ error: 'Use a .litematic, .schem or .schematic file (simple file name).' })
   if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Empty upload.' })
   fs.writeFileSync(path.join(SCHEM_DIR, name), req.body); res.json({ files: list() })
 })
