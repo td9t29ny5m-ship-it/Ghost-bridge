@@ -1,14 +1,22 @@
 # Ghost Bridge
 
-Mobile-friendly web interface and Bedrock relay project.
+Mobile web dashboard and Bedrock relay for viewing schematic guides through a console connection.
 
-## Files included
-- `server.js`: web server and relay setup
-- `public/index.html`: the provided website interface
-- `package.json`: Node.js dependencies and start command
+## Included
+- server.js: dashboard API, authentication and Bedrock relay
+- ghost.js: schematic loading and preview controls
+- public/index.html: phone-friendly dashboard
+- package.json: Node.js dependencies
+- deploy/setup-ubuntu.sh: Ubuntu VM setup helper
 
-## Important missing file
-The supplied `server.js` imports `./ghost` and calls `createGhost()`, but a `ghost.js` file was not present with the two supplied files. The application will not start correctly until the matching `ghost.js` module is added.
+## Supported schematic files
+- Litematica .litematic
+- Sponge / MCEdit .schem and .schematic
+
+The preview is visual-only. It does not automatically place blocks or modify the destination server. Schematics are capped at 12,000 non-air blocks to reduce console lag.
+
+## Important hosting requirement
+This app needs a persistent Node.js host that supports inbound UDP on port 19134 and TCP on port 3000. Static hosting (including GitHub Pages) cannot run the server or UDP relay. A small Ubuntu VM with UDP firewall access is suitable. Follow deploy/setup-ubuntu.sh, then open TCP 3000 and UDP 19134 in the cloud provider firewall.
 
 ## Run
-Requires Node.js 20 or newer. Install dependencies with `npm install`, then set `ADMIN_PASSWORD` and run `npm start`. The Bedrock relay also needs a host that supports UDP networking; ordinary static website hosting is not sufficient.
+Use Node.js 20 or newer. Run npm install, set a strong ADMIN_PASSWORD, then npm start. Keep the password private. Microsoft/Xbox authentication data is stored in data/host-auth, so use a private trusted host.

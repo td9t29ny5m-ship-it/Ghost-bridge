@@ -91,7 +91,7 @@ label.fp{display:block;text-align:center;padding:12px;border:1px dashed var(--li
 
     <section class="card">
       <h2>Schematics</h2>
-      <p class="sub">.litematic, .schem, .schematic, .nbt, .mcstructure</p>
+      <p class="sub">.litematic, .schem, .schematic</p>
       <label class="fp"><input id="up" type="file" class="hide" multiple>Tap to upload from your phone</label>
       <div id="files" style="margin-top:8px"></div>
     </section>
@@ -202,7 +202,7 @@ function render (s) {
 }
 
 const BUTTONS = [
-  ['Place', 'build place', 'p'], ['Cancel', 'build cancel'], ['Undo', 'undo'],
+  ['Next layer', 'layer up', 'p'], ['Cancel', 'build cancel'], ['Undo', 'undo'],
   ['Rotate', 'rotate'], ['Mirror X', 'mirror x'], ['Mirror off', 'mirror off'],
   ['Up', 'build up'], ['Down', 'build down'], ['Unlock', 'build unlock'],
   ['Layer auto', 'layer auto', 'p'], ['Layer up', 'layer up'], ['Layer down', 'layer down'],
