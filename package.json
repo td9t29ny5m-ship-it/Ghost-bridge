@@ -1,0 +1,19 @@
+{
+  "name": "ghost-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ghost Bridge Bedrock server bridge and schematic overlay interface",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "bedrock-portal": "*",
+    "bedrock-protocol": "*",
+    "express": "*",
+    "prismarine-auth": "*"
+  }
+}
