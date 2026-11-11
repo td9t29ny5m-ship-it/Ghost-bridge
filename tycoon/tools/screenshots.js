@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 
 const URL = process.argv[2] || 'http://localhost:8765/index.html';
+const ONLY = process.argv[3] || '';   // optional: one target folder, e.g. ios-6.9 (run several in parallel)
 const OUT = path.join(__dirname, '..', 'store', 'screenshots');
 
 // CSS viewport × scale = required pixel size
@@ -47,6 +48,7 @@ const SCENES = [
 (async () => {
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   for (const t of TARGETS) {
+    if (ONLY && t.dir !== ONLY) continue;
     fs.mkdirSync(path.join(OUT, t.dir), { recursive: true });
     for (const scene of SCENES) {
       const ctx = await browser.newContext({ viewport: { width: t.width, height: t.height }, deviceScaleFactor: t.scale, hasTouch: true, isMobile: t.dir !== 'ios-ipad-13' });
@@ -78,6 +80,7 @@ const SCENES = [
     console.log('wrote', t.dir);
   }
 
+  if (ONLY) { await browser.close(); return; }
   // Google Play feature graphic 1024×500
   const page = await browser.newPage({ viewport: { width: 1024, height: 500 } });
   const icon = 'data:image/svg+xml;base64,' + fs.readFileSync(path.join(__dirname, '..', 'www/icons/icon.svg')).toString('base64');
