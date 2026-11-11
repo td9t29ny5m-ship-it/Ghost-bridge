@@ -1,0 +1,100 @@
+name: Yum Empire (tycoon game)
+
+on:
+  push:
+    paths: ['tycoon/**', '.github/workflows/yum-empire.yml']
+  pull_request:
+    paths: ['tycoon/**', '.github/workflows/yum-empire.yml']
+  workflow_dispatch:
+    inputs:
+      ios:
+        description: 'Also build iOS (macOS runner)'
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    working-directory: tycoon
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tycoon/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: Balance simulation (smoke)
+        run: node tools/simulate.js 1 2 | tail -3
+
+  android:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tycoon/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npx cap sync android
+      - run: node tools/configure-native.js
+        env:
+          ADMOB_ANDROID_APP_ID: ${{ vars.ADMOB_ANDROID_APP_ID }}
+      - name: Build debug APK (install on any Android phone)
+        working-directory: tycoon/android
+        run: ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yum-empire-debug-apk
+          path: tycoon/android/app/build/outputs/apk/debug/*.apk
+      - name: Build signed release bundle for Google Play (when signing secrets are set)
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: tycoon/android
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
+          ./gradlew bundleRelease
+      - uses: actions/upload-artifact@v4
+        if: ${{ hashFiles('tycoon/android/app/build/outputs/bundle/release/*.aab') != '' }}
+        with:
+          name: yum-empire-release-aab
+          path: tycoon/android/app/build/outputs/bundle/release/*.aab
+
+  ios:
+    needs: test
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.ios }}
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx cap sync ios
+      - run: node tools/configure-native.js
+        env:
+          ADMOB_IOS_APP_ID: ${{ vars.ADMOB_IOS_APP_ID }}
+      - name: Build for iOS Simulator (unsigned compile check)
+        working-directory: tycoon/ios/App
+        run: |
+          xcodebuild -project App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build

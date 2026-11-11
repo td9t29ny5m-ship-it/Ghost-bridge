@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#1b1236">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Build a street-food empire from a single noodle cart. Hire managers, unlock upgrades and franchise for Golden Stars.">
+  <title>Yum Empire</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="cash-box">
+        <div id="cash" class="cash">$0</div>
+        <div id="ips" class="ips">$0 / sec</div>
+      </div>
+      <button id="boostBtn" class="boost-btn" type="button">
+        <span class="boost-icon">🚀</span>
+        <span id="boostLabel">2× Profit</span>
+      </button>
+    </header>
+    <div id="statusRow" class="status-row"></div>
+
+    <main id="screens">
+      <section id="tab-biz" class="screen active" aria-label="Businesses">
+        <div class="toolbar">
+          <div id="globalMilestone" class="global-ms"></div>
+          <button id="buyMode" class="chip" type="button">Buy ×1</button>
+        </div>
+        <div id="bizList" class="list"></div>
+      </section>
+
+      <section id="tab-managers" class="screen" aria-label="Managers">
+        <p class="hint">Managers run a business automatically — even while you're away.</p>
+        <div id="mgrList" class="list"></div>
+      </section>
+
+      <section id="tab-upgrades" class="screen" aria-label="Upgrades">
+        <p class="hint">Each upgrade triples profits. Cheapest first.</p>
+        <div id="upgList" class="list"></div>
+      </section>
+
+      <section id="tab-franchise" class="screen" aria-label="Franchise">
+        <div class="franchise-card">
+          <div class="big-star">⭐</div>
+          <h2>Franchise</h2>
+          <p>Sell your empire to investors and start over with <b>Golden Stars</b>. Each star permanently adds <b id="starPct">+4%</b> profit.</p>
+          <div class="stat-grid">
+            <div><span>Golden Stars</span><b id="starsOwned">0</b></div>
+            <div><span>Current bonus</span><b id="starsBonus">+0%</b></div>
+            <div><span>Stars on franchise</span><b id="starsClaim" class="gold">0</b></div>
+            <div><span>Next star at</span><b id="starsNext">—</b></div>
+          </div>
+          <button id="prestigeBtn" class="btn btn-gold" type="button">Franchise now</button>
+          <p class="fine">You keep: Golden Stars, achievements, purchases and boosts.<br>You reset: cash, businesses, managers and upgrades.</p>
+        </div>
+      </section>
+
+      <section id="tab-more" class="screen" aria-label="More">
+        <div class="panel">
+          <h3>🛍️ Shop</h3>
+          <div id="shopList" class="list"></div>
+        </div>
+        <div class="panel">
+          <h3>🏆 Achievements <small id="achCount"></small></h3>
+          <div id="achList" class="ach-grid"></div>
+        </div>
+        <div class="panel">
+          <h3>📊 Stats</h3>
+          <div id="statsList" class="stats"></div>
+        </div>
+        <div class="panel">
+          <h3>⚙️ Settings</h3>
+          <label class="toggle"><input type="checkbox" id="setSound"> Sound effects</label>
+          <label class="toggle"><input type="checkbox" id="setHaptics"> Vibration</label>
+          <button id="resetBtn" class="btn btn-ghost danger" type="button">Delete save &amp; restart</button>
+          <p class="fine"><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a> · Yum Empire v<span id="ver"></span></p>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabbar">
+      <button data-tab="biz" class="active" type="button"><span>🏪</span>Shops</button>
+      <button data-tab="managers" type="button"><span>🧑‍🍳</span>Managers<i class="badge" id="badge-managers"></i></button>
+      <button data-tab="upgrades" type="button"><span>⚡</span>Upgrades<i class="badge" id="badge-upgrades"></i></button>
+      <button data-tab="franchise" type="button"><span>⭐</span>Franchise<i class="badge" id="badge-franchise"></i></button>
+      <button data-tab="more" type="button"><span>☰</span>More<i class="badge" id="badge-more"></i></button>
+    </nav>
+
+    <button id="vip" class="vip" type="button" hidden aria-label="VIP customer">🤩</button>
+    <div id="floaters" aria-hidden="true"></div>
+    <div id="toasts" aria-live="polite"></div>
+
+    <div id="modal" class="modal" hidden>
+      <div class="modal-card">
+        <div id="modalIcon" class="modal-icon"></div>
+        <h2 id="modalTitle"></h2>
+        <div id="modalBody"></div>
+        <div id="modalActions" class="modal-actions"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/engine.js"></script>
+  <script src="js/platform.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

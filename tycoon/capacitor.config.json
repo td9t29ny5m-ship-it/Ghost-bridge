@@ -1,0 +1,21 @@
+{
+  "appId": "com.yumempire.tycoon",
+  "appName": "Yum Empire",
+  "webDir": "www",
+  "backgroundColor": "#1b1236",
+  "android": {
+    "backgroundColor": "#1b1236"
+  },
+  "ios": {
+    "backgroundColor": "#1b1236",
+    "contentInset": "never"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "launchAutoHide": false,
+      "backgroundColor": "#1b1236",
+      "showSpinner": false
+    }
+  }
+}

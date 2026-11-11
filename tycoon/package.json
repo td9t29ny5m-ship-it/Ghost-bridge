@@ -1,0 +1,35 @@
+{
+  "name": "yum-empire",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Yum Empire: Food Tycoon — an idle tycoon game for iOS and Android (Capacitor).",
+  "scripts": {
+    "serve": "python3 -m http.server 8765 --directory www",
+    "test": "node tools/test-engine.js",
+    "simulate": "node tools/simulate.js",
+    "playtest": "node tools/playtest.js",
+    "icons": "node tools/render-icons.js",
+    "assets": "capacitor-assets generate --android --ios --iconBackgroundColor '#1b1236' --iconBackgroundColorDark '#1b1236' --splashBackgroundColor '#1b1236' --splashBackgroundColorDark '#1b1236'",
+    "add:android": "cap add android && node tools/configure-native.js",
+    "add:ios": "cap add ios && node tools/configure-native.js",
+    "sync": "cap sync",
+    "android": "cap sync android && cap open android",
+    "ios": "cap sync ios && cap open ios"
+  },
+  "dependencies": {
+    "@capacitor-community/admob": "^8.3.0",
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.6.0",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4",
+    "@revenuecat/purchases-capacitor": "^14.1.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^4.0.0",
+    "@capacitor/cli": "^8.6.0"
+  }
+}

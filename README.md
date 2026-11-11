@@ -20,3 +20,5 @@ This app needs a persistent Node.js host that supports inbound UDP on port 19134
 
 ## Run
 Use Node.js 20 or newer. Run npm install, set a strong ADMIN_PASSWORD, then npm start. Keep the password private. Microsoft/Xbox authentication data is stored in data/host-auth, so use a private trusted host.
+## Yum Empire (tycoon game)
+The `tycoon/` folder contains **Yum Empire: Food Tycoon**, a separate idle tycoon game for the App Store and Google Play built with Capacitor. See [tycoon/README.md](tycoon/README.md).
