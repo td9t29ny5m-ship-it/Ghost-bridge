@@ -2,14 +2,17 @@
 
 ## Names
 - **App name** (both stores, ≤30 chars): `Yum Empire: Food Tycoon`
-- **iOS subtitle** (≤30): `Idle Restaurant Builder`
-- **Play short description** (≤80): `Build a food empire from one noodle cart. Hire managers, franchise, get rich!`
+- **iOS subtitle** (≤30): `3D Miniature City Builder`
+- **Play short description** (≤80): `Grow a tiny noodle cart into a food empire in a living 3D miniature city!`
 - **iOS keywords** (≤100, comma-separated, no spaces): `idle,tycoon,clicker,restaurant,cooking,food,business,money,empire,incremental,manager,chef,cafe`
 - **Category:** Games → Simulation (secondary: Casual)
 
 ## Full description (≤4000)
 
-Your street-food empire starts with one humble noodle cart. Cook meals, earn cash, and turn a single cart into a worldwide food brand! 🍜
+Your street-food empire starts with one tiny noodle cart in the middle of a miniature city. At first only a few customers stop by. Serve them, earn cash, and watch your cart grow into a restaurant tower as the whole city comes alive around it! 🍜
+
+🏙️ A LIVING 3D MINIATURE CITY
+A charming tilt-shift toy city with walking customers, busy traffic, day and night, and a skyline that grows with your success. Drag, pinch and rotate to explore.
 
 🏪 OPEN 10 FOOD BUSINESSES
 Go from Noodle Cart to Dumpling Stand, Bubble Tea Bar, Taco Truck, Pizza Parlor, Sushi Lounge, Burger Chain, Food Court, Snack Factory, and finally Global Cuisine.
@@ -24,7 +27,7 @@ Unlock 60+ upgrades and level milestones that double speed and multiply profits.
 Sell your empire to investors to earn Golden Stars. Every star permanently boosts your profit, so each new empire grows faster than the last.
 
 🤩 SERVE VIP CUSTOMERS
-Tap surprise VIP visitors for huge tips or a 7× profit frenzy!
+Spot the golden VIP walking through town and tap them for huge tips or a 7× profit frenzy!
 
 🎁 DAILY REWARDS & 59 ACHIEVEMENTS
 Come back every day for growing rewards, and collect achievements that boost your profit.
@@ -38,10 +41,10 @@ Come back every day for growing rewards, and collect achievements that boost you
 Start cooking and become the biggest food tycoon in the world!
 
 ## What's new (v1.0.0)
-Grand opening! 🎉 10 businesses, managers, franchising, VIP customers, daily rewards and 59 achievements.
+Grand opening! 🎉 A living 3D miniature city, 10 businesses, managers, franchising, VIP visitors, daily rewards and 59 achievements.
 
 ## Screenshots
-Run `npm run serve` in one terminal, then `node tools/screenshots.js` in another. The script writes the sizes each store needs to `store/screenshots/`:
+Run `npm run serve` in one terminal, then `node tools/screenshots.js` in another. It takes several minutes, because the 3D city is rendered in software. The script writes the sizes each store needs to `store/screenshots/`:
 - `ios-6.9/`: 1320×2868 (iPhone 6.9", required)
 - `ios-ipad-13/`: 2064×2752 (required, because the iOS project supports iPad)
 - `android-phone/`: 1080×1920

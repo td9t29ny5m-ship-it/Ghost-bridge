@@ -276,3 +276,55 @@ b { font-weight: 800; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* ---------- 3D city ---------- */
+[hidden] { display: none !important; }
+#city { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
+.no3d #city { display: none; }
+.topbar, .status-row, #screens, .tabbar { position: relative; z-index: 2; }
+.has3d .topbar { background: linear-gradient(180deg, rgba(20,12,44,.82), rgba(20,12,44,.5) 70%, rgba(20,12,44,0)); padding-bottom: 14px; }
+.has3d .status-row { margin-top: -8px; pointer-events: none; }
+.has3d .status-row .pill { background: rgba(27,18,54,.82); backdrop-filter: blur(6px); }
+.has3d #screens { pointer-events: none; }
+.has3d .screen { pointer-events: auto; background: radial-gradient(120% 60% at 50% 0%, #3b2280 0%, var(--bg) 60%), var(--bg); }
+.has3d #tab-biz { background: none; pointer-events: none; overflow: hidden; padding: 0; }
+.has3d #tab-biz > * { pointer-events: auto; }
+
+.shop-card {
+  position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 6px;
+  background: linear-gradient(180deg, rgba(58,42,117,.94), rgba(47,33,96,.96));
+  border: 1px solid rgba(255,255,255,.14); border-radius: 18px; padding: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.45); backdrop-filter: blur(10px);
+}
+.sc-head { display: flex; align-items: center; gap: 8px; }
+.sc-nav { width: 34px; height: 44px; border-radius: 10px; background: rgba(0,0,0,.28); font-size: 14px; flex: none; }
+.sc-nav:disabled { opacity: .3; }
+.sc-nav:active:not(:disabled) { transform: scale(.92); }
+.sc-icon {
+  position: relative; width: 52px; height: 52px; border-radius: 50%; flex: none; font-size: 28px;
+  background: radial-gradient(circle at 35% 30%, #ffe3a3, #ff9a4d 70%); display: grid; place-items: center;
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,.18), 0 3px 0 #b55a1e; margin-bottom: 6px;
+}
+.sc-icon:active { transform: scale(.92); }
+.sc-icon.idle { animation: wiggle 1.6s infinite; }
+.sc-icon .biz-level { font-size: 11px; min-width: 30px; bottom: -8px; }
+.sc-title { flex: 1; min-width: 0; }
+.sc-title .biz-time { margin-top: 1px; }
+.sc-actions { display: flex; gap: 8px; }
+.sc-actions .buy { flex: 1; }
+.sc-actions .btn { white-space: nowrap; padding: 8px 12px; }
+.fab {
+  position: absolute; right: 12px; top: 6px; width: 44px; height: 44px; border-radius: 14px; font-size: 20px;
+  background: rgba(27,18,54,.85); border: 1px solid rgba(255,255,255,.14); backdrop-filter: blur(6px);
+  box-shadow: 0 4px 12px rgba(0,0,0,.35);
+}
+.fab:active { transform: scale(.94); }
+.sheet {
+  position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px 12px 24px;
+  background: rgba(27,18,54,.96); backdrop-filter: blur(8px); animation: fadein .15s ease-out;
+}
+.no3d #shopCard, .no3d #listBtn, .no3d #sheetClose { display: none; }
+.no3d #bizSheet { position: static; display: block !important; background: none; padding: 0; }
+.no3d #tab-biz { padding: 4px 12px 24px; }
+
+.shop-card .chip { padding: 6px 10px; font-size: 12px; flex: none; }

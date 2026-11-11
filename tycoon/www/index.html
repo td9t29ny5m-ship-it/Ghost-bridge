@@ -15,6 +15,7 @@
 </head>
 <body>
   <div id="app">
+    <canvas id="city" aria-label="Your city"></canvas>
     <header class="topbar">
       <div class="cash-box">
         <div id="cash" class="cash">$0</div>
@@ -28,12 +29,31 @@
     <div id="statusRow" class="status-row"></div>
 
     <main id="screens">
-      <section id="tab-biz" class="screen active" aria-label="Businesses">
-        <div class="toolbar">
-          <div id="globalMilestone" class="global-ms"></div>
-          <button id="buyMode" class="chip" type="button">Buy ×1</button>
+      <section id="tab-biz" class="screen active" aria-label="City">
+        <button id="listBtn" class="fab" type="button" aria-label="All shops">☰</button>
+        <div id="shopCard" class="shop-card">
+          <div class="sc-head">
+            <button id="scPrev" class="sc-nav" type="button" aria-label="Previous shop">◀</button>
+            <button id="scIcon" class="sc-icon" type="button" aria-label="Cook"><span id="scEmoji">🍜</span><span id="scLevel" class="biz-level">1</span></button>
+            <div class="sc-title"><div id="scName" class="biz-name"></div><div id="scTime" class="biz-time"></div></div>
+            <button id="buyMode" class="chip" type="button">Buy ×1</button>
+            <button id="scNext" class="sc-nav" type="button" aria-label="Next shop">▶</button>
+          </div>
+          <div class="bar" id="scBar"><div class="bar-fill" id="scFill"></div><div class="bar-text" id="scBarText"></div></div>
+          <div class="ms"><div id="scMs"></div></div>
+          <div id="scMsLabel" class="ms-label"></div>
+          <div class="sc-actions">
+            <button id="scHire" class="btn btn-purple" type="button" hidden></button>
+            <button id="scBuy" class="buy" type="button"><span id="scBuyN"></span><span id="scBuyC"></span></button>
+          </div>
         </div>
-        <div id="bizList" class="list"></div>
+        <div id="bizSheet" class="sheet" hidden>
+          <div class="toolbar" id="sheetBar">
+            <div id="globalMilestone" class="global-ms"></div>
+            <button id="sheetClose" class="chip" type="button">✕ Close</button>
+          </div>
+          <div id="bizList" class="list"></div>
+        </div>
       </section>
 
       <section id="tab-managers" class="screen" aria-label="Managers">
@@ -79,6 +99,7 @@
           <h3>⚙️ Settings</h3>
           <label class="toggle"><input type="checkbox" id="setSound"> Sound effects</label>
           <label class="toggle"><input type="checkbox" id="setHaptics"> Vibration</label>
+          <label class="toggle"><input type="checkbox" id="setLens"> Tilt-shift miniature lens</label>
           <button id="resetBtn" class="btn btn-ghost danger" type="button">Delete save &amp; restart</button>
           <p class="fine"><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a> · Yum Empire v<span id="ver"></span></p>
         </div>
@@ -86,7 +107,7 @@
     </main>
 
     <nav class="tabbar">
-      <button data-tab="biz" class="active" type="button"><span>🏪</span>Shops</button>
+      <button data-tab="biz" class="active" type="button"><span>🏙️</span>City</button>
       <button data-tab="managers" type="button"><span>🧑‍🍳</span>Managers<i class="badge" id="badge-managers"></i></button>
       <button data-tab="upgrades" type="button"><span>⚡</span>Upgrades<i class="badge" id="badge-upgrades"></i></button>
       <button data-tab="franchise" type="button"><span>⭐</span>Franchise<i class="badge" id="badge-franchise"></i></button>
@@ -107,8 +128,10 @@
     </div>
   </div>
 
+  <script src="vendor/three.min.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/platform.js"></script>
+  <script src="js/world.js"></script>
   <script src="js/game.js"></script>
 </body>
 </html>

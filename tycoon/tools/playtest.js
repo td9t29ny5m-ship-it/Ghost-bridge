@@ -9,8 +9,9 @@ const URL = process.argv[2] || 'http://localhost:8765/index.html';
 const SHOTS = process.argv[3] || '';
 
 (async () => {
-  const browser = await chromium.launch();
-  const ctx = await browser.newContext({ ...devices['iPhone 13'] });
+  // Software WebGL so the 3D city runs in headless Chromium
+  const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const ctx = await browser.newContext({ ...devices['iPhone 13'], deviceScaleFactor: 1 }); // 1× keeps software WebGL fast
   const errors = [];
   const watch = (p) => {
     p.on('pageerror', e => errors.push('pageerror: ' + e.message));
@@ -27,14 +28,40 @@ const SHOTS = process.argv[3] || '';
   await shot(page, '01-welcome');
   await page.click('#modalActions button');
 
-  // Cook by hand
-  for (let k = 0; k < 4; k++) { await page.click('.biz-icon'); await page.waitForTimeout(1100); }
+  // The 3D city is running
+  check(await page.evaluate(() => YumEmpire.use3d), '3D city started');
+  await page.waitForTimeout(4500); // opening camera sweep
+  const tapShop = async (i) => {
+    const p = await page.evaluate((k) => World.shopScreenPos(k), i);
+    check(!!p, 'shop ' + i + ' is on screen');
+    if (p) await page.mouse.click(p.x, p.y + 30);
+  };
+
+  // Serve customers by tapping the cart in the city (twice), then with the card button (twice)
+  for (let k = 0; k < 4; k++) {
+    if (k < 2) await tapShop(0); else await page.click('#scIcon');
+    await page.waitForTimeout(300);
+    await page.waitForFunction(() => !YumEmpire.state.biz[0].running, null, { timeout: 20000 }); // meal served
+  }
   const afterTaps = await page.evaluate(() => YumEmpire.state);
   check(afterTaps.cash > 0, 'tapping earns cash');
-  check(afterTaps.stats.taps === 4, 'taps counted');
+  check(afterTaps.stats.taps === 4, 'taps counted: ' + afterTaps.stats.taps);
+  check((await page.evaluate(() => World.debug.stats.people)) > 0, 'people walk the city');
   await shot(page, '02-tapped');
 
-  // Buy businesses
+  // Buy from the bottom card, then open a new shop by tapping its FOR SALE lot
+  await page.evaluate(() => { YumEmpire.state.cash = 200; });
+  await page.click('#scBuy');
+  check((await page.evaluate(() => YumEmpire.state.biz[0].level)) === 2, 'card buy button works');
+  await page.click('#scNext');
+  await page.waitForTimeout(1500);
+  await tapShop(1); // selected + for sale → buys it
+  await page.waitForTimeout(400);
+  check((await page.evaluate(() => YumEmpire.state.biz[1].level)) === 1, 'tapping a FOR SALE lot opens the shop');
+  await page.evaluate(() => { const s = YumEmpire.state; s.biz[0].level = 1; s.biz[1].level = 0; YumEmpire.sync(); });
+
+  // Buy businesses from the list panel
+  await page.click('#listBtn');
   await page.evaluate(() => { YumEmpire.state.cash = 5e6; });
   for (let k = 0; k < 3; k++) await page.click('#buyMode'); // "Next" milestone mode
   for (let k = 0; k < 3; k++) await page.click('.biz:nth-child(1) .buy');
@@ -43,6 +70,8 @@ const SHOTS = process.argv[3] || '';
   await page.click('.biz:nth-child(3) .buy');
   const lv = await page.evaluate(() => YumEmpire.state.biz.map(b => b.level));
   check(lv[0] === 100 && lv[1] === 50 && lv[2] === 25, 'buy modes work: ' + lv.join(','));
+  await page.click('#sheetClose');
+  check((await page.evaluate(() => World.debug.shops.slice(0, 4).map(s => s.tier).join(','))) === '2,1,1,-1', 'buildings grow with level');
 
   // Managers
   await page.click('[data-tab=managers]');
@@ -68,8 +97,15 @@ const SHOTS = process.argv[3] || '';
 
   // VIP customer
   const before = await page.evaluate(() => YumEmpire.state.stats.golden);
-  await page.evaluate(() => { const v = document.getElementById('vip'); v.hidden = false; v.style.left = '120px'; v.style.top = '300px'; });
-  await page.click('#vip', { force: true }); // it bobs constantly, so never "stable"
+  // The VIP is a golden visitor walking in the city: zoom out, find them, tap them
+  await page.evaluate(() => { World.debug.cam.g.dist = 200; World.debug.cam.g.tx = 0; World.debug.cam.g.tz = 0; });
+  await page.waitForTimeout(2500);
+  check(await page.evaluate(() => World.hasVip() || World.spawnVip(0)), 'VIP in town'); // the game may already have sent one
+  await page.evaluate(() => { const v = World.debug.vip; World.debug.cam.g.tx = v.x; World.debug.cam.g.tz = v.z; World.debug.cam.g.dist = 90; });
+  await page.waitForTimeout(2500);
+  const vp = await page.evaluate(() => World.vipScreenPos());
+  check(vp && vp.visible, 'VIP visible');
+  if (vp) await page.mouse.click(vp.x, vp.y);
   check((await page.evaluate(() => YumEmpire.state.stats.golden)) === before + 1, 'VIP served');
 
   // Franchise

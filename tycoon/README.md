@@ -1,15 +1,28 @@
 # 🍜 Yum Empire: Food Tycoon
 
-An idle tycoon game for **iOS (App Store)** and **Android (Google Play)**. Start with one noodle cart and grow a global food empire.
+A 3D idle tycoon game for **iOS (App Store)** and **Android (Google Play)**. You start with one tiny noodle cart in the middle of a miniature city, with only a trickle of customers, and grow it into a global food empire.
 
-The game is plain HTML/CSS/JS with no framework and no build step. [Capacitor](https://capacitorjs.com) wraps it as native iOS and Android apps.
+The game is plain HTML/CSS/JS with no framework and no build step. The city is drawn with [Three.js](https://threejs.org) (bundled in `www/vendor/`, MIT licence), and every model is generated in code, so there are no art files to manage. [Capacitor](https://capacitorjs.com) wraps it as native iOS and Android apps.
+
+## The 3D city
+
+| Feature | What it does |
+|---|---|
+| **Tilt-shift miniature look** | A steep telephoto camera, a sharp band across the middle of the screen with blurred top and bottom, saturated toy colours and long soft shadows. Players can switch the lens blur off in Settings. |
+| **Your shops are real buildings** | Each business has five stages: street stall → small shop → restaurant → big restaurant → flagship tower. The building is rebuilt with confetti when it reaches level 25, 100, 300 and 500. Each business has its own colours, sign and rooftop mascot. |
+| **Customers** | People walk the sidewalks and use the crosswalks. Some decide to visit your shop, queue at the door and leave with a take-away bag. A new stall gets a customer every few seconds; a famous restaurant has a constant line. |
+| **A city that grows with you** | The skyline rises, and more pedestrians and traffic appear, as you open shops and hit milestones. |
+| **Day and night** | A five-minute cycle. At night, windows, shop signs and street lamps light up. |
+| **Controls** | Drag to move, pinch to zoom, twist with two fingers to rotate (mouse: drag, wheel, right-drag). Tap a shop to serve its customer or select it. Tap a FOR SALE lot twice to buy it. |
+| **VIP visitor** | The VIP is a golden character with a light beam who walks through town. Tap them for the reward. |
+| **Performance** | The game lowers detail automatically (shadows first, then resolution) if a device runs it slowly. If a device has no WebGL at all, it falls back to a classic list view. |
 
 ## Gameplay
 
 | Feature | What it does |
 |---|---|
 | **10 businesses** | Noodle Cart → Dumpling Stand → Bubble Tea Bar → Taco Truck → Pizza Parlor → Sushi Lounge → Burger Chain → Food Court → Snack Factory → Global Cuisine. |
-| **Tap to cook** | Each business cooks one meal per tap until you hire its manager. |
+| **Tap to serve** | Tap a shop in the city to serve its customer. Each tap cooks one order until you hire that shop's manager. |
 | **Managers** | Run a business automatically, including while the app is closed. |
 | **Level milestones** | Levels 25/50/100/200/300/400/500 double speed. Levels 600–1000 quadruple profit. |
 | **Global milestones** | When every business reaches a milestone level, all profits double. |
@@ -36,6 +49,8 @@ tycoon/
 │   ├── index.html
 │   ├── css/style.css
 │   ├── js/engine.js      ← pure game logic (economy, saves, prestige) — no DOM
+│   ├── js/world.js       ← the 3D city: buildings, customers, cars, camera, tilt-shift lens
+│   ├── vendor/three.min.js ← Three.js r159 (MIT)
 │   ├── js/platform.js    ← storage, sound, haptics, ads, purchases (native or web fallback)
 │   ├── js/game.js        ← UI controller
 │   ├── privacy.html      ← privacy policy (host it publicly for the stores)
@@ -48,6 +63,8 @@ tycoon/
     ├── test-engine.js    ← unit tests (npm test)
     ├── simulate.js       ← balance simulator: a bot plays for N hours
     ├── playtest.js       ← end-to-end browser test (Playwright)
+    ├── shot3d.js         ← quick screenshots of the city at different stages
+    ├── screenshots.js    ← store screenshots at App Store / Play sizes
     ├── render-icons.js   ← renders icon.svg → PNGs
     └── configure-native.js ← AdMob IDs, portrait lock, iOS privacy keys
 ```

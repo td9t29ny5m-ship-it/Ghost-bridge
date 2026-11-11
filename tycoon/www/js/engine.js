@@ -18,7 +18,7 @@
   const FRENZY_MULT = 7;
 
   const BUSINESSES = [
-    { id: 'cart',     name: 'Noodle Cart',     emoji: '🍜', baseCost: 5,      growth: 1.07, baseRevenue: 1.5,  time: 1 },
+    { id: 'cart',     name: 'Noodle Cart',     emoji: '🍜', baseCost: 5,      growth: 1.07, baseRevenue: 3,    time: 2 },
     { id: 'dumpling', name: 'Dumpling Stand',  emoji: '🥟', baseCost: 75,     growth: 1.15, baseRevenue: 40,   time: 3 },
     { id: 'tea',      name: 'Bubble Tea Bar',  emoji: '🧋', baseCost: 900,    growth: 1.14, baseRevenue: 400,  time: 6 },
     { id: 'taco',     name: 'Taco Truck',      emoji: '🌮', baseCost: 11000,  growth: 1.13, baseRevenue: 3600, time: 12 },
@@ -150,7 +150,7 @@
       createdAt: now,
       daily: { last: '', streak: 0 },
       stats: { taps: 0, golden: 0, playTime: 0, bestRun: 0 },
-      settings: { sound: true, haptics: true, buyMode: 0 },
+      settings: { sound: true, haptics: true, buyMode: 0, lens: true },
       tutorial: 0,
     };
   }
@@ -192,6 +192,7 @@
       s.settings.sound = raw.settings.sound !== false;
       s.settings.haptics = raw.settings.haptics !== false;
       s.settings.buyMode = num(raw.settings.buyMode, 0);
+      s.settings.lens = raw.settings.lens !== false;
     }
     s.tutorial = num(raw.tutorial, 0);
     return s;

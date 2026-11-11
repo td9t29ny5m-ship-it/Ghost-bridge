@@ -21,7 +21,7 @@ test('tapping cooks one meal, then stops', () => {
   const s = E.newState(T0);
   assert.equal(E.tap(s, 0), true);
   assert.equal(E.tap(s, 0), false, 'cannot tap while cooking');
-  E.tick(s, 1.01, T0);
+  E.tick(s, E.BUSINESSES[0].time + 0.01, T0);
   assert.equal(s.cash, E.BUSINESSES[0].baseRevenue);
   assert.equal(s.biz[0].running, false);
   E.tick(s, 5, T0);
@@ -33,7 +33,7 @@ test('managers earn every cycle, including multiple cycles in one tick', () => {
   s.cash = 1e6;
   assert.ok(E.hireManager(s, 0));
   const before = s.cash;
-  E.tick(s, 10.5, T0);
+  E.tick(s, 10.5 * E.BUSINESSES[0].time, T0);
   assert.equal(s.cash - before, 10 * E.BUSINESSES[0].baseRevenue);
   assert.ok(Math.abs(s.biz[0].progress - 0.5) < 1e-9);
 });

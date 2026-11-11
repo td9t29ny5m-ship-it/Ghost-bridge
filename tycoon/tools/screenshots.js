@@ -20,10 +20,10 @@ const TARGETS = [
 // A mid-game save so the screenshots look exciting.
 function demoSave() {
   const now = Date.now();
-  const levels = [325, 210, 180, 150, 120, 100, 75, 50, 25, 0];
+  const levels = [520, 330, 310, 210, 150, 120, 100, 60, 30, 25];
   return {
     cash: 8.4e12, runEarnings: 2e13, lifetime: 6e13, stars: 48, prestiges: 1,
-    biz: levels.map((level, i) => ({ level, progress: 0.15 * (i % 6), running: i < 9, manager: i < 8 })),
+    biz: levels.map((level, i) => ({ level, progress: 0.15 * (i % 6), running: true, manager: true })),
     upgrades: { b0u0: true, b1u0: true, b2u0: true, b3u0: true, g0: true, b0u1: true },
     achievements: Object.fromEntries(['earn_1000', 'earn_1000000', 'earn_1000000000', 'earn_1000000000000', 'lvl_cart_25', 'lvl_cart_100',
       'lvl_cart_250', 'lvl_dumpling_25', 'lvl_dumpling_100', 'lvl_tea_25', 'lvl_tea_100', 'lvl_taco_25', 'lvl_taco_100', 'prestige_1',
@@ -35,16 +35,17 @@ function demoSave() {
   };
 }
 
+// cam: [target x, target z, distance]; time: time of day (0.2 = morning, 0.75 = night)
 const SCENES = [
-  { name: '1-shops', tab: 'biz' },
-  { name: '2-vip', tab: 'biz', vip: true },
-  { name: '3-upgrades', tab: 'upgrades' },
-  { name: '4-franchise', tab: 'franchise' },
-  { name: '5-welcome-back', tab: 'biz', offline: true },
+  { name: '1-city', tab: 'biz', cam: [0, 4, 150], time: 0.2 },
+  { name: '2-shop', tab: 'biz', cam: [0, 3, 84], time: 0.3 },
+  { name: '3-night', tab: 'biz', cam: [6, 10, 170], time: 0.75 },
+  { name: '4-upgrades', tab: 'upgrades' },
+  { name: '5-franchise', tab: 'franchise' },
 ];
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   for (const t of TARGETS) {
     fs.mkdirSync(path.join(OUT, t.dir), { recursive: true });
     for (const scene of SCENES) {
@@ -60,14 +61,16 @@ const SCENES = [
       await page.waitForTimeout(600);
       if (!scene.offline && await page.isVisible('#modal')) await page.click('#modalActions button:last-child');
       await page.evaluate(tab => window.YumEmpire.showTab(tab), scene.tab);
-      if (scene.vip) {
-        await page.evaluate(() => {
-          const v = document.getElementById('vip');
-          v.hidden = false; v.style.left = '58%'; v.style.top = '46%';
-          window.YumEmpire.state.frenzyUntil = Date.now() + 24000;
-        });
-      }
-      await page.waitForTimeout(1300);
+      if (scene.cam) {
+        await page.evaluate((sc) => {
+          World.setQuality(0);
+          World.setQuality = () => {};   // software WebGL is slow; keep full detail anyway
+          World.debug.setTime(sc.time);
+          const c = World.debug.cam;
+          c.g.tx = c.tx = sc.cam[0]; c.g.tz = c.tz = sc.cam[1]; c.g.dist = c.dist = sc.cam[2];
+        }, scene);
+        await page.waitForTimeout(16000);  // let customers and traffic fill the streets
+      } else await page.waitForTimeout(1300);
       await page.evaluate(() => { document.getElementById('toasts').innerHTML = ''; });
       await page.screenshot({ path: path.join(OUT, t.dir, scene.name + '.png') });
       await ctx.close();

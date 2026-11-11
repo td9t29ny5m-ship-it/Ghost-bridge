@@ -17,6 +17,11 @@
   let vipHideTimer = null;
   let prices = {};
   let ready = false;
+  const W3 = window.World;     // 3D city (may be unavailable on very old devices)
+  let use3d = false;
+  let sel = 0;                 // business shown in the bottom card
+  let sheetOpen = false;       // "all shops" list
+  let slowFrames = 0, fastFrames = 0;
 
   // ---------- Helpers ----------
   function setText(el, txt) { if (el && el.textContent !== txt) el.textContent = txt; }
@@ -155,9 +160,11 @@
     const n = E.buy(state, i, state.settings.buyMode);
     if (!n) { feedback('error'); return; }
     const after = E.milestoneInfo(state.biz[i].level);
+    if (use3d) W3.pulse(i);
     if (!wasOwned) {
       feedback('milestone', true);
       toast(`${E.BUSINESSES[i].emoji} <b>${esc(E.BUSINESSES[i].name)}</b> is open for business!`);
+      if (use3d) { W3.sync(state); selectShop(i, true); W3.burst(...shopWorldPos(i), 36); }
     } else if (after.reached > before) {
       feedback('milestone', true);
       const m = E.MILESTONES[after.reached - 1];
@@ -166,7 +173,80 @@
     onStateChanged();
   }
 
+  // ---------- Selected shop card (3D city view) ----------
+  function visibleMax() {
+    const firstUnowned = state.biz.findIndex(b => b.level === 0);
+    return firstUnowned === -1 ? E.BUSINESSES.length - 1 : firstUnowned;
+  }
+  function shopWorldPos(i) {
+    const s = W3.debug.shops[i];
+    return [s.cx, s.h + 1.5, s.cz + 3];
+  }
+  function selectShop(i, focus) {
+    sel = Math.max(0, Math.min(visibleMax(), i));
+    if (use3d && focus) W3.focusShop(sel);
+    updateShopCard(now());
+  }
+  function updateShopCard(t) {
+    if (!use3d) return;
+    const max = visibleMax();
+    if (sel > max) sel = max;
+    const i = sel, b = state.biz[i], def = E.BUSINESSES[i], owned = b.level > 0;
+    setText($('scEmoji'), def.emoji);
+    setText($('scLevel'), owned ? String(b.level) : '🔒');
+    setText($('scName'), def.name + (b.manager ? ' 🧑‍🍳' : ''));
+    const ct = E.cycleTime(state, i);
+    const fast = owned && ct < 0.2 && b.running;
+    const idle = owned && !b.running && !b.manager;
+    toggle($('scBar'), 'fast', fast);
+    toggle($('scIcon'), 'idle', idle);
+    if (!owned) {
+      $('scFill').style.transform = 'scaleX(0)';
+      setText($('scBarText'), 'For sale');
+      setText($('scTime'), 'Buy this lot to open');
+    } else {
+      const rev = E.revenuePerCycle(state, i, t);
+      if (fast) setText($('scBarText'), money(rev / ct) + ' /s');
+      else {
+        $('scFill').style.transform = `scaleX(${Math.min(1, b.progress)})`;
+        setText($('scBarText'), money(rev));
+      }
+      setText($('scTime'), idle ? '👆 Tap the shop to serve' : fast ? '⚡ Max speed' : E.formatTime((1 - b.progress) * ct));
+    }
+    const ms = E.milestoneInfo(b.level);
+    $('scMs').style.width = ms.next ? ((b.level - ms.prev) / (ms.next - ms.prev) * 100).toFixed(1) + '%' : '100%';
+    setText($('scMsLabel'), ms.next ? `Level ${ms.next}: ${ms.nextReward}` : 'All milestones reached!');
+    const n = E.buyAmount(state, i, state.settings.buyMode);
+    const cost = E.costFor(i, b.level, n);
+    setText($('scBuyN'), owned ? `Buy ×${n}` : `Open ${def.emoji}`);
+    setText($('scBuyC'), money(cost));
+    const can = cost <= state.cash;
+    if ($('scBuy').disabled === can) $('scBuy').disabled = !can;
+    const hire = $('scHire');
+    const showHire = owned && !b.manager;
+    if (hire.hidden === showHire) hire.hidden = !showHire;
+    if (showHire) {
+      setText(hire, `🧑‍🍳 Hire ${money(def.managerCost)}`);
+      const canHire = state.cash >= def.managerCost;
+      if (hire.disabled === canHire) hire.disabled = !canHire;
+    }
+    if ($('scPrev').disabled !== (i <= 0)) $('scPrev').disabled = i <= 0;
+    if ($('scNext').disabled !== (i >= max)) $('scNext').disabled = i >= max;
+  }
+  function setSheet(open) {
+    sheetOpen = open;
+    $('bizSheet').hidden = !open && use3d;
+    // The buy-amount chip lives wherever the player is buying from
+    if (use3d) {
+      if (open) $('sheetBar').insertBefore($('buyMode'), $('sheetClose'));
+      else $('scNext').parentNode.insertBefore($('buyMode'), $('scNext'));
+    }
+    if (open) updateBusinesses(now());
+  }
+
   function updateBusinesses(t) {
+    updateShopCard(t);
+    if (use3d && !sheetOpen) return;
     const firstUnowned = state.biz.findIndex(b => b.level === 0);
     const showUpTo = firstUnowned === -1 ? E.BUSINESSES.length - 1 : firstUnowned;
     for (let i = 0; i < cards.length; i++) {
@@ -314,6 +394,7 @@
           save();
           onStateChanged();
           showTab('biz');
+          if (use3d) { setSheet(false); selectShop(0, true); W3.intro(); }
           toast(`⭐ +${E.formatNumber(gain)} Golden Stars! A fresh start awaits.`, 3500);
         } },
         { label: 'Not yet', cls: 'btn-ghost' },
@@ -381,6 +462,8 @@
     renderStats();
     $('setSound').checked = state.settings.sound;
     $('setHaptics').checked = state.settings.haptics;
+    document.getElementById('setLens').checked = state.settings.lens !== false;
+    document.getElementById('setLens').closest('label').hidden = !use3d;
   }
 
   function renderStats() {
@@ -438,7 +521,7 @@
 
   function tutorialTip() {
     if (state.prestiges > 0) return '';
-    if (state.stats.taps === 0) return '👆 Tap the noodle bowl to cook!';
+    if (state.stats.taps === 0) return use3d ? '👆 Tap your noodle cart to serve customers!' : '👆 Tap the noodle bowl to cook!';
     const anyMgr = state.biz.some(b => b.manager);
     if (!anyMgr) {
       if (state.cash >= E.BUSINESSES[0].managerCost) return '🧑‍🍳 Hire a manager in the Managers tab!';
@@ -474,6 +557,13 @@
   }
   function spawnVip() {
     if (document.hidden || modalOpen || state.biz[0].level === 0) { scheduleVip(); return; }
+    if (use3d) {
+      // In the city the VIP is a golden visitor walking near your shop — tap them!
+      if (activeTab !== 'biz' || sheetOpen || !W3.spawnVip(sel)) { scheduleVip(); return; }
+      toast('🤩 A <b>VIP</b> is in town — find the golden visitor and tap them!', 3500);
+      P.Sound.play('vip');
+      return;
+    }
     const vip = $('vip');
     const box = $('screens').getBoundingClientRect();
     const app = $('app').getBoundingClientRect();
@@ -490,6 +580,10 @@
     if (vip.hidden) return;
     vip.hidden = true;
     clearTimeout(vipHideTimer);
+    claimVip(ev.clientX, ev.clientY);
+  }
+  function claimVip(x, y) {
+    const ev = { clientX: x, clientY: y };
     P.Sound.unlock();
     const r = E.vipReward(state, now());
     feedback('vip', true);
@@ -543,10 +637,34 @@
   // ---------- Main loop ----------
   function onStateChanged() {
     const t = now();
+    if (use3d) W3.sync(state);
     updateBusinesses(t);
     updateTopbar(t);
     updateBadges();
     if (activeTab === 'franchise') updateFranchise();
+  }
+
+  // The city view: tap a shop to serve its customer, or to select it.
+  function onPickShop(i) {
+    P.Sound.unlock();
+    if (i > visibleMax()) { toast('🔒 Open your other shops first to unlock this lot.'); feedback('error'); return; }
+    const b = state.biz[i];
+    if (b.level > 0 && !b.manager && !b.running) {
+      if (E.tap(state, i)) feedback('tap');
+      if (sel !== i) selectShop(i, false);
+      return;
+    }
+    if (sel === i && b.level === 0) { onBuy(i); return; }
+    feedback('tap');
+    selectShop(i, true);
+  }
+
+  // Drop detail automatically if the device struggles, so the game stays smooth.
+  function watchPerformance(rawDt) {
+    if (rawDt > 0.045) slowFrames++; else fastFrames++;
+    if (slowFrames + fastFrames < 150) return;
+    if (slowFrames > 90 && W3.getQuality() < 2) W3.setQuality(W3.getQuality() + 1);
+    slowFrames = fastFrames = 0;
   }
 
   function frame(ts) {
@@ -556,11 +674,26 @@
     // Large gaps (app was backgrounded) are paid out as offline earnings instead.
     if (t - state.lastSeen > 5000) handleAway();
     state.lastSeen = t;
-    const dt = Math.min(0.25, Math.max(0, (ts - lastFrame) / 1000));
+    const rawDt = (ts - lastFrame) / 1000;
+    const dt = Math.min(0.25, Math.max(0, rawDt));
     lastFrame = ts;
     const earned = E.tick(state, dt, t);
 
-    if (activeTab === 'biz') {
+    if (use3d && activeTab === 'biz') {
+      // Floating "+$" over each shop in the city
+      if (!sheetOpen) for (let i = 0; i < earned.length; i++) {
+        if (earned[i] <= 0) continue;
+        const ct = E.cycleTime(state, i);
+        if (ct < 0.5) continue;
+        const p = W3.shopScreenPos(i);
+        if (p) floater('+' + money(earned[i]), p.x, p.y);
+        if (!state.biz[i].manager || ct >= 3) P.Sound.play('coin');
+      }
+      W3.update(dt, state, earned, t);
+      W3.render();
+      watchPerformance(rawDt);
+      updateBusinesses(t);
+    } else if (activeTab === 'biz') {
       for (let i = 0; i < earned.length; i++) {
         if (earned[i] <= 0) continue;
         const ct = E.cycleTime(state, i);
@@ -622,11 +755,29 @@
           save();
           onStateChanged();
           showTab('biz');
+          if (use3d) { setSheet(false); selectShop(0, true); W3.intro(); }
         } },
         { label: 'Cancel' },
       ],
     }));
     setText($('ver'), P.CONFIG.version);
+
+    // Shop card + list panel (3D city view)
+    $('scPrev').addEventListener('click', () => { feedback('tap'); selectShop(sel - 1, true); });
+    $('scNext').addEventListener('click', () => { feedback('tap'); selectShop(sel + 1, true); });
+    $('scIcon').addEventListener('click', (ev) => { onTapBiz(sel, ev); if (use3d) W3.focusShop(sel); });
+    $('scBuy').addEventListener('click', () => onBuy(sel));
+    $('scHire').addEventListener('click', () => {
+      const def = E.BUSINESSES[sel];
+      if (E.hireManager(state, sel)) {
+        feedback('milestone', true);
+        toast(`🧑‍🍳 ${esc(def.managerName)} now runs your ${esc(def.name)}!`);
+        onStateChanged();
+      } else feedback('error');
+    });
+    $('listBtn').addEventListener('click', () => { feedback('tap'); setSheet(true); });
+    $('sheetClose').addEventListener('click', () => { feedback('tap'); setSheet(false); });
+    $('setLens').addEventListener('change', (e) => { state.settings.lens = e.target.checked; if (use3d) W3.setLens(state.settings.lens); save(); });
 
     P.Lifecycle.onPause(save);
     P.Lifecycle.onResume(() => { lastFrame = performance.now(); });
@@ -647,7 +798,20 @@
     P.Sound.enabled = state.settings.sound;
     P.Haptics.enabled = state.settings.haptics;
     buildBusinesses();
+    // Start the 3D city. If the device can't do WebGL, fall back to the classic list view.
+    try { use3d = !!(W3 && W3.init && W3.init($('city'), { onPickShop, onPickVip: (x, y) => claimVip(x, y), onVipGone: () => scheduleVip() })); }
+    catch (e) { console.warn('3D city unavailable', e); use3d = false; }
+    document.body.classList.add(use3d ? 'has3d' : 'no3d');
+    if (!use3d) $('sheetBar').appendChild($('buyMode'));
     wire();
+    if (use3d) {
+      W3.setLens(state.settings.lens);
+      W3.sync(state, true);
+      sel = 0;
+      W3.focusShop(sel, true);
+      if (isNew) W3.intro();
+    }
+    setSheet(false);
     onStateChanged();
     ready = true;
     lastFrame = performance.now();
@@ -655,7 +819,7 @@
     if (isNew) {
       modal({
         icon: '🍜', title: 'Welcome to Yum Empire!',
-        body: '<p>You own one humble noodle cart. Cook meals, buy more shops, hire managers and grow a <b>global food empire</b>!</p>',
+        body: '<p>You own one tiny noodle cart in the middle of the city. Serve customers, buy more shops, hire managers and grow a <b>global food empire</b>!</p><p>Drag to move around · pinch to zoom · twist to rotate</p>',
         actions: [{ label: "Let's cook!", cls: 'btn-gold', onClick: () => { P.Sound.unlock(); } }],
       });
     } else {
@@ -679,7 +843,7 @@
   }
 
   // Exposed for automated tests / debugging.
-  window.YumEmpire = { get state() { return state; }, save, showTab };
+  window.YumEmpire = { get state() { return state; }, save, showTab, selectShop, setSheet, get use3d() { return use3d; }, sync: () => onStateChanged() };
 
   boot();
 })();
