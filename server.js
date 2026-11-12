@@ -1,181 +1,229 @@
-// Ghost Bridge: a small website (mobile friendly) that runs the ghost proxy for you.
-// You enter a server IP/port, and a world named "Ghost Proxy" appears in your console's Friends list.
+'use strict'
+// Ghost Bridge (paid edition): every paying customer gets a license key, their own relay slot,
+// their own Xbox host account and their own schematics. Payments run through Stripe Checkout;
+// a key is issued automatically the moment the payment completes.
 const express = require('express')
 const crypto = require('crypto')
-const dns = require('dns')
-const net = require('net')
-const os = require('os')
 const fs = require('fs')
 const path = require('path')
-const bedrock = require('bedrock-protocol')
-const { Authflow, Titles } = require('prismarine-auth')
-const { createGhost } = require('./ghost')
+const { Store } = require('./lib/store')
+const { stripe } = require('./lib/stripe')
+const { Bridge } = require('./lib/bridge')
 
 const WEB_PORT = +process.env.PORT || 3000
-const RELAY_PORT = +process.env.RELAY_PORT || 19134
-const PUBLIC_PORT = +process.env.PUBLIC_PORT || RELAY_PORT // the port players use from outside (differs when you use a tunnel)
+const [PORT_LO, PORT_HI] = String(process.env.RELAY_PORTS || '19134-19143').split('-').map(Number)
+const IDLE_MS = (+process.env.IDLE_MINUTES || 30) * 60000
+const STRIPE_KEY = process.env.STRIPE_SECRET_KEY || ''
 const DATA = path.join(__dirname, 'data')
-const SCHEM_DIR = path.join(__dirname, 'schematics')
-for (const d of [DATA, SCHEM_DIR, path.join(DATA, 'profiles'), path.join(DATA, 'host-auth')]) fs.mkdirSync(d, { recursive: true })
+fs.mkdirSync(path.join(DATA, 'users'), { recursive: true, mode: 0o700 })
 
 let ADMIN = process.env.ADMIN_PASSWORD
-if (!ADMIN) { ADMIN = crypto.randomBytes(5).toString('hex'); console.log(`\n  No ADMIN_PASSWORD set. Temporary password: ${ADMIN}\n`) }
+if (!ADMIN) { ADMIN = crypto.randomBytes(5).toString('hex'); console.log(`\n  No ADMIN_PASSWORD set. Temporary admin password: ${ADMIN}\n`) }
 
-// ---------- state shown on the website ----------
-const H = { status: 'signed_out', code: null, uri: null, gamertag: null, error: null } // Xbox host account
-const B = { status: 'stopped', host: null, port: null, since: null, error: null, portal: 'off', portalError: null, publicHost: null, publicPort: PUBLIC_PORT }
-const logs = []; const feed = []
-let playerCode = null
-const addLog = m => { logs.push({ t: Date.now(), m: String(m) }); if (logs.length > 200) logs.shift(); console.log('[bridge]', m) }
-const addFeed = m => { feed.push({ t: Date.now(), m }); if (feed.length > 80) feed.shift() }
+// Payment link + billing portal ids written by `npm run setup-stripe`.
+const stripeCfg = () => { try { return JSON.parse(fs.readFileSync(path.join(DATA, 'stripe.json'), 'utf8')) } catch { return {} } }
+const BUY_URL = () => process.env.BUY_URL || stripeCfg().paymentLinkUrl || ''
+const PRICE = process.env.PRICE_TEXT || stripeCfg().priceText || '$4.99 / month'
 
-// ---------- Xbox host account (the account whose "world" shows up in your Friends list) ----------
-let authflow = null
-function getAuthflow () {
-  if (!authflow) {
-    authflow = new Authflow('host', path.join(DATA, 'host-auth'),
-      { flow: 'live', authTitle: Titles.MinecraftNintendoSwitch, deviceType: 'Nintendo' },
-      code => { H.status = 'signing_in'; H.code = code.user_code; H.uri = code.verification_uri; addLog('Xbox host sign-in code: ' + code.user_code) })
+const store = new Store(path.join(DATA, 'licenses.json'))
+
+// ---------- relay port pool: one UDP port per running customer ----------
+const usedPorts = new Map()
+const ports = {
+  alloc (id) { for (let p = PORT_LO; p <= PORT_HI; p++) if (!usedPorts.has(p)) { usedPorts.set(p, id); return p } return null },
+  free (p) { usedPorts.delete(p) }
+}
+const slotsTotal = PORT_HI - PORT_LO + 1
+
+const bridges = new Map()
+function bridgeFor (lic) {
+  if (!bridges.has(lic.id)) bridges.set(lic.id, new Bridge({ id: lic.id, dir: path.join(DATA, 'users', lic.id), ports }))
+  return bridges.get(lic.id)
+}
+
+// ---------- license checks ----------
+const GOOD_SUB = new Set(['active', 'trialing', 'past_due'])
+async function isActive (lic) {
+  if (!lic || lic.revoked) return false
+  if (lic.expiresAt && Date.now() > lic.expiresAt) return false
+  const s = lic.stripe
+  if (s && s.subscriptionId) {
+    if (STRIPE_KEY && Date.now() - (s.checkedAt || 0) > 3 * 3600e3) {
+      try {
+        const sub = await stripe(STRIPE_KEY, 'GET', '/v1/subscriptions/' + s.subscriptionId)
+        store.update(lic.id, { stripe: { ...s, status: sub.status, checkedAt: Date.now() } })
+      } catch (e) { console.log('Subscription check failed (keeping last status):', e.message) }
+    }
+    return GOOD_SUB.has(lic.stripe.status)
   }
-  return authflow
+  return true
 }
-async function fetchGamertag (x) {
-  const r = await fetch('https://profile.xboxlive.com/users/me/profile/settings?settings=Gamertag', {
-    headers: { Authorization: `XBL3.0 x=${x.userHash};${x.XSTSToken}`, 'x-xbl-contract-version': '3', Accept: 'application/json' }
-  })
-  const j = await r.json()
-  return j.profileUsers[0].settings[0].value
-}
-let hostLoginRunning = false
-async function hostLogin () {
-  if (hostLoginRunning) return
-  hostLoginRunning = true; H.status = 'signing_in'; H.error = null
-  try {
-    const x = await getAuthflow().getXboxToken()
-    H.status = 'ready'; H.code = null; H.uri = null
-    H.gamertag = await fetchGamertag(x).catch(() => null)
-    addLog('Xbox host account signed in' + (H.gamertag ? ': ' + H.gamertag : ''))
-  } catch (e) { H.status = 'error'; H.error = e.message; addLog('Host sign-in failed: ' + e.message) }
-  hostLoginRunning = false
-}
-if (fs.readdirSync(path.join(DATA, 'host-auth')).length) hostLogin() // cached tokens: sign in silently
-
-// ---------- destination safety (don't let this become an open proxy into private networks) ----------
-const PRIVATE = new net.BlockList()
-for (const [a, p] of [['10.0.0.0', 8], ['172.16.0.0', 12], ['192.168.0.0', 16], ['127.0.0.0', 8], ['169.254.0.0', 16], ['100.64.0.0', 10], ['0.0.0.0', 8]]) PRIVATE.addSubnet(a, p, 'ipv4')
-PRIVATE.addSubnet('fc00::', 7, 'ipv6'); PRIVATE.addSubnet('fe80::', 10, 'ipv6'); PRIVATE.addAddress('::1', 'ipv6')
-async function checkDest (host, port) {
-  if (!/^[a-z0-9.-]{1,253}$/i.test(host)) throw new Error('That does not look like a valid server address.')
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Port must be between 1 and 65535.')
-  const addrs = await dns.promises.lookup(host, { all: true }).catch(() => { throw new Error("Couldn't find that server address.") })
-  if (!process.env.ALLOW_PRIVATE && addrs.some(a => PRIVATE.check(a.address, a.family === 6 ? 'ipv6' : 'ipv4'))) throw new Error('Private/local addresses are blocked (set ALLOW_PRIVATE=1 to allow).')
-}
-async function detectPublicHost (req) {
-  if (process.env.PUBLIC_HOST) return process.env.PUBLIC_HOST
-  try { const r = await fetch('https://api.ipify.org', { signal: AbortSignal.timeout(4000) }); const t = (await r.text()).trim(); if (net.isIP(t)) return t } catch {}
-  return req.hostname
-}
-
-// ---------- the bridge: relay + Friends-list session ----------
-let ghost = null; let relay = null; let portal = null
-async function stopBridge () {
-  try { if (portal) await portal.end() } catch {}
-  try { if (relay) relay.close() } catch {}
-  portal = null; relay = null; ghost = null; playerCode = null
-  Object.assign(B, { status: 'stopped', host: null, port: null, since: null, error: null, portal: 'off', portalError: null })
-}
-async function startBridge (host, port, req) {
-  await checkDest(host, port)
-  await stopBridge()
-  B.status = 'starting'; B.host = host; B.port = port; B.error = null
-  try {
-    ghost = createGhost({ stateKey: `${host}:${port}`, schemDir: SCHEM_DIR, stateFile: path.join(DATA, 'state.json'), onSay: addFeed, log: addLog })
-    relay = new bedrock.Relay({
-      version: ghost.version, host: '0.0.0.0', port: RELAY_PORT, destination: { host, port },
-      profilesFolder: path.join(DATA, 'profiles'), motd: { motd: 'Ghost Proxy', levelName: host },
-      onMsaCode: (code, ds) => { // first join: the player signs in once so the server sees their own account
-        playerCode = { code: code.user_code, uri: code.verification_uri, at: Date.now() }
-        addLog(`Player sign-in needed: ${code.user_code}`)
-        ds.disconnect("First time here! Sign in at microsoft.com/link with code " + code.user_code + ", then rejoin.")
-      }
-    })
-    ghost.attach(relay)
-    relay.on('join', ds => { playerCode = null; addLog(`${(ds.profile && ds.profile.name) || 'A player'} joined ${host}:${port}`) })
-    relay.on('error', e => addLog('Relay error: ' + (e && e.message)))
-    await Promise.resolve(relay.listen())
-    B.status = 'running'; B.since = Date.now()
-    addLog(`Relay up on UDP ${RELAY_PORT} -> ${host}:${port} (Minecraft ${ghost.version})`)
-  } catch (e) { B.status = 'error'; B.error = e.message; addLog('Relay failed: ' + e.message); return }
-
-  B.publicHost = await detectPublicHost(req)
-  B.portal = 'starting'; B.portalError = null
-  try {
-    if (H.status !== 'ready') { B.portal = 'off'; addLog('Friends-list world not started (host account not signed in). Add Server and LAN methods still work.'); return }
-    const { BedrockPortal, Joinability, Modules } = require('bedrock-portal')
-    portal = new BedrockPortal({
-      ip: B.publicHost, port: PUBLIC_PORT, joinability: Joinability.FriendsOfFriends, host: getAuthflow(),
-      world: { hostName: 'Ghost Proxy', name: host, version: ghost.version, memberCount: 0, maxMemberCount: 10 }
-    })
-    portal.use(Modules.AutoFriendAdd, { inviteOnAdd: true })
-    await portal.start()
-    B.portal = 'on'; addLog(`Friends-list world "Ghost Proxy" is live (points at ${B.publicHost}:${PUBLIC_PORT})`)
-  } catch (e) { B.portal = 'error'; B.portalError = e.message; addLog('Friends-list session failed: ' + e.message) }
+function whyInactive (lic) {
+  if (lic.revoked) return 'This key has been disabled.'
+  if (lic.expiresAt && Date.now() > lic.expiresAt) return 'This key has expired.'
+  return 'Your subscription is not active. Renew to keep using Ghost Bridge.'
 }
 
 // ---------- web server ----------
 const app = express()
 app.disable('x-powered-by')
-const tokens = new Set(); const attempts = new Map()
-app.post('/api/login', express.json(), (req, res) => {
-  const ip = req.ip; const a = attempts.get(ip) || { n: 0, until: 0 }
-  if (Date.now() < a.until) return res.status(429).json({ error: 'Too many tries. Wait a minute.' })
-  const given = Buffer.from(String((req.body && req.body.password) || '')); const real = Buffer.from(ADMIN)
-  const ok = given.length === real.length && crypto.timingSafeEqual(given, real)
-  if (!ok) { a.n++; if (a.n >= 5) { a.n = 0; a.until = Date.now() + 60000 } attempts.set(ip, a); return res.status(401).json({ error: 'Wrong password.' }) }
-  attempts.delete(ip)
-  const t = crypto.randomBytes(24).toString('hex'); tokens.add(t); res.json({ token: t })
-})
-const auth = (req, res, next) => {
-  const t = (req.headers.authorization || '').replace(/^Bearer /, '')
-  return tokens.has(t) ? next() : res.status(401).json({ error: 'Not signed in.' })
+app.set('trust proxy', 'loopback') // behind Caddy on the same machine
+app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }))
+
+const sessions = new Map() // token -> { licId } | { admin: true }
+const newToken = v => { const t = crypto.randomBytes(24).toString('hex'); sessions.set(t, { ...v, at: Date.now() }); return t }
+const attempts = new Map()
+function limited (req, res) {
+  const a = attempts.get(req.ip) || { n: 0, until: 0 }
+  if (Date.now() < a.until) { res.status(429).json({ error: 'Too many tries. Wait a minute.' }); return true }
+  return false
 }
-app.use(express.static(path.join(__dirname, 'public')))
+function failed (req) {
+  const a = attempts.get(req.ip) || { n: 0, until: 0 }
+  a.n++; if (a.n >= 6) { a.n = 0; a.until = Date.now() + 60000 }
+  attempts.set(req.ip, a)
+}
+const tokenOf = req => (req.headers.authorization || '').replace(/^Bearer /, '')
 
-const FILE_RE = /^[\w .()-]{1,80}\.(litematic|schem|schematic)$/i
-const localIps = Object.values(os.networkInterfaces()).flat().filter(i => i && i.family === 'IPv4' && !i.internal).map(i => i.address)
-const list = () => fs.readdirSync(SCHEM_DIR).filter(f => FILE_RE.test(f)).map(f => ({ name: f, size: fs.statSync(path.join(SCHEM_DIR, f)).size }))
+const user = async (req, res, next) => {
+  const s = sessions.get(tokenOf(req))
+  const lic = s && s.licId && store.get(s.licId)
+  if (!lic) return res.status(401).json({ error: 'Not signed in.' })
+  if (!(await isActive(lic))) {
+    const b = bridges.get(lic.id); if (b) b.stop('license inactive')
+    return res.status(402).json({ error: whyInactive(lic), renew: BUY_URL() })
+  }
+  req.lic = lic; req.bridge = bridgeFor(lic); next()
+}
+const admin = (req, res, next) => {
+  const s = sessions.get(tokenOf(req))
+  return s && s.admin ? next() : res.status(401).json({ error: 'Not signed in.' })
+}
 
-app.get('/api/state', auth, (req, res) => {
-  const cur = ghost && ghost.current()
-  res.json({ host: H, bridge: B, relayPort: RELAY_PORT, localIps, version: ghost ? ghost.version : require('./ghost').defaultVersion(), playerCode,
-    player: cur ? cur.status() : null, files: list(), feed: feed.slice(-30), logs: logs.slice(-40) })
+const wrap = fn => (req, res) => Promise.resolve(fn(req, res)).catch(e => res.status(400).json({ error: e.message }))
+
+// --- public ---
+app.get('/api/public', (req, res) => {
+  res.json({ price: PRICE, buyUrl: BUY_URL(), slotsTotal, slotsFree: slotsTotal - usedPorts.size, contact: process.env.CONTACT || '' })
 })
-app.post('/api/host/login', auth, (req, res) => { hostLogin(); res.json({ ok: true }) })
-app.post('/api/connect', auth, express.json(), async (req, res) => {
+
+app.post('/api/login', express.json(), wrap(async (req, res) => {
+  if (limited(req, res)) return
+  const lic = store.byKey(req.body && req.body.key)
+  if (!lic) { failed(req); return res.status(401).json({ error: 'That key was not found. Check for typos.' }) }
+  if (!(await isActive(lic))) return res.status(402).json({ error: whyInactive(lic), renew: BUY_URL() })
+  attempts.delete(req.ip)
+  res.json({ token: newToken({ licId: lic.id }) })
+}))
+
+// Stripe redirects buyers to /claim?session_id=cs_... — we verify the payment with Stripe and hand out the key.
+app.post('/api/claim', express.json(), wrap(async (req, res) => {
+  if (limited(req, res)) return
+  const sid = String((req.body && req.body.session_id) || '')
+  if (!/^cs_[A-Za-z0-9_]{10,200}$/.test(sid)) { failed(req); return res.status(400).json({ error: 'Invalid checkout link.' }) }
+  const existing = store.bySession(sid)
+  if (existing) return res.json({ key: existing.key, token: newToken({ licId: existing.id }) })
+  const s = await stripe(STRIPE_KEY, 'GET', '/v1/checkout/sessions/' + sid)
+  if (s.status !== 'complete' || !['paid', 'no_payment_required'].includes(s.payment_status)) {
+    return res.status(402).json({ error: 'This payment has not completed yet. Refresh in a few seconds.' })
+  }
+  const email = (s.customer_details && s.customer_details.email) || null
+  const lic = store.create({
+    email,
+    note: 'Stripe checkout',
+    expiresAt: s.mode === 'payment' ? Date.now() + (+process.env.ONE_TIME_DAYS || 30) * 86400e3 : null,
+    stripe: { sessionId: sid, customerId: s.customer || null, subscriptionId: s.subscription || null, status: s.subscription ? 'active' : 'paid', checkedAt: Date.now() }
+  })
+  console.log(`New sale! License ${lic.key} for ${email || 'unknown email'}`)
+  res.json({ key: lic.key, token: newToken({ licId: lic.id }) })
+}))
+
+// --- customer dashboard ---
+app.get('/api/state', user, (req, res) => {
+  const lic = req.lic
+  res.json({ ...req.bridge.state(), account: { key: lic.key, email: lic.email, expiresAt: lic.expiresAt, billing: !!(lic.stripe && lic.stripe.customerId) }, slotsFree: slotsTotal - usedPorts.size })
+})
+app.post('/api/billing', user, wrap(async (req, res) => {
+  const s = req.lic.stripe
+  if (!s || !s.customerId) throw new Error('This key was not bought through Stripe.')
+  const cfg = stripeCfg()
+  const portal = await stripe(STRIPE_KEY, 'POST', '/v1/billing_portal/sessions', {
+    customer: s.customerId, return_url: (process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`) + '/app', configuration: cfg.portalConfigId
+  })
+  res.json({ url: portal.url })
+}))
+app.post('/api/host/login', user, (req, res) => { req.bridge.hostLogin(); res.json({ ok: true }) })
+app.post('/api/host/logout', user, wrap(async (req, res) => { await req.bridge.hostLogout(); res.json({ ok: true }) }))
+app.post('/api/connect', user, express.json(), wrap(async (req, res) => {
   const host = String((req.body && req.body.host) || '').trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '')
   const port = parseInt((req.body && req.body.port) || 19132, 10)
-  try { await checkDest(host, port) } catch (e) { return res.status(400).json({ error: e.message }) }
-  startBridge(host, port, req) // runs in the background; the page polls /api/state
+  await req.bridge.start(host, port)
   res.json({ ok: true })
-})
-app.post('/api/disconnect', auth, async (req, res) => { await stopBridge(); res.json({ ok: true }) })
-app.post('/api/command', auth, express.json(), async (req, res) => {
-  const text = String((req.body && req.body.text) || '').slice(0, 200)
-  const cur = ghost && ghost.current()
-  if (!cur) return res.status(409).json({ error: 'No player connected yet. Join the world from your console first.' })
-  try { await cur.run(text); res.json({ ok: true }) } catch (e) { res.status(500).json({ error: e.message }) }
-})
-app.put('/api/schematics/:name', auth, express.raw({ type: () => true, limit: '60mb' }), (req, res) => {
+}))
+app.post('/api/disconnect', user, wrap(async (req, res) => { await req.bridge.stop(); res.json({ ok: true }) }))
+app.post('/api/command', user, express.json(), wrap(async (req, res) => {
+  await req.bridge.command(String((req.body && req.body.text) || '').slice(0, 200)); res.json({ ok: true })
+}))
+const FILE_RE = /^[\w .()-]{1,80}\.(litematic|schem|schematic)$/i
+app.put('/api/schematics/:name', user, express.raw({ type: () => true, limit: '20mb' }), wrap(async (req, res) => {
   const name = path.basename(req.params.name)
-  if (!FILE_RE.test(name)) return res.status(400).json({ error: 'Use a .litematic, .schem or .schematic file (simple file name).' })
-  if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Empty upload.' })
-  fs.writeFileSync(path.join(SCHEM_DIR, name), req.body); res.json({ files: list() })
-})
-app.delete('/api/schematics/:name', auth, (req, res) => {
+  if (!FILE_RE.test(name)) throw new Error('Use a .litematic, .schem or .schematic file (simple file name).')
+  if (!Buffer.isBuffer(req.body) || !req.body.length) throw new Error('Empty upload.')
+  req.bridge.saveSchematic(name, req.body); res.json({ files: req.bridge.files() })
+}))
+app.delete('/api/schematics/:name', user, (req, res) => {
   const name = path.basename(req.params.name)
-  if (FILE_RE.test(name)) fs.rmSync(path.join(SCHEM_DIR, name), { force: true })
-  res.json({ files: list() })
+  if (FILE_RE.test(name)) req.bridge.deleteSchematic(name)
+  res.json({ files: req.bridge.files() })
 })
 
-app.listen(WEB_PORT, () => console.log(`Ghost Bridge website on http://0.0.0.0:${WEB_PORT}  (relay UDP port ${RELAY_PORT})`))
-process.on('SIGINT', async () => { await stopBridge(); process.exit(0) })
+// --- admin ---
+app.post('/api/admin/login', express.json(), (req, res) => {
+  if (limited(req, res)) return
+  const given = Buffer.from(String((req.body && req.body.password) || '')); const real = Buffer.from(ADMIN)
+  if (!(given.length === real.length && crypto.timingSafeEqual(given, real))) { failed(req); return res.status(401).json({ error: 'Wrong password.' }) }
+  attempts.delete(req.ip)
+  res.json({ token: newToken({ admin: true }) })
+})
+app.get('/api/admin/overview', admin, (req, res) => {
+  const lics = store.list()
+  const active = lics.filter(l => !l.revoked && (!l.expiresAt || l.expiresAt > Date.now()) && (!l.stripe || !l.stripe.subscriptionId || GOOD_SUB.has(l.stripe.status)))
+  const paying = active.filter(l => l.stripe && l.stripe.subscriptionId)
+  res.json({
+    stripeReady: !!STRIPE_KEY && !!BUY_URL(), buyUrl: BUY_URL(), price: PRICE, slotsTotal, slotsUsed: usedPorts.size,
+    counts: { total: lics.length, active: active.length, paying: paying.length },
+    licenses: lics.map(l => {
+      const b = bridges.get(l.id)
+      return { ...l, running: b ? b.B.status : 'stopped', server: b && b.B.host ? `${b.B.host}:${b.B.port}` : null }
+    })
+  })
+})
+app.post('/api/admin/licenses', admin, express.json(), (req, res) => {
+  const days = +(req.body && req.body.days) || 0
+  const lic = store.create({ note: String((req.body && req.body.note) || '').slice(0, 200), email: (req.body && req.body.email) || null, expiresAt: days > 0 ? Date.now() + days * 86400e3 : null })
+  res.json(lic)
+})
+app.post('/api/admin/licenses/:id/:action', admin, wrap(async (req, res) => {
+  const lic = store.get(req.params.id); if (!lic) throw new Error('Not found.')
+  const a = req.params.action
+  if (a === 'revoke') { store.update(lic.id, { revoked: true }); const b = bridges.get(lic.id); if (b) await b.stop('revoked by admin') }
+  else if (a === 'restore') store.update(lic.id, { revoked: false })
+  else if (a === 'extend') store.update(lic.id, { expiresAt: Math.max(lic.expiresAt || Date.now(), Date.now()) + 30 * 86400e3 })
+  else if (a === 'refresh' && lic.stripe) store.update(lic.id, { stripe: { ...lic.stripe, checkedAt: 0 } })
+  else throw new Error('Unknown action.')
+  res.json(store.get(lic.id))
+}))
+
+// ---------- housekeeping: free idle slots, stop expired customers, drop old sessions ----------
+setInterval(async () => {
+  for (const [id, b] of bridges) {
+    const lic = store.get(id)
+    if (!(await isActive(lic))) await b.stop('license inactive')
+    else if (b.idleFor(IDLE_MS)) await b.stop(`nobody connected for ${IDLE_MS / 60000} minutes (frees the slot for others)`)
+  }
+  for (const [t, s] of sessions) if (Date.now() - s.at > 14 * 86400e3) sessions.delete(t)
+}, 60000).unref()
+
+app.listen(WEB_PORT, () => console.log(`Ghost Bridge on http://0.0.0.0:${WEB_PORT}  (relay UDP ${PORT_LO}-${PORT_HI}, ${slotsTotal} slots, Stripe ${STRIPE_KEY ? 'on' : 'OFF'})`))
+process.on('SIGINT', async () => { for (const b of bridges.values()) await b.stop(); process.exit(0) })
+process.on('SIGTERM', async () => { for (const b of bridges.values()) await b.stop(); process.exit(0) })
