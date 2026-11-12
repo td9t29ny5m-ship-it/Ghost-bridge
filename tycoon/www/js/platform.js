@@ -7,7 +7,7 @@
   'use strict';
 
   const CONFIG = {
-    version: '2.0.0',
+    version: '3.0.0',
     saveKey: 'yum-empire-save-v1',
     // Google's official TEST ad units. Replace with your own before release (see README).
     admob: {

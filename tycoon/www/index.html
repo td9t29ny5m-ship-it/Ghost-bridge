@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#14204a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="Build a food empire in a living 3D miniature world. Buy land, choose your shops, hire chefs and expand from the suburbs to the metropolis.">
+  <meta name="description" content="Build your own street-food park in a living 3D miniature town. Expand your land, place stalls and restaurants, upgrade your Market Hall.">
   <title>Yum Empire</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -15,60 +15,60 @@
 </head>
 <body>
   <div id="app">
-    <canvas id="city" aria-label="Your city"></canvas>
+    <canvas id="city" aria-label="Your park"></canvas>
 
-    <!-- Top HUD: player, resources -->
     <header class="hud-top">
       <button id="avatarBtn" class="avatar" type="button" aria-label="Profile and settings">
-        <span class="av-face">🧑‍🍳</span><span id="lvBadge" class="av-lv">1</span>
+        <span class="av-face" data-ic="avatar"></span><span id="lvBadge" class="av-lv">1</span>
       </button>
       <div class="hud-id">
-        <div class="xp" aria-label="Experience"><div id="xpFill"></div><span id="xpText">0 / 50 XP</span></div>
-        <button id="districtBtn" class="chip-btn" type="button">🏡 Maple Suburb</button>
+        <div class="xp" aria-label="Experience"><div id="xpFill"></div><span id="xpText">0 / 60 XP</span></div>
+        <button id="parkBtn" class="chip-btn" type="button"><i data-ic="suburb" id="parkIc"></i><span id="parkName">Maple Suburb</span></button>
       </div>
       <div class="res-col">
-        <div class="res cash"><i>💵</i><b id="cash">$0</b></div>
+        <div class="res cash"><i data-ic="cash"></i><b id="cash">$0</b></div>
         <div class="res-row">
-          <button id="gemBtn" class="res gems" type="button" aria-label="Gems"><i>💎</i><b id="gems">0</b><span class="plus">+</span></button>
-          <div class="res stars"><i>⭐</i><b id="stars">0</b></div>
+          <div class="res ing"><i data-ic="ingredients"></i><b id="ing">0</b></div>
+          <button id="gemBtn" class="res gems" type="button" aria-label="Gems"><i data-ic="gem"></i><b id="gems">0</b><span class="plus">+</span></button>
         </div>
       </div>
     </header>
-    <div class="hud-sub"><span id="ips" class="ips"></span><span id="statusRow" class="pills"></span></div>
+    <div class="hud-sub">
+      <button id="builderBtn" class="pill builders" type="button"><i data-ic="builder"></i><span id="builderText">1/1</span></button>
+      <span id="rates" class="ips"></span><span id="statusRow" class="pills"></span>
+    </div>
 
-    <!-- Side buttons -->
     <div class="side left">
-      <button class="sbtn" type="button" data-panel="quests"><span>📜</span><small>Quests</small><i class="badge" id="badge-quests"></i></button>
-      <button class="sbtn" type="button" data-panel="shops" id="listBtn"><span>🏪</span><small>Shops</small></button>
-      <button class="sbtn" type="button" data-panel="awards"><span>🏆</span><small>Awards</small></button>
+      <button class="sbtn" type="button" data-panel="quests"><span data-ic="quests"></span><small>Quests</small><i class="badge" id="badge-quests"></i></button>
+      <button class="sbtn" type="button" data-panel="research"><span data-ic="flask"></span><small>Research</small><i class="badge" id="badge-research"></i></button>
+      <button class="sbtn" type="button" data-panel="awards"><span data-ic="trophy"></span><small>Awards</small></button>
     </div>
     <div class="side right">
-      <button class="sbtn boost" type="button" id="boostBtn"><span>🚀</span><small id="boostLabel">2× Boost</small></button>
-      <button class="sbtn" type="button" id="crateBtn"><span>🎁</span><small id="crateLabel">Crate</small><i class="badge" id="badge-crate"></i></button>
-      <button class="sbtn" type="button" data-panel="store"><span>🛍️</span><small>Store</small></button>
+      <button class="sbtn boost" type="button" id="boostBtn"><span data-ic="rocket"></span><small id="boostLabel">2× Boost</small></button>
+      <button class="sbtn" type="button" id="crateBtn"><span data-ic="gift"></span><small id="crateLabel">Crate</small><i class="badge" id="badge-crate"></i></button>
+      <button class="sbtn" type="button" data-panel="store"><span data-ic="bag"></span><small>Store</small></button>
     </div>
 
-    <!-- Selected plot -->
-    <div id="shopCard" class="card"></div>
+    <div id="shopCard" class="card" hidden></div>
+    <div id="placeBar" class="card place-bar" hidden></div>
+    <button id="collectAll" class="collect-all" type="button" hidden><span data-ic="collect"></span><b>Collect all</b></button>
 
-    <!-- Bottom navigation -->
     <nav class="nav">
-      <button type="button" data-panel="staff"><span>👩‍🍳</span><small>Chefs</small><i class="badge" id="badge-staff"></i></button>
-      <button type="button" data-panel="research"><span>🔬</span><small>Research</small><i class="badge" id="badge-research"></i></button>
-      <button type="button" id="navCity" class="nav-main"><span>🏙️</span><small>City</small></button>
-      <button type="button" data-panel="world"><span>🗺️</span><small>World</small><i class="badge" id="badge-world"></i></button>
-      <button type="button" data-panel="franchise"><span>⭐</span><small>Franchise</small><i class="badge" id="badge-franchise"></i></button>
+      <button type="button" data-panel="build"><span data-ic="hammer"></span><small>Build</small><i class="badge" id="badge-build"></i></button>
+      <button type="button" data-panel="staff"><span data-ic="chefhat"></span><small>Chefs</small><i class="badge" id="badge-staff"></i></button>
+      <button type="button" id="navHall" class="nav-main"><span data-ic="hall"></span><small>Hall</small><i class="badge" id="badge-hall"></i></button>
+      <button type="button" data-panel="buildings"><span data-ic="shop"></span><small>Park</small></button>
+      <button type="button" data-panel="world"><span data-ic="map"></span><small>World</small><i class="badge" id="badge-world"></i></button>
     </nav>
 
-    <!-- Pop-up window used by every menu -->
     <div id="panel" class="panel" hidden>
       <div class="panel-win">
-        <div class="panel-head"><span id="panelIcon" class="panel-icon"></span><h2 id="panelTitle"></h2><button id="panelClose" class="x-btn" type="button" aria-label="Close">✕</button></div>
+        <div class="panel-head"><span id="panelIcon" class="panel-icon"></span><h2 id="panelTitle"></h2><button id="panelClose" class="x-btn" type="button" aria-label="Close"><svg viewBox="0 0 20 20" width="18" height="18"><path d="M5 5 15 15M15 5 5 15" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/></svg></button></div>
+        <div id="panelTabs" class="tabs" hidden></div>
         <div id="panelBody" class="panel-body"></div>
       </div>
     </div>
 
-    <button id="vip" class="vip" type="button" hidden aria-label="VIP visitor">🤩</button>
     <div id="floaters" aria-hidden="true"></div>
     <div id="toasts" aria-live="polite"></div>
 
@@ -83,6 +83,7 @@
   </div>
 
   <script src="vendor/three.min.js"></script>
+  <script src="js/icons.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/platform.js"></script>
   <script src="js/world.js"></script>

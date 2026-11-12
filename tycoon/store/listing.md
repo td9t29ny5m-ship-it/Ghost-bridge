@@ -2,42 +2,43 @@
 
 ## Names
 - **App name** (both stores, ≤30 chars): `Yum Empire: Food Tycoon`
-- **iOS subtitle** (≤30): `Build a 3D Food Empire`
-- **Play short description** (≤80): `Buy land, build shops and grow a food empire in a living 3D miniature world!`
-- **iOS keywords** (≤100, comma-separated, no spaces): `idle,tycoon,clicker,restaurant,cooking,food,business,money,empire,incremental,manager,chef,cafe`
+- **iOS subtitle** (≤30): `Street Food Park Builder`
+- **Play short description** (≤80): `Build your own street-food park, expand your land and grow a 3D food empire!`
+- **iOS keywords** (≤100, comma-separated, no spaces): `tycoon,builder,city,park,food,restaurant,cooking,street,market,empire,idle,chef,simulation`
 - **Category:** Games → Simulation (secondary: Casual)
 
 ## Full description (≤4000)
 
-Your food empire starts with one tiny noodle cart in a quiet suburb. Only a few customers stop by at first. Serve them, save up, buy land, and watch a whole miniature world come alive around your shops! 🍜
+It starts with one little plot, a Market Hall and a single noodle cart. Build it into the biggest street-food park in town! 🍜
 
-🏙️ A LIVING 3D MINIATURE WORLD
-A charming tilt-shift toy town with walking customers, busy traffic, trains, hot-air balloons, day and night, and a skyline that grows with your success. Drag, pinch and rotate to explore.
+🏗️ BUILD YOUR OWN STREET-FOOD PARK
+Place noodle carts, dumpling stands, bubble tea bars, taco trucks, pizza parlors, sushi bars, burger joints and giant food courts wherever you like. Drag them around until your park is just right.
 
-📜 BUY LAND, CHOOSE WHAT TO BUILD
-Plots come in four sizes. Bigger land costs more but holds grander, more profitable shops. Pick from 10 kinds of food business: noodles, dumplings, bubble tea, tacos, pizza, sushi, burgers, food courts, snack factories and global cuisine. Every new shop opens as a little stall and grows into a restaurant tower.
+📜 EXPAND YOUR LAND
+Buy the plot next door to make your park bigger. Every expansion opens up room for more stalls, gardens and decorations.
 
-🗺️ FROM SUBURB TO METROPOLIS
-Expand from Maple Suburb to Riverside Town, Downtown City and the Neon Metropolis. Every district is a new map with more land and bigger profits.
+🏛️ UPGRADE YOUR MARKET HALL
+The heart of your park unlocks new buildings, bigger upgrades and more land. Watch it grow from a little hall into a palace with a golden dome.
 
-👩‍🍳 HIRE CHEFS AND MANAGERS
-Recruit Common, Rare, Epic and Legendary chefs, train them and put them in their favourite kitchens. Managers keep your shops running even while you're away.
+🥕 GROW INGREDIENTS
+Gardens, spice stalls, fish markets and greenhouses supply the ingredients you need for every upgrade.
 
-💎 QUESTS, CRATES AND REWARDS
-Endless quests, free reward crates, player levels, daily rewards and 74 awards, all paying gems you can spend on chefs, boosts and time warps.
+🌳 DESIGN FOR PROFIT
+Tables, lamps, flower planters, trees, fountains and a music stage boost every stall around them. Plan your layout for the biggest bonuses!
 
-🔬 RESEARCH AND FRANCHISE
-Discover 62 upgrades, hit empire milestones, then franchise for Golden Stars that make every new empire grow faster.
+🏙️ A LIVING MINIATURE TOWN
+A tilt-shift toy town with customers who queue and eat at your tables, traffic, trains, hot-air balloons, and a day-night cycle with glowing lights. Open new parks in Riverside Town, Downtown City and the Neon Metropolis.
+
+👩‍🍳 CHEFS, QUESTS AND REWARDS
+Recruit and train chefs, complete endless quests, open reward crates, welcome VIP visitors and collect 75 awards.
 
 ✨ PLAYER-FRIENDLY
-• No forced ads. Watch videos only when you want a bonus.
-• Plays offline
+• No forced ads; videos are optional
+• Plays offline, and your park keeps earning while you're away
 • No account needed
 
-Start small, dream big, and become the greatest food tycoon in the world!
-
-## What's new (v2.0.0)
-The big expansion! 🎉 Buy land in four sizes and choose what to build, four districts from the suburbs to the Neon Metropolis, chefs with rarities, gems, player levels, endless quests, reward crates, research and a brand-new look.
+## What's new (v3.0.0)
+A whole new game! Build your own street-food park on a grid, expand your land, upgrade the Market Hall, grow ingredients, and design your layout for bonuses. All-new hand-drawn art.
 
 ## Screenshots
 Run `npm run serve` in one terminal, then `node tools/screenshots.js` in another. It takes several minutes, because the 3D city is rendered in software. The script writes the sizes each store needs to `store/screenshots/`:

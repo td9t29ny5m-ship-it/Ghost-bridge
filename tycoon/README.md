@@ -1,45 +1,36 @@
 # 🍜 Yum Empire: Food Tycoon
 
-A 3D tycoon game for **iOS (App Store)** and **Android (Google Play)**. Start with one tiny noodle cart in a quiet suburb, buy land, choose what to build, hire chefs and grow a food empire across four districts.
+A 3D street-food park builder for **iOS (App Store)** and **Android (Google Play)**. Start on a tiny plot with one noodle cart, expand your land, lay out stalls, restaurants and decorations, and upgrade your Market Hall into the heart of a food empire.
 
 The game is plain HTML/CSS/JS with no framework and no build step. The city is drawn with [Three.js](https://threejs.org) (bundled in `www/vendor/`, MIT licence), and every model is generated in code, so there are no art files to manage. [Capacitor](https://capacitorjs.com) wraps it as native iOS and Android apps.
 
 ## The game
 
-You start with one noodle cart on a free plot in a quiet suburb, with only a trickle of customers. From there you buy land, choose what to build on it, hire managers and chefs, and expand through four districts.
+You own a small plot in the middle of a town: a **Market Hall**, a noodle cart and a picnic table. Build your own street-food park on it, buy the land next door to make it bigger, and grow from a quiet suburb all the way to the Neon Metropolis.
 
 | Feature | What it does |
 |---|---|
-| **Land** | Every district has plots for sale in four sizes: Small, Medium, Large and Huge. Bigger land costs more, earns more (up to ×3.2) and holds a grander building. A shop on Small land never grows beyond a small shop. |
-| **Choose what to build** | 10 kinds of shop, from Noodle Cart to Global Cuisine. Bigger shops need bigger land or a later district. Building a second shop of the same kind costs 5× more. Every new shop opens as a small stall at level 1. |
-| **4 districts** | 🏡 Maple Suburb (6 plots) → 🏘️ Riverside Town (8) → 🏙️ Downtown City (10) → 🌃 Neon Metropolis (12). Each is its own 3D map with its own look, and gives every shop there a profit bonus (×1.5, ×2.5, ×4). |
-| **Shops grow** | Level a shop up and its building is rebuilt with confetti: stall → shop → restaurant → big restaurant → flagship tower (as far as the land allows). Levels 25–500 double speed, 600–1000 quadruple profit. |
-| **Managers** | Run a shop automatically, including while the app is closed (up to 8 hours). |
-| **Chefs** | Recruit chefs (free every 8 hours, or with gems) in four rarities: Common, Rare, Epic, Legendary. Each boosts the shop they work in, +50% more in their favourite kind of shop. Train them up to level 10 with gems. |
-| **Currencies** | 💵 Cash for land, shops and upgrades. 💎 Gems for chefs, crates, boosts and time warps. ⭐ Golden Stars from franchising. ✨ XP for player levels. |
-| **Player level** | Almost everything earns XP. Each level pays 5 💎 and adds +2% profit. |
-| **Quests** | 11 endless quest lines (serve customers, own shops, buy land, recruit chefs…) that pay gems and XP. |
-| **Research** | 62 discoveries, each tripling profit for one kind of shop or for all of them. |
-| **Empire milestones** | Every time your total shop levels pass a milestone (100, 300, 700 …), all profit doubles. |
-| **Reward crate** | Free every 4 hours (or for gems): cash, gems, a 2-hour boost or a new chef. |
-| **Boosts** | 2× profit for 4 hours (video or gems, stacks to 24h) and a time warp that pays 2 hours of income instantly. |
-| **Franchise (prestige)** | Sell the empire for Golden Stars (+4% profit each, forever). Keeps gems, chefs, level and awards. |
-| **VIP visitor** | A golden character with a light beam walks through town. Tap them for a big tip or a ×7 frenzy, sometimes with gems. |
-| **Daily rewards** | A 7-day streak of cash and gems. Day 7 adds a free 4-hour boost. |
-| **74 awards** | Each one pays 5 💎 and adds +2% profit. |
+| **Your own land** | Each park is a 24 × 24 grid split into 4 × 4 plots. You start with two plots. Buying a plot next to your land expands it, and each one costs more than the last. |
+| **Build anywhere** | Open Build, pick something, and drag it into place. The footprint turns green where it fits and red where it doesn't. Buildings can be moved later. |
+| **21 buildings** | 9 food stalls and restaurants (1×1 carts up to 3×3 food courts), 4 supply buildings (gardens, spice stall, fish market, greenhouse) and 7 decorations (tables, lamps, planters, trees, umbrella tables, fountains, a music stage). |
+| **Market Hall** | The heart of the park, from level 1 to 20. Its level unlocks new buildings, raises how many of each you may own, caps every other building's level, and decides how much land you can own. It gets grander as it levels up: clock tower, turrets, then a golden dome. |
+| **Builders and timers** | Building and upgrading take real time (seconds early on, up to a day) and need a free builder. You get a second builder at Hall 4, and can hire a third for gems. Gems finish jobs early; anything under a minute finishes free. |
+| **Two resources** | Stalls earn 💵 cash. Supply buildings grow 🥕 ingredients. Upgrades cost both. |
+| **Collect** | Buildings store what they make (2 hours or more) and show a bubble when there is something to collect. Tap it and the coins fly into your bank. Collect all unlocks at Hall 3. |
+| **Layout matters** | Decorations boost every food stall within their radius: tables +6%, umbrella tables +18%, fountains +30% (radius 2), the stage +50% (radius 3). The placement ghost shows each decoration's reach. |
+| **Customers** | People walk in from the street, queue at your stalls, eat at your tables and sometimes drop a tip coin you can tap. A golden VIP visitor pays out big. |
+| **4 locations** | Riverside Town (Hall 8), Downtown City (Hall 13) and Neon Metropolis (Hall 17) are new maps with their own land, and every stall there earns ×1.6, ×2.6 or ×4. |
+| **Gems, chefs and more** | Gems, player levels, 11 endless quest lines, 38 research upgrades, chefs in four rarities, reward crates, boosts, time warp, daily rewards and 75 awards. |
 
 ### The 3D world
 
 | Feature | What it does |
 |---|---|
-| **Tilt-shift miniature look** | Steep telephoto camera, a sharp band across the middle with blurred top and bottom, saturated toy colours and long soft shadows. The blur can be switched off in the profile settings. |
-| **A living town** | People with hats, backpacks and balloons walk the sidewalks and use the crosswalks. Customers queue at your shops and leave with a take-away bag. Cars, taxis, vans and buses stop for pedestrians and queue at junctions with traffic lights. |
-| **Every district looks different** | The suburb has houses with gardens, driveways and mailboxes, farm fields, a barn and a silo. The town has a river with sailboats. The city and metropolis have towers with water tanks, antennas, billboards and neon, bus stops, parked cars and a passing train. Parks have fountains, benches and flower beds. Hot-air balloons drift overhead. |
-| **Detailed shops** | Stalls have produce crates, stools, lanterns, string lights and a chef. Buildings have awnings, lit signs, planters, menu boards, café tables, balconies and a rooftop mascot for each kind of food. Empty land shows a construction site; land for sale shows a FOR SALE sign with its size and price. |
-| **Grows with you** | Towers rise, and crowds and traffic grow, as you build up each district. |
-| **Day and night** | A five-minute cycle. At night windows, signs, string lights, headlights and street lamps glow. |
-| **Controls** | Drag to move, pinch to zoom, twist to rotate (mouse: drag, wheel, right-drag). Tap a shop to serve or select it; tap a FOR SALE sign twice to buy; tap empty land twice to build. |
-| **Performance** | Thousands of small details are drawn in a handful of batches. Detail drops automatically on slow devices, and without WebGL the game still plays through its menus. |
+| **Original art, no emoji** | Every icon is drawn in code (`www/js/icons.js`): 64 icons in a glossy cartoon style, plus generated chef portraits. Every model and texture (grass, asphalt, pavers, brick, plaster, gravel, soil, wood, water) is made in code too. |
+| **Tilt-shift miniature look** | A steep telephoto camera, a sharp band in the middle with blurred top and bottom, toy colours and soft shadows. It can be turned off in the profile settings. |
+| **A living town** | Sidewalks, a ring road with traffic (cars, taxis, vans and buses) that stops at the crossings, houses or towers depending on the location, parks, a river with boats, a train, hot-air balloons, and a day-night cycle in which windows, signs, lamps and headlights light up. |
+| **Buildings that grow** | Stalls gain menu boards, lanterns and roof signs. Restaurants add floors, café tables and banners. Gardens' crops grow. The Market Hall turns into a palace. Construction shows scaffolding, a crane, a worker and a progress bar. |
+| **Performance** | Repeated details are drawn in batches. Detail drops automatically on slow devices, and without WebGL the game still plays through its menus. |
 
 ### Monetization (player-friendly)
 - **Rewarded ads only**: the game never forces an interstitial. Players choose to watch a video for a 4h ×2 boost or for double offline earnings.
@@ -54,8 +45,9 @@ tycoon/
 ├── www/                  ← the game (this is what ships inside the apps)
 │   ├── index.html
 │   ├── css/style.css
-│   ├── js/engine.js      ← pure game logic (economy, saves, prestige) — no DOM
-│   ├── js/world.js       ← the 3D world: districts, buildings, customers, traffic, camera, tilt-shift lens
+│   ├── js/engine.js      ← game rules: land, buildings, timers, economy, saves — no DOM
+│   ├── js/icons.js       ← all icon art, drawn as SVG in code
+│   ├── js/world.js       ← the 3D park and town: buildings, placement, customers, traffic, camera, tilt-shift lens
 │   ├── fonts/            ← Lilita One + Nunito (SIL Open Font License)
 │   ├── vendor/three.min.js ← Three.js r159 (MIT)
 │   ├── js/platform.js    ← storage, sound, haptics, ads, purchases (native or web fallback)
@@ -70,7 +62,8 @@ tycoon/
     ├── test-engine.js    ← unit tests (npm test)
     ├── simulate.js       ← balance simulator: a bot plays for N hours
     ├── playtest.js       ← end-to-end browser test (Playwright)
-    ├── shot3d.js         ← quick screenshots of the city at different stages
+    ├── shot3d.js         ← quick screenshots of the park at different stages
+    ├── demo-save.js      ← builds realistic saves for screenshots
     ├── screenshots.js    ← store screenshots at App Store / Play sizes
     ├── render-icons.js   ← renders icon.svg → PNGs
     └── configure-native.js ← AdMob IDs, portrait lock, iOS privacy keys
@@ -89,8 +82,8 @@ Ads are simulated in the browser (a 3-second placeholder). Purchases show "In ap
 ## Tests
 
 ```bash
-npm test               # 25 engine unit tests
-npm run simulate -- 2 8     # bot plays 8 franchise runs of 2h each and prints pacing
+npm test               # 25 rule tests
+npm run simulate -- 72      # a bot plays for 3 days and prints when each Market Hall level is reached
 npm run serve & npm run playtest   # full UI playthrough in headless Chromium
 ```
 
@@ -151,4 +144,4 @@ The game is fully playable before any of this is done: ads fall back to Google's
 
 ## Tuning the economy
 
-All numbers live at the top of `www/js/engine.js`: shop costs and revenues, land sizes and prices, district costs and bonuses, milestones, research costs, chef rarities, quest goals and the star formula. After changing them, run `npm run simulate` to check pacing. The current tuning: second plot within the first minutes, Riverside Town after about 15–20 minutes, a first franchise worth about 100 stars after two hours, then steadily bigger franchises with each run.
+All numbers live at the top of `www/js/engine.js`: building costs, build times, output, how many of each you may own, decoration bonuses, land prices, Market Hall costs, research and quests. After changing them, run `npm run simulate`. With the current tuning, a player who checks in every few minutes reaches Hall 2 in about 6 minutes, Hall 5 in about 2 hours, Hall 10 in about 9 hours and Hall 15 in about 4–5 days.

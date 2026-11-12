@@ -1,6 +1,6 @@
 {
   "name": "yum-empire",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
   "description": "Yum Empire: Food Tycoon — an idle tycoon game for iOS and Android (Capacitor).",
   "scripts": {
