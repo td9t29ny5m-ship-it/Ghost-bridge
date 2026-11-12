@@ -8,311 +8,407 @@ function test(name, fn) {
   try { fn(); passed++; console.log('  ✓ ' + name); }
   catch (e) { console.error('  ✗ ' + name + '\n    ' + (e.stack || e.message).split('\n').slice(0, 3).join('\n    ')); process.exitCode = 1; }
 }
-const T0 = 1_700_000_000_000;
-const rich = () => { const s = E.newState(T0); s.cash = 1e30; s.ing = 1e30; s.gems = 1e6; return s; };
+// Noon on a June day (game clock): a busy hour, sunny, no events.
+const T0 = Date.UTC(2026, 5, 1, 12);
+const fresh = () => { const s = E.newState(T0); s.weather = { kind: 'cloud', until: T0 + 365 * 86400e3 }; s.nextEventAt = T0 + 365 * 86400e3; return s; };
+const rich = () => { const s = fresh(); s.cash = 1e30; s.tokens = 1e9; s.gems = 1e6; for (const k in s.inv) s.inv[k] = 1e5; return s; };
 const finishAll = (s, t) => { s.jobs.forEach(j => (j.end = 0)); return E.tick(s, 0.001, t || T0); };
-function hallTo(s, lv) { const h = E.hallB(s); while (h.lv < lv) { s.jobs = []; assert.ok(E.startUpgrade(s, 0, h.u, T0), 'hall upgrade ' + h.lv); finishAll(s); } }
-function freeSpot(s, t) { const p = s.parks[0]; for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) if (E.fits(p, t, x, y, -1)) return [x, y]; return null; }
-
-test('new game: hall, a noodle cart and a table on two plots of land', () => {
-  const s = E.newState(T0);
-  const p = s.parks[0];
-  assert.equal(p.parcels.filter(Boolean).length, 2);
-  assert.deepEqual(p.b.map(b => E.DEFS[b.t].id), ['hall', 'cart', 'table']);
-  assert.equal(E.hallLevel(s), 1);
-  assert.equal(E.builderCount(s), 1);
-  assert.ok(p.b[1].st > 0, 'the cart has coins waiting');
-});
-
-test('stalls fill up over time and stop at their storage cap', () => {
-  const s = E.newState(T0);
-  const cart = s.parks[0].b[1];
-  cart.st = 0;
-  const r = E.rate(s, 0, cart, T0);
-  E.tick(s, 600, T0);
-  assert.ok(Math.abs(cart.st - r / 6) < 1e-6, 'ten minutes of output');
-  E.tick(s, 1e6, T0);
-  assert.ok(Math.abs(cart.st - E.storeCap(s, 0, cart)) < 1e-6, 'capped');
-});
-
-test('collecting moves storage into cash (and ingredients for supply)', () => {
-  const s = E.newState(T0);
-  const before = s.cash, cart = s.parks[0].b[1];
-  const r = E.collect(s, 0, cart.u);
-  assert.equal(r.kind, 'cash');
-  assert.equal(s.cash, before + r.amount);
-  assert.ok(cart.st < 1);
-  assert.equal(E.collect(s, 0, cart.u), null, 'nothing left');
-  assert.equal(s.stats.collects, 1);
-});
-
-test('building takes time and a builder; decorations are instant', () => {
-  const s = rich();
-  const g = E.ID.garden, sp = freeSpot(s, g);
-  const b = E.build(s, 0, g, sp[0], sp[1], T0);
-  assert.equal(b.lv, 0);
-  assert.equal(E.freeBuilders(s), 0);
-  assert.match(E.canBuild(s, 0, E.ID.spice).why, /Market Hall level 3/, 'locked until hall 3');
-  assert.match(E.canBuild(s, 0, E.ID.cart).why, /Market Hall/, 'one cart until the hall grows');
-  assert.equal(E.rate(s, 0, b, T0), 0, 'not producing while under construction');
-  const done = E.tick(s, 1, T0 + E.DEFS[g].time * 1000 + 1);
-  assert.equal(done.length, 1);
-  assert.equal(b.lv, 1);
-  assert.equal(E.freeBuilders(s), 1);
-  const ts = freeSpot(s, E.ID.table);
-  const tb = E.build(s, 0, E.ID.table, ts[0], ts[1], T0);
-  assert.equal(tb.lv, 1, 'decor appears at once');
-});
-
-test('cannot build on land you do not own or on top of something', () => {
-  const s = rich();
-  assert.equal(E.fits(s.parks[0], E.ID.table, 0, 0, -1), false, 'not owned');
+function hallTo(s, lv) {
+  if (!E.hallB(s)) { const sp = freeSpot(s, E.HALL); assert.ok(E.build(s, 0, E.HALL, sp[0], sp[1], T0)); finishAll(s); }
   const h = E.hallB(s);
-  assert.equal(E.fits(s.parks[0], E.ID.table, h.x, h.y, -1), false, 'occupied');
-  assert.equal(E.build(s, 0, E.ID.table, 0, 0, T0), null);
+  while (h.lv < lv) { s.jobs = []; assert.ok(E.startUpgrade(s, 0, h.u, T0), 'hall upgrade ' + h.lv); finishAll(s); }
+}
+function freeSpot(s, t) {
+  const p = s.parks[0];
+  for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) if (E.fits(p, t, x, y, -1)) return [x, y];
+  for (let k = 0; k < 36; k++) if (!p.parcels[k] && E.parcelAdjacent(p, k)) { p.parcels[k] = true; return freeSpot(s, t); }
+  return null;
+}
+function place(s, id) { const t = E.ID[id], sp = freeSpot(s, t); s.jobs = []; const b = E.build(s, 0, t, sp[0], sp[1], T0); assert.ok(b, 'build ' + id); finishAll(s); return b; }
+function staffWith(s, b, role, skill) {
+  const w = { id: s.wseq++, name: 'Test', role, skill: skill || 1, trait: 'none', wage: 10, lvl: 1, face: 1, at: null };
+  s.workers.push(w);
+  assert.ok(E.assign(s, w.id, 0, b.u), 'assign');
+  return w;
+}
+const cart = (s) => s.parks[0].b.find(b => b.t === E.ID.cart);
+
+test('new game: one noodle cart, two plots, some cash and ingredients, no hall', () => {
+  const s = fresh();
+  assert.deepEqual(s.parks[0].b.map(b => E.DEFS[b.t].id), ['cart']);
+  assert.equal(s.parks[0].parcels.filter(Boolean).length, 2);
+  assert.equal(E.hallLevel(s), 0);
+  assert.equal(s.cash, 400);
+  assert.ok(s.inv.wheat > 0 && s.inv.veg > 0);
+  assert.equal(s.workers.length, 0);
+  assert.equal(s.candidates.length, 5);
+  assert.ok(s.candidates.some(c => c.role === 'cook'));
+  assert.equal(s.orders.length, 3);
 });
 
-test('the Market Hall gates buildings, counts and levels', () => {
+test('nothing sells without a worker: no manual earning', () => {
+  const s = fresh();
+  E.tick(s, 600, T0 + 600e3);
+  assert.equal(s.stats.dishes, 0);
+  assert.ok(s.cash <= 400, 'only rent is paid');
+});
+
+test('hire a cook, assign them to the cart, and it sells on its own', () => {
+  const s = fresh();
+  const c = s.candidates.find(x => x.role === 'cook');
+  const fee = E.hireCost(c);
+  assert.ok(E.hire(s, c.id));
+  assert.equal(s.cash, 400 - fee);
+  assert.ok(E.assign(s, c.id, 0, cart(s).u));
+  const h = E.summary(s, T0);
+  assert.ok(h.revenue > 0 && h.dishes > 0);
+  E.tick(s, 120, T0 + 120e3);
+  assert.ok(s.stats.dishes > 0);
+  assert.ok(s.inv.wheat < 40 && s.inv.veg < 40, 'ingredients were used');
+});
+
+test('only the right role can work a building, and slots are limited', () => {
+  const s = rich();
+  const f = s.candidates.find(x => x.role === 'farmer') || { id: -1 };
+  const farmer = { id: s.wseq++, name: 'F', role: 'farmer', skill: 1, trait: 'none', wage: 9, lvl: 1, face: 1, at: null };
+  s.workers.push(farmer);
+  assert.equal(E.assign(s, farmer.id, 0, cart(s).u), false, 'a farmer cannot cook');
+  staffWith(s, cart(s), 'cook');
+  const extra = { id: s.wseq++, name: 'C', role: 'cook', skill: 1, trait: 'none', wage: 9, lvl: 1, face: 1, at: null };
+  s.workers.push(extra);
+  assert.equal(E.assign(s, extra.id, 0, cart(s).u), false, 'the level 1 cart has one slot');
+  assert.ok(f);
+});
+
+test('sales are limited by ingredients and stop when they run out', () => {
+  const s = fresh();
+  staffWith(s, cart(s), 'cook');
+  s.inv.wheat = 5; s.inv.veg = 100;
+  E.tick(s, 3600, T0 + 3600e3);
+  assert.ok(Math.abs(s.stats.dishes - 5) < 1e-6, 'only 5 bowls: ' + s.stats.dishes);
+  assert.ok(cart(s).starved);
+  assert.ok(s.inv.wheat < 1e-9);
+});
+
+test('tax, supplies, wages and rent come out of revenue', () => {
+  const s = fresh();
+  const w = staffWith(s, cart(s), 'cook');
+  w.wage = 20;
+  const sm = E.summary(s, T0);
+  assert.ok(Math.abs(sm.tax - sm.revenue * E.SALES_TAX) < 1e-9);
+  assert.ok(Math.abs(sm.supplies - sm.revenue * E.SUPPLIES) < 1e-9);
+  assert.equal(sm.wages, 20);
+  assert.equal(sm.rent, 2 * E.RENT_PER_PLOT);
+  assert.ok(Math.abs(sm.profit - (sm.revenue - sm.tax - sm.supplies - 20 - sm.rent)) < 1e-9);
+  const before = s.cash;
+  E.tick(s, 60, T0 + 60e3);   // 60 real seconds = half a game hour
+  const L = s.ledger[s.ledger.length - 1];
+  assert.ok(L.revenue > 0 && L.tax > 0 && L.wages > 0 && L.rent > 0 && L.supplies > 0);
+  assert.ok(Math.abs(s.cash - (before + L.revenue - L.tax - L.supplies - L.wages - L.rent)) < 1e-6);
+});
+
+test('the game clock runs 30× faster than real time, with a lunch peak', () => {
+  assert.equal(E.TIME_SCALE, 30);
+  const a = E.gameClock(0), b = E.gameClock(120e3);
+  assert.equal(b.hour - a.hour, 1, 'two real minutes = one game hour');
+  const avg = E.DAY_CURVE.reduce((x, y) => x + y, 0) / 24;
+  assert.ok(Math.abs(avg - 1) < 1e-9);
+  assert.ok(E.DAY_CURVE[12] > E.DAY_CURVE[3] * 5);
+});
+
+test('cash never goes below zero; unpaid costs simply stop at $0', () => {
+  const s = fresh();
+  s.cash = 1; staffWith(s, cart(s), 'cook').wage = 500;
+  s.inv.wheat = 0;
+  E.tick(s, 600, T0 + 600e3);
+  assert.equal(s.cash, 0);
+});
+
+test('farms need a farmer, then fill the inventory up to its cap', () => {
+  const s = rich();
+  for (const k in s.inv) s.inv[k] = 0;
+  const f = place(s, 'field');
+  E.tick(s, 120, T0 + 120e3);
+  assert.equal(s.inv.wheat, 0);
+  staffWith(s, f, 'farmer');
+  E.tick(s, 120, T0 + 240e3);
+  assert.ok(Math.abs(s.inv.wheat - 40) < 1e-6, 'one game hour of wheat: ' + s.inv.wheat);
+  E.tick(s, 3600 * 3, T0 + 4 * 3600e3);
+  assert.equal(s.inv.wheat, E.invCap(s));
+});
+
+test('a warehouse raises storage for every ingredient', () => {
+  const s = rich();
+  hallTo(s, 1);
+  const before = E.invCap(s);
+  place(s, 'warehouse');
+  assert.equal(E.invCap(s), before + 600);
+});
+
+test('fish ponds need fishers and unlock at Market Hall 5', () => {
+  const s = rich();
+  hallTo(s, 4);
+  assert.equal(E.canBuild(s, 0, E.ID.pond).ok, false);
+  hallTo(s, 5);
+  const p = place(s, 'pond');
+  const farmer = { id: s.wseq++, name: 'F', role: 'farmer', skill: 1, trait: 'none', wage: 9, lvl: 1, face: 1, at: null };
+  s.workers.push(farmer);
+  assert.equal(E.assign(s, farmer.id, 0, p.u), false);
+  staffWith(s, p, 'fisher');
+  assert.ok(E.summary(s, T0).makes.fish > 0);
+});
+
+test('the market sells at a mark-up and buys back at a discount', () => {
+  const s = fresh();
+  s.cash = 100;
+  const n = E.buyIng(s, 'meat', 10, T0);
+  assert.equal(n, 10);
+  assert.ok(Math.abs(s.cash - (100 - 10 * 3.5 * 1.6)) < 1e-9);
+  const before = s.cash;
+  E.sellIng(s, 'meat', 10);
+  assert.ok(Math.abs(s.cash - (before + 10 * 3.5 * 0.6)) < 1e-9);
+  assert.equal(E.buyIng(s, 'meat', 1e9, T0) <= E.invCap(s), true);
+});
+
+test('Market Hall level gates buildings, counts, levels and land', () => {
   const s = rich();
   assert.equal(E.canBuild(s, 0, E.ID.dumpling).ok, false);
-  assert.equal(E.maxLevel(s, E.ID.cart), 1);
-  const cart = s.parks[0].b[1];
-  assert.match(E.canUpgrade(s, 0, cart.u).why, /Market Hall/);
-  hallTo(s, 4);
-  assert.equal(E.canBuild(s, 0, E.ID.dumpling).ok, true);
-  assert.equal(E.maxLevel(s, E.ID.cart), 4);
-  assert.equal(E.maxCount(s, E.ID.cart), 2, 'a second cart at hall 4');
-  assert.equal(E.builderCount(s), 2, 'second builder at hall 4');
-  assert.ok(E.maxParcels(s) > 2 + 2);
-});
-
-test('upgrades cost cash and ingredients, take time, and raise output', () => {
-  const s = rich();
-  hallTo(s, 3);
-  const cart = s.parks[0].b[1];
-  const before = E.rate(s, 0, cart, T0), c = E.upgradeCost(cart.t, cart.lv);
-  const cash = s.cash, ing = s.ing;
-  assert.ok(E.startUpgrade(s, 0, cart.u, T0));
-  assert.equal(s.cash, cash - c.cash);
-  assert.equal(s.ing, ing - c.ing);
-  assert.equal(E.startUpgrade(s, 0, cart.u, T0), false, 'already upgrading');
-  assert.equal(E.rate(s, 0, cart, T0), before, 'keeps working while upgrading');
-  E.tick(s, 1, T0 + c.time * 1000);
-  assert.equal(cart.lv, 2);
-  assert.ok(E.rate(s, 0, cart, T0) > before * 1.7);
-});
-
-test('poor players are told what they lack', () => {
-  const s = E.newState(T0);
-  s.cash = 0;
-  assert.equal(E.canBuild(s, 0, E.ID.garden).why, 'Not enough cash');
-  const h = E.hallB(s);
-  s.cash = 1e9; s.ing = 0;
-  assert.equal(E.canUpgrade(s, 0, h.u).why, 'Not enough ingredients');
-});
-
-test('speed-ups: free under a minute, otherwise gems', () => {
-  const s = rich();
-  hallTo(s, 6);
-  const sp = freeSpot(s, E.ID.pizza);
-  const b = E.build(s, 0, E.ID.pizza, sp[0], sp[1], T0);
-  const j = E.jobFor(s, 0, b.u);
-  const g = E.speedUpCost(j, T0);
-  assert.ok(g > 0);
-  assert.equal(E.speedUpCost(j, j.end - 30e3), 0);
-  const gems = s.gems;
-  assert.ok(E.speedUp(s, 0, b.u, T0));
-  assert.equal(s.gems, gems - g);
-  E.tick(s, 0.01, T0);
-  assert.equal(b.lv, 1);
-});
-
-test('land: only next to your land, price rises, limited by the hall', () => {
-  const s = rich();
-  const p = s.parks[0];
-  const far = 0;   // corner parcel is not adjacent
-  assert.equal(E.canBuyParcel(s, 0, far).ok, false);
-  const adj = [...Array(36).keys()].find(k => !p.parcels[k] && E.parcelAdjacent(p, k));
-  const price = E.landPrice(s);
-  const cash = s.cash;
-  assert.ok(E.buyParcel(s, 0, adj));
-  assert.equal(s.cash, cash - price);
-  assert.ok(E.landPrice(s) > price);
-  while (E.parcelCount(s) < E.maxParcels(s)) {
-    const k = [...Array(36).keys()].find(k2 => E.canBuyParcel(s, 0, k2).ok);
-    assert.ok(E.buyParcel(s, 0, k));
-  }
-  const next = [...Array(36).keys()].find(k => !p.parcels[k] && E.parcelAdjacent(p, k));
-  assert.match(E.canBuyParcel(s, 0, next).why, /Market Hall/);
-});
-
-test('decorations boost nearby stalls only, up to a cap', () => {
-  const s = rich();
-  const p = s.parks[0], cart = p.b[1];
-  const base = E.decorBonus(p, cart);
-  assert.ok(base > 0, 'the starting table is next to the cart');
-  p.b = p.b.filter(b => b.t !== E.ID.table);
-  assert.equal(E.decorBonus(p, cart), 0);
-  p.b.push({ u: 900, t: E.ID.lamp, x: cart.x + 2, y: cart.y, lv: 1, st: 0, chef: 0 });   // radius 2: counts
-  p.b.push({ u: 901, t: E.ID.table, x: cart.x + 3, y: cart.y, lv: 1, st: 0, chef: 0 });  // radius 1: too far
-  assert.ok(Math.abs(E.decorBonus(p, cart) - E.DEFS[E.ID.lamp].bonus) < 1e-9);
-  for (let k = 0; k < 60; k++) p.b.push({ u: 1000 + k, t: E.ID.fountain, x: cart.x, y: cart.y + 1, lv: 1, st: 0, chef: 0 });
-  assert.equal(E.decorBonus(p, cart), 2, 'capped at +200%');
-});
-
-test('move and sell', () => {
-  const s = rich();
-  const p = s.parks[0], table = p.b[2];
-  const sp = freeSpot(s, E.ID.table);
-  assert.ok(E.move(s, 0, table.u, sp[0], sp[1]));
-  assert.deepEqual([table.x, table.y], sp);
-  const hall = E.hallB(s);
-  assert.equal(E.move(s, 0, table.u, hall.x, hall.y), false);
-  assert.equal(E.demolish(s, 0, hall.u), false, 'only decor can be sold');
-  assert.ok(E.demolish(s, 0, table.u));
-});
-
-test('a third builder can be hired with gems once', () => {
-  const s = rich();
-  assert.ok(E.buyBuilder(s));
-  assert.equal(E.builderCount(s), 2);
-  assert.equal(E.buyBuilder(s), false);
-});
-
-test('research multiplies income and is gated by the hall', () => {
-  const s = rich();
-  const g = E.RESEARCH.find(r => r.target === -1);
-  assert.match(E.canResearch(s, g.id).why, /Market Hall/);
-  hallTo(s, g.hall);
-  const cart = s.parks[0].b[1], before = E.rate(s, 0, cart, T0), lv = s.level;
-  assert.ok(E.research(s, g.id));
-  const lvFix = (1 + (s.level - 1) * E.LEVEL_BONUS) / (1 + (lv - 1) * E.LEVEL_BONUS);   // research also gives XP
-  assert.ok(Math.abs(E.rate(s, 0, cart, T0) / before / lvFix - g.mult) < 1e-9);
-  assert.equal(E.research(s, g.id), false);
-});
-
-test('chefs boost stalls; favourites more', () => {
-  const s = rich();
-  const cart = s.parks[0].b[1], base = E.rate(s, 0, cart, T0);
-  const m = E.recruit(s, T0, [0, 0, 0]);
-  assert.equal(m.spec, E.ID.cart);
-  assert.ok(E.assignStaff(s, m.id, 0, cart.u));
-  assert.ok(Math.abs(E.rate(s, 0, cart, T0) / base - 1.3) < 1e-9);
-  assert.equal(E.assignStaff(s, m.id, 0, E.hallB(s).u), false, 'only food stalls');
-  assert.ok(E.upgradeStaff(s, m.id));
-  assert.ok(E.dismissStaff(s, m.id));
-  assert.equal(cart.chef, 0);
-});
-
-test('other parks open with the hall and pay more', () => {
-  const s = rich();
-  assert.equal(E.unlockPark(s, 1), false);
-  hallTo(s, E.PARKS[1].hall);
-  assert.ok(E.unlockPark(s, 1));
-  const sp = (() => { for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) if (E.fits(s.parks[1], E.ID.table, x, y, -1)) return [x, y]; })();
-  s.jobs = [];
-  const b = E.build(s, 1, E.ID.cart, sp[0], sp[1], T0);
-  assert.ok(b, 'can build in the new park');
-  finishAll(s);
-  assert.ok(Math.abs(E.rate(s, 1, b, T0) / E.rate(s, 0, s.parks[0].b[1], T0) - E.PARKS[1].mult) < 0.6);
-});
-
-test('player level from XP pays gems', () => {
-  const s = E.newState(T0);
-  const gems = s.gems;
-  assert.equal(E.addXp(s, E.xpForLevel(1)), 1);
-  assert.equal(s.gems, gems + 10);
-  assert.equal(E.takeLevelUps(s), 1);
-});
-
-test('quests progress and pay out once per tier', () => {
-  const s = rich();
-  const q = E.questList(s).find(x => x.kind === 'hall');
-  assert.equal(q.done, false);
+  assert.equal(E.maxParcels(s), 3);
   hallTo(s, 2);
-  const g = s.gems;
-  const c = E.claimQuest(s, 'hall');
-  assert.ok(c && s.gems === g + c.gems);
-  assert.equal(E.claimQuest(s, 'hall'), null);
+  assert.ok(E.canBuild(s, 0, E.ID.dumpling).ok);
+  assert.equal(E.maxLevel(s, E.ID.cart), 2);
+  assert.equal(E.maxParcels(s), 7);
+  assert.equal(E.maxCount(s, E.ID.cart), 1);
+  hallTo(s, 3);
+  assert.equal(E.maxCount(s, E.ID.cart), 2);
 });
 
-test('offline time fills storage and finishes construction', () => {
+test('building and upgrading take time and a free builder; times grow with level', () => {
   const s = rich();
-  const sp = freeSpot(s, E.ID.garden);
-  const b = E.build(s, 0, E.ID.garden, sp[0], sp[1], T0);
-  const done = E.tick(s, 8 * 3600, T0 + 8 * 3600e3);
-  assert.equal(done.length, 1);
-  assert.equal(b.lv, 1);
-  assert.ok(s.parks[0].b[1].st >= E.storeCap(s, 0, s.parks[0].b[1]) - 1e-6);
+  hallTo(s, 5);
+  const c = cart(s);
+  assert.ok(E.startUpgrade(s, 0, c.u, T0));
+  assert.equal(E.canUpgrade(s, 0, c.u).why, 'Under construction');
+  const other = place(s, 'field');
+  s.jobs = [{ u: c.u, park: 0, end: T0 + 1e9, dur: 10 }];
+  if (E.builderCount(s) === 2) s.jobs.push({ u: other.u, park: 0, end: T0 + 1e9, dur: 10 });
+  assert.equal(E.canUpgrade(s, 0, E.hallB(s).u).why, 'All builders are busy');
+  for (let lv = 1; lv < 10; lv++) assert.ok(E.upgradeCost(E.HALL, lv + 1).time >= E.upgradeCost(E.HALL, lv).time);
+  assert.ok(E.upgradeCost(E.ID.cart, 5).time > E.upgradeCost(E.ID.cart, 1).time);
 });
 
-test('reward crate: free every 4 hours, otherwise gems', () => {
-  const s = E.newState(T0);
-  assert.ok(E.openCrate(s, T0, [0.1, 0.5, 0, 0]));
-  const g = s.gems;
-  assert.ok(E.openCrate(s, T0 + 1, [0.4, 0.5, 0, 0]), 'paid with gems');
-  assert.equal(s.gems, g - E.COST.crate);
-  s.gems = 0;
-  assert.equal(E.openCrate(s, T0 + 2, [0.1, 0, 0, 0]), null);
-  assert.ok(E.crateStatus(s, T0 + 5 * 3600e3).free);
+test('upgrading a stall raises customers, price and worker slots', () => {
+  const s = rich();
+  hallTo(s, 10);
+  const c = cart(s);
+  staffWith(s, c, 'cook');
+  const a = E.hourly(s, 0, c, T0);
+  for (let i = 0; i < 6; i++) { s.jobs = []; assert.ok(E.startUpgrade(s, 0, c.u, T0)); finishAll(s); }
+  const b = E.hourly(s, 0, c, T0);
+  assert.ok(b.demand > a.demand * 3);
+  assert.ok(b.price > a.price);
+  assert.ok(E.slotsFor(c.t, c.lv) > E.slotsFor(c.t, 1));
 });
 
-test('daily reward once a day', () => {
-  const s = E.newState(T0);
-  const d1 = E.claimDaily(s, T0);
-  assert.ok(d1 && d1.streak === 1);
-  assert.equal(E.claimDaily(s, T0 + 1000), null);
-  assert.equal(E.claimDaily(s, T0 + 86400e3).streak, 2);
+test('land: adjacent plots only, price rises, Market Hall limits how much', () => {
+  const s = rich();
+  assert.equal(E.canBuyParcel(s, 0, 0).ok, false, 'not adjacent');
+  assert.ok(E.buyParcel(s, 0, 2 * 6 + 1));
+  assert.equal(E.canBuyParcel(s, 0, 2 * 6 + 4).ok, false, 'needs a hall for more');
+  hallTo(s, 2);
+  const p1 = E.landPrice(s);
+  assert.ok(E.buyParcel(s, 0, 2 * 6 + 4));
+  assert.ok(E.landPrice(s) > p1);
 });
 
-test('VIP, tips and boost', () => {
-  const s = E.newState(T0);
-  assert.equal(E.vipReward(s, T0, 0.1).type, 'frenzy');
-  assert.ok(E.globalMult(s, T0 + 1000) >= E.FRENZY_MULT);
-  const c = s.cash;
-  assert.ok(E.tip(s) > 0 && s.cash > c);
-  s.gems = E.COST.boost;
-  assert.ok(E.buyBoost(s, T0));
+test('workers: skill and traits change output; training raises level and wage', () => {
+  const base = { skill: 1, trait: 'none', lvl: 1 };
+  assert.ok(E.workerPower({ ...base, skill: 3 }) > E.workerPower(base));
+  assert.ok(E.workerPower({ ...base, trait: 'fast' }) > E.workerPower(base));
+  const s = rich();
+  const w = staffWith(s, cart(s), 'cook');
+  const wage = w.wage;
+  assert.ok(E.train(s, w.id));
+  assert.equal(w.lvl, 2);
+  assert.ok(w.wage > wage);
+  assert.ok(E.fire(s, w.id));
+  assert.equal(E.workersAt(s, 0, cart(s).u).length, 0);
 });
 
-test('save round-trips; junk and old saves load safely', () => {
+test('hiring is capped by the Market Hall and candidates can be refreshed', () => {
+  const s = rich();
+  assert.equal(E.maxWorkers(s), 2);
+  E.hire(s, s.candidates[0].id); E.hire(s, s.candidates[0].id);
+  assert.equal(E.hire(s, s.candidates[0].id), null);
+  const ids = s.candidates.map(c => c.id).join();
+  assert.ok(E.rerollCandidates(s, T0, true));
+  assert.notEqual(s.candidates.map(c => c.id).join(), ids);
+});
+
+test('decorations near a stall bring more customers; bins keep it clean', () => {
+  const s = rich();
+  const c = cart(s);
+  staffWith(s, c, 'cook');
+  const before = E.hourly(s, 0, c, T0).demand;
+  const p = s.parks[0];
+  E.build(s, 0, E.ID.table, c.x + 1, c.y, T0);
+  assert.ok(E.decorBonus(p, c) > 0);
+  assert.ok(E.hourly(s, 0, c, T0).demand > before);
+  const dirty = E.cleanliness(s, 0, 1000);
+  E.build(s, 0, E.ID.bin, c.x - 1, c.y, T0);
+  assert.ok(E.cleanliness(s, 0, 1000) > dirty);
+});
+
+test('reputation grows with dishes and unlocks the Food Court', () => {
+  const s = rich();
+  staffWith(s, cart(s), 'cook');
+  E.tick(s, 1200, T0 + 1200e3);
+  assert.ok(s.rep > 0);
+  hallTo(s, 12);
+  assert.match(E.canBuild(s, 0, E.ID.court).why, /reputation/);
+  s.rep = 1e7;
+  assert.ok(E.canBuild(s, 0, E.ID.court).ok);
+});
+
+test('orders: deliver ingredients for cash, tokens and reputation', () => {
+  const s = fresh();
+  const o = s.orders[0];
+  assert.equal(E.fillOrder(s, 0, T0), null);
+  for (const [k, q] of Object.entries(o.need)) s.inv[k] = q;
+  const cash = s.cash;
+  assert.ok(E.fillOrder(s, 0, T0));
+  assert.equal(s.cash, cash + o.cash);
+  assert.ok(s.tokens >= 1);
+  assert.ok(s.orders[0].readyAt > T0, 'the next order arrives later');
+});
+
+test('events and weather change how many customers come', () => {
+  const s = fresh();
+  staffWith(s, cart(s), 'cook');
+  const base = E.demandMult(s, T0);
+  s.event = { id: 'rush', until: T0 + 1e6 };
+  assert.ok(Math.abs(E.demandMult(s, T0) - base * 2) < 1e-9);
+  s.event = null; s.weather = { kind: 'rain', until: T0 + 1e6 };
+  assert.ok(E.demandMult(s, T0) < base);
+  const s2 = rich(); hallTo(s2, 1);
+  s2.event = null; s2.nextEventAt = T0; s2.weather.until = T0;
+  const ch = E.updateWorldClock(s2, T0 + 1);
+  assert.ok(ch.some(c => c.type === 'event') && ch.some(c => c.type === 'weather'));
+});
+
+test('skill trees and research boost the business', () => {
   const s = rich();
   hallTo(s, 3);
-  const sp = freeSpot(s, E.ID.garden);
-  E.build(s, 0, E.ID.garden, sp[0], sp[1], T0);
-  E.recruit(s, T0, [0.5, 0.5, 0.5]);
-  E.takeLevelUps(s);
-  const again = E.loadState(JSON.parse(JSON.stringify(s)), T0);
-  assert.deepEqual(again, s);
-  const junk = E.loadState({ v: 3, cash: 'x', parks: [{ parcels: [], b: [{ t: 99 }, { t: 1, x: 0, y: 0 }, null] }], jobs: [{ u: 5 }], staff: [null] }, T0);
-  assert.ok(E.hallB(junk), 'always has a hall');
-  assert.equal(junk.parks[0].b.filter(b => b.t === 1 && b.x === 0).length, 0, 'buildings outside your land are dropped');
-  assert.equal(junk.jobs.length, 0);
-  const old = E.loadState({ v: 2, gems: 120, cash: 9e9, premium: true }, T0);
-  assert.equal(old.gems, 120);
-  assert.equal(old.premium, true);
-  assert.equal(old.cash, 200, 'old idle saves start a fresh park');
+  const c = cart(s);
+  staffWith(s, c, 'cook');
+  const a = E.hourly(s, 0, c, T0);
+  assert.ok(E.buySkill(s, c.t, 'menu'));
+  assert.ok(E.buySkill(s, c.t, 'sign'));
+  const b = E.hourly(s, 0, c, T0);
+  assert.ok(b.price > a.price && b.demand > a.demand);
+  assert.ok(E.doResearch(s, 'app'));
+  assert.equal(E.doResearch(s, 'app'), false);
+  assert.equal(E.canResearch(s, 'brand').ok, false);
 });
 
-test('number formatting', () => {
-  assert.equal(E.formatMoney(0), '$0');
-  assert.equal(E.formatMoney(1234), '$1.23K');
-  assert.equal(E.formatMoney(999999), '$1.00M');
-  assert.equal(E.formatTime(61), '1m 01s');
-  assert.equal(E.formatTime(90000), '1d 1h');
-});
-
-test('a fully built park never produces NaN or Infinity', () => {
+test('cards: rush doubles customers, instant finishes a build, harvest fills stock', () => {
   const s = rich();
-  hallTo(s, E.HALL_MAX);
-  while (true) { const k = [...Array(36).keys()].find(k2 => E.canBuyParcel(s, 0, k2).ok); if (k === undefined) break; E.buyParcel(s, 0, k); }
-  E.DEFS.forEach((d, t) => { while (E.canBuild(s, 0, t).ok) { s.jobs = []; const sp = freeSpot(s, t); if (!sp) break; E.build(s, 0, t, sp[0], sp[1], T0); finishAll(s); } });
-  s.parks[0].b.forEach(b => { while (E.canUpgrade(s, 0, b.u).ok) { s.jobs = []; E.startUpgrade(s, 0, b.u, T0); finishAll(s); } });
-  E.RESEARCH.forEach(r => E.research(s, r.id));
-  E.tick(s, 1e6, T0);
-  const tot = E.totals(s, T0);
-  assert.ok(Number.isFinite(tot.cash) && tot.cash > 0 && Number.isFinite(s.cash));
-  assert.ok(s.parks[0].b.length > 60, 'lots of buildings fit: ' + s.parks[0].b.length);
+  hallTo(s, 2);
+  s.cards = { rush: 1, instant: 1, harvest: 1, reroll: 0 };
+  const base = E.demandMult(s, T0);
+  assert.ok(E.useCard(s, 'rush', T0));
+  assert.ok(Math.abs(E.demandMult(s, T0) - base * 2) < 1e-9);
+  s.jobs = [];
+  const b = E.build(s, 0, E.ID.barn, ...freeSpot(s, E.ID.barn), T0);
+  assert.ok(E.useCard(s, 'instant', T0));
+  E.tick(s, 0.001, T0);
+  assert.equal(b.lv, 1);
+  staffWith(s, b, 'farmer');
+  s.inv.meat = 0;
+  assert.ok(E.useCard(s, 'harvest', T0));
+  assert.ok(s.inv.meat > 0);
+});
+
+test('missions guide the tutorial: the first one is hiring a cook', () => {
+  const s = fresh();
+  assert.match(E.mission(s).title, /Hire a cook/);
+  assert.equal(E.claimMission(s), null);
+  const c = s.candidates.find(x => x.role === 'cook');
+  E.hire(s, c.id); E.assign(s, c.id, 0, cart(s).u);
+  const gems = s.gems;
+  assert.ok(E.claimMission(s));
+  assert.ok(s.gems > gems);
+  assert.equal(s.mission, 1);
+});
+
+test('leaderboard ranks you among rival tycoons', () => {
+  const s = fresh();
+  const lb = E.leaderboard(s, T0);
+  assert.equal(lb.length, E.leaderboard(s, T0).length);
+  assert.ok(lb.some(x => x.you));
+  for (let i = 1; i < lb.length; i++) assert.ok(lb[i - 1].worth >= lb[i].worth);
+  s.cash = 1e12;
+  assert.ok(E.leaderboard(s, T0)[0].you);
+});
+
+test('save and load keeps workers, inventory, ledger and buildings', () => {
+  const s = rich();
+  hallTo(s, 3);
+  staffWith(s, cart(s), 'cook', 3);
+  E.tick(s, 600, T0 + 600e3);
+  const raw = JSON.parse(JSON.stringify(s));
+  const l = E.loadState(raw, T0 + 600e3);
+  assert.equal(l.workers.length, 1);
+  assert.equal(l.workers[0].skill, 3);
+  assert.deepEqual(l.workers[0].at, { park: 0, u: cart(s).u });
+  assert.equal(l.inv.wheat, s.inv.wheat);
+  assert.equal(l.ledger.length, s.ledger.length);
+  assert.equal(E.hallLevel(l), 3);
+  assert.equal(l.parks[0].b.length, s.parks[0].b.length);
+});
+
+test('older saves start the new game but keep gems and purchases', () => {
+  const l = E.loadState({ v: 3, gems: 500, premium: true, cash: 1e9, settings: { sound: false } }, T0);
+  assert.equal(l.gems, 500);
+  assert.equal(l.premium, true);
+  assert.equal(l.cash, 400);
+  assert.equal(l.settings.sound, false);
+  assert.equal(E.loadState(null, T0).cash, 400);
+  assert.equal(E.loadState({ v: 4, cash: 'lots', workers: [{ role: 'pilot' }], inv: { wheat: -5 } }, T0).cash, 400);
+});
+
+test('hall tree lists unlocks for every level', () => {
+  const tree = E.hallTree();
+  assert.equal(tree.length, E.HALL_MAX);
+  assert.ok(tree[1].items.some(i => i.text === 'Dumpling Stand'));
+  assert.ok(tree[4].items.some(i => i.text === 'Fish Pond'));
+});
+
+test('daily rewards, crates and quests pay out', () => {
+  const s = fresh();
+  const d = E.claimDaily(s, T0);
+  assert.ok(d && d.cash > 0);
+  assert.equal(E.claimDaily(s, T0), null);
+  const c = E.openCrate(s, T0, [0.5, 0.5]);
+  assert.ok(c);
+  assert.equal(E.crateStatus(s, T0).free, false);
+  assert.ok(E.questList(s).length >= 6);
+});
+
+test('formatting money and time', () => {
+  assert.equal(E.formatMoney(4.5), '$4.50');
+  assert.equal(E.formatMoney(1500), '$1.50K');
+  assert.equal(E.formatMoney(999999), '$1.00M');
+  assert.equal(E.formatTime(3700), '1h 01m');
+});
+
+test('long offline gaps are simulated in steps and capped', () => {
+  const s = fresh();
+  staffWith(s, cart(s), 'cook');
+  s.inv.wheat = 150; s.inv.veg = 150;
+  E.tick(s, 48 * 3600, T0 + 48 * 3600e3);
+  assert.ok(s.stats.dishes > 100 && s.stats.dishes <= 150 + 1e-6);
+  assert.ok(s.stats.playTime <= E.OFFLINE_CAP_SEC + 60);
 });
 
 console.log(`\n${passed} passed${process.exitCode ? ', some FAILED' : ''}`);

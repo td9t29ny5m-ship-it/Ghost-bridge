@@ -250,6 +250,72 @@
     collect: `<circle cx="22" cy="40" r="15" fill="#d99a1c" ${S()}/><circle cx="22" cy="37" r="15" fill="#ffd23f" ${S()}/>
       <circle cx="42" cy="28" r="15" fill="#d99a1c" ${S()}/><circle cx="42" cy="25" r="15" fill="#ffd23f" ${S()}/>${dollar(42, 25.5, 1, '#b87400')}
       <path d="M50 52 58 44M58 44V52M58 44H50" fill="none" stroke="#3ddc84" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`,
+
+    // ---------- Ingredients ----------
+    wheat: `<path d="M32 60V20" stroke="#b07a2a" stroke-width="4" stroke-linecap="round"/>
+      ${[[32, 12, 0], [25, 22, -28], [39, 22, 28], [25, 33, -28], [39, 33, 28], [26, 44, -28], [38, 44, 28]].map(([x, y, r]) => `<ellipse cx="${x}" cy="${y}" rx="5" ry="9" transform="rotate(${r} ${x} ${y})" fill="#ffcf4a" ${S(3)}/>`).join('')}
+      <path d="M31 9v6" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".6"/>`,
+    veg: `<path d="M20 22c-6-8-2-15 4-14 0 6 2 9 6 12M33 18c0-9 6-13 11-10-3 5-6 8-9 12M38 22c7-5 14-3 15 3-6 1-10 0-14-1" fill="#3ddc84" ${S(3)}/>
+      <path d="M15 27c8-8 26-6 30 2 3 7-10 25-22 30-7 3-11-1-11-7 0-9 0-19 3-25Z" fill="#ff8a2b" ${S()}/>
+      <path d="M22 34h8M20 42h7M22 50h6" stroke="#d9641a" stroke-width="2.6" stroke-linecap="round"/><path d="M20 30c4-3 9-4 13-3" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".5"/>`,
+    rice: `<path d="M8 32h48c0 14-10 24-24 24S8 46 8 32Z" fill="#e8f1ff" ${S()}/><path d="M8 32h48" stroke="#3a86ff" stroke-width="6"/>
+      <path d="M8 32h48c0 14-10 24-24 24S8 46 8 32Z" fill="none" ${S()}/>
+      <path d="M12 31c2-12 10-18 20-18s18 6 20 18Z" fill="#fff" ${S()}/>
+      ${[[22, 22], [30, 18], [38, 21], [26, 27], [35, 27], [43, 27], [19, 28]].map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="2.6" ry="1.4" fill="#d6dbe6"/>`).join('')}
+      <path d="M44 6 30 30M51 9 36 31" stroke="#8a5a2b" stroke-width="3" stroke-linecap="round"/>`,
+    fruit: `<path d="M32 18c-3-7-1-12 3-14" fill="none" stroke="#7a4a2a" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M35 12c6-6 14-5 16 0-6 4-11 4-16 0Z" fill="#3ddc84" ${S(3)}/>
+      <path d="M32 20c-6-5-22-4-23 12-1 14 10 26 18 26 3 0 4-2 5-2s2 2 5 2c8 0 19-12 18-26-1-16-17-17-23-12Z" fill="#ff4d5e" ${S()}/>
+      <path d="M17 30c1-5 5-8 9-8" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".55"/>`,
+    fish: `<path d="M50 32 61 20v24Z" fill="#3a86ff" ${S()}/>
+      <path d="M6 32c8-13 22-17 34-12 5 2 9 6 12 12-3 6-7 10-12 12-12 5-26 1-34-12Z" fill="#6fb6ff" ${S()}/>
+      <path d="M26 21c4 6 4 16 0 22" fill="none" stroke="#3a86ff" stroke-width="2.6"/><path d="M20 24c-2-6 4-10 10-10l-2 7" fill="#3a86ff" ${S(2.6)}/>
+      <circle cx="16" cy="30" r="3.2" fill="#fff" ${S(2)}/><circle cx="16.6" cy="30" r="1.4" fill="${OL}"/>
+      <path d="M30 26c6-3 12-2 16 2" stroke="#fff" stroke-width="2.6" stroke-linecap="round" opacity=".6"/>`,
+    meat: `<path d="M44 12c6-4 12 2 8 8l-7 7-8-8Z" fill="#fff6e8" ${S()}/><circle cx="52" cy="9" r="5" fill="#fff6e8" ${S(3)}/><circle cx="56" cy="15" r="5" fill="#fff6e8" ${S(3)}/>
+      <path d="M38 18c6 3 9 9 7 16-3 12-17 22-28 21C8 54 5 46 9 37c4-10 18-24 29-19Z" fill="#d9483b" ${S()}/>
+      <path d="M36 23c3 3 4 7 2 11-3 7-12 13-19 13" fill="none" stroke="#ff8a7a" stroke-width="4" stroke-linecap="round"/>
+      <path d="M14 38c2-5 6-9 10-11" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".5"/>`,
+
+    // ---------- Business ----------
+    crate: `<path d="M8 22 32 12l24 10v26L32 58 8 48Z" fill="#c98a4a" ${S()}/><path d="M8 22 32 32l24-10M32 32v26" fill="none" ${S(3)}/>
+      <path d="M12 30 28 37M12 40 28 47M36 37l16-7M36 47l16-7" stroke="#a36a32" stroke-width="3" stroke-linecap="round"/>
+      <path d="M14 20 32 13l18 7" stroke="#fff" stroke-width="2.6" stroke-linecap="round" opacity=".45"/>`,
+    bin: `<path d="M14 20h36l-4 36H18Z" fill="#3ddc84" ${S()}/><rect x="10" y="12" width="44" height="9" rx="3" fill="#2fae66" ${S()}/>
+      <path d="M26 8h12v4H26Z" fill="#2fae66" ${S(3)}/><path d="M24 28v20M32 28v20M40 28v20" stroke="#2fae66" stroke-width="3.2" stroke-linecap="round"/>
+      <path d="M18 24l2 26" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".5"/>`,
+    token: `<circle cx="32" cy="35" r="24" fill="#c0392b" ${S()}/><circle cx="32" cy="32" r="24" fill="#ff6b4a" ${S()}/>
+      <circle cx="32" cy="32" r="17" fill="#ffb35c" ${S(3)}/>
+      <path d="M23 30c0-7 4-10 9-10s9 3 9 10Z" fill="#fff" ${S(2.6)}/><path d="M21 31h22v3H21Z" fill="#fff" ${S(2.6)}/><path d="M26 34v8h12v-8" fill="#fff" ${S(2.6)}/>
+      <path d="M17 22a17 17 0 0 1 9-7" stroke="#fff" stroke-width="3.5" stroke-linecap="round" opacity=".6"/>`,
+    chart: `<rect x="6" y="8" width="52" height="48" rx="6" fill="#fff" ${S()}/>
+      <rect x="14" y="34" width="8" height="15" rx="2" fill="#3a86ff" ${S(2.6)}/><rect x="28" y="24" width="8" height="25" rx="2" fill="#3ddc84" ${S(2.6)}/><rect x="42" y="16" width="8" height="33" rx="2" fill="#ffcf2e" ${S(2.6)}/>
+      <path d="M12 30 26 20l12 4 14-10" fill="none" stroke="#ff4d5e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`,
+    receipt: `<path d="M14 6h36v52l-6-4-6 4-6-4-6 4-6-4-6 4Z" fill="#fff" ${S()}/>
+      <path d="M21 17h22M21 25h22M21 33h14" stroke="#b9c2d6" stroke-width="3" stroke-linecap="round"/>
+      <path d="M21 44h22" stroke="#ff4d5e" stroke-width="3.4" stroke-linecap="round"/><circle cx="43" cy="33" r="3" fill="#ff4d5e"/>`,
+    cards: `<rect x="8" y="14" width="28" height="40" rx="5" fill="#b56cff" ${S()} transform="rotate(-14 22 34)"/>
+      <rect x="26" y="10" width="28" height="40" rx="5" fill="#ffcf2e" ${S()} transform="rotate(10 40 30)"/>
+      <polygon points="${starPts(40, 30, 9, 4, 5)}" fill="#fff" transform="rotate(10 40 30)"/>`,
+    farmer: `<path d="M8 30c0-4 10-6 24-6s24 2 24 6-10 6-24 6S8 34 8 30Z" fill="#e0b062" ${S()}/>
+      <path d="M18 28c0-12 6-18 14-18s14 6 14 18Z" fill="#ffd27a" ${S()}/><path d="M18 26h28" stroke="#ff4d5e" stroke-width="4"/>
+      <path d="M22 36c0 12 4 20 10 20s10-8 10-20" fill="#ffd9b8" ${S()}/><path d="M26 44c4 3 8 3 12 0" stroke="${OL}" stroke-width="2.6" stroke-linecap="round" fill="none"/>`,
+    fisher: `<path d="M12 28c0-10 9-18 20-18s20 8 20 18Z" fill="#ffcf2e" ${S()}/><path d="M6 30h52l-4 6H10Z" fill="#ffcf2e" ${S()}/>
+      <path d="M22 36c0 12 4 20 10 20s10-8 10-20" fill="#ffd9b8" ${S()}/><path d="M26 44c4 3 8 3 12 0" stroke="${OL}" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+      <path d="M20 18c4-4 9-5 13-5" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".6"/>`,
+    broom: `<path d="M44 6 30 34" stroke="#a36a32" stroke-width="5" stroke-linecap="round"/>
+      <path d="M24 30 38 37 34 58C26 58 14 54 10 48Z" fill="#ffcf4a" ${S()}/><path d="M24 30 38 37" stroke="#ff4d5e" stroke-width="5" stroke-linecap="round"/>
+      <path d="M18 46l10 6M22 40l12 6" stroke="#d9a441" stroke-width="2.4" stroke-linecap="round"/>`,
+
+    // ---------- Weather ----------
+    sun: `${Array.from({ length: 8 }, (_, i) => `<rect x="29" y="2" width="6" height="12" rx="3" fill="#ffb21f" ${S(2.6)} transform="rotate(${i * 45} 32 32)"/>`).join('')}
+      <circle cx="32" cy="32" r="15" fill="#ffd23f" ${S()}/><path d="M24 27a10 10 0 0 1 7-6" stroke="#fff" stroke-width="3.5" stroke-linecap="round" opacity=".7"/>`,
+    cloud: `<path d="M16 50c-6 0-10-4-10-10s5-10 10-10c1-9 8-15 17-15 8 0 14 5 16 12 6 0 11 5 11 11s-5 12-11 12Z" fill="#eef3fb" ${S()}/>
+      <path d="M22 28c2-5 6-8 11-8" stroke="#fff" stroke-width="4" stroke-linecap="round"/><path d="M14 46h36" stroke="#c9d3e6" stroke-width="3" stroke-linecap="round"/>`,
+    rain: `<path d="M16 38c-6 0-10-4-10-9s5-9 10-9c1-8 8-13 16-13s13 4 15 11c6 0 11 4 11 10s-5 10-11 10Z" fill="#b9c6dd" ${S()}/>
+      ${[[18, 46], [30, 48], [42, 46], [24, 56], [38, 56]].map(([x, y]) => `<path d="M${x} ${y}l-3 6" stroke="#3a86ff" stroke-width="3.6" stroke-linecap="round"/>`).join('')}`,
+    snow: `<path d="M16 36c-6 0-10-4-10-9s5-9 10-9c1-8 8-13 16-13s13 4 15 11c6 0 11 4 11 10s-5 10-11 10Z" fill="#eef3fb" ${S()}/>
+      ${[[18, 47], [32, 50], [46, 47], [25, 58], [40, 58]].map(([x, y]) => `<g stroke="#6fb6ff" stroke-width="2.4" stroke-linecap="round"><path d="M${x - 4} ${y}h8M${x} ${y - 4}v8M${x - 3} ${y - 3}l6 6M${x + 3} ${y - 3}l-6 6"/></g>`).join('')}`,
   };
   A.trophy2 = A.trophy;
 
