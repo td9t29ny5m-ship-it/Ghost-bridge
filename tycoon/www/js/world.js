@@ -704,6 +704,12 @@
       box(0.5, 0.36, 0.5, mat(0xddb67c), 0.9, 1.2, 0.4, g);
     }
     for (const x of [-0.8, 0.2]) part(geo('stool', () => new T.CylinderGeometry(0.2, 0.16, 0.5, 8)), mat(acc), x, 0.25, 1.6, g);
+    // food waiting on the counter
+    const FOOD = { cart: 0xf2c94c, dumpling: 0xfff1d6, tea: 0xc99bff, spice: 0xd9663b };
+    for (const x of [-0.3, 0.25, 0.8]) {
+      part(geo('bowl', () => new T.CylinderGeometry(0.2, 0.13, 0.14, 12)), mat(0xffffff), x, 1.12, 0.85, g).castShadow = false;
+      part(geo('bowlFood', () => new T.SphereGeometry(0.17, 10, 6, 0, 6.3, 0, 1.3)), mat(FOOD[def.id] || 0xffb35c), x, 1.17, 0.85, g).castShadow = false;
+    }
     const chef = person(0xffffff, { hat: true, plain: true });
     chef.position.set(0.35, 0, -0.5);
     g.add(chef);
@@ -1426,7 +1432,10 @@
   function updatePeople(dt) {
     let strollers = 0;
     for (const p of people) if (p.state === 'stroll') strollers++;
-    const target = { suburb: 8, town: 14, city: 18, metro: 22 }[style];
+    // the town gets busier as your reputation grows; fewer people at night and in bad weather
+    const rep = lastState ? Math.min(15, E.repLevel(lastState)) : 1;
+    const busy = (0.55 + rep * 0.09) * (1 - 0.6 * (W.night || 0)) * (wxKind === 'rain' || wxKind === 'snow' ? 0.6 : 1) * (quality >= 2 ? 0.6 : 1);
+    const target = Math.round({ suburb: 8, town: 14, city: 18, metro: 22 }[style] * busy);
     if (strollers < target && time > nextWander) {
       nextWander = time + 0.6;
       const a = Math.random() * 6.283, r = Math.random() < 0.5 ? HALF + 1.5 : RING + 5.5, cx = Math.cos(a), cz = Math.sin(a), m = Math.max(Math.abs(cx), Math.abs(cz));
@@ -1522,7 +1531,8 @@
     cars.push(c);
   }
   function updateCars(dt) {
-    const want = { suburb: 7, town: 12, city: 18, metro: 24 }[style];
+    const rep = lastState ? Math.min(15, E.repLevel(lastState)) : 1;
+    const want = Math.round({ suburb: 7, town: 12, city: 18, metro: 24 }[style] * (0.6 + rep * 0.06) * (1 - 0.4 * (W.night || 0)));
     if (cars.length < want && time > nextCar) { nextCar = time + 0.5; spawnCar(); }
     for (const c of cars) {
       let go = c.max;

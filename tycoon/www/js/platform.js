@@ -7,7 +7,7 @@
   'use strict';
 
   const CONFIG = {
-    version: '3.0.0',
+    version: '4.0.0',
     saveKey: 'yum-empire-save-v1',
     // Google's official TEST ad units. Replace with your own before release (see README).
     admob: {
@@ -90,6 +90,70 @@
         case 'vip': return this.tone([784, 988, 1175, 1568], 0.07, 'triangle', 0.08);
         case 'prestige': return this.tone([392, 523, 659, 784, 1047, 1319], 0.1, 'triangle', 0.09);
         case 'error': return this.tone([196, 147], 0.08, 'sawtooth', 0.04);
+        case 'hire': return this.tone([392, 494, 587, 784], 0.07, 'triangle', 0.08);
+        case 'register': return this.tone([1568, 2093, 1568, 2637], 0.045, 'square', 0.03);
+        case 'build': return this.tone([196, 262, 196, 330], 0.06, 'square', 0.04);
+      }
+    },
+  };
+
+  // ---------- Music (composed in code: a gentle market tune, no audio files) ----------
+  // A four-chord loop with a plucked melody, bass and soft shaker. Daytime is brighter and
+  // faster; at night it slows down and drops the melody to a music-box line.
+  const Music = {
+    enabled: true, playing: false, step: 0, nextAt: 0, timer: null, mood: 'day', bus: null,
+    start() {
+      if (!this.enabled || this.playing || !ctx) return;
+      if (ctx.state === 'suspended') ctx.resume();
+      this.bus = ctx.createGain(); this.bus.gain.value = 0.0001; this.bus.connect(ctx.destination);
+      this.bus.gain.exponentialRampToValueAtTime(0.55, ctx.currentTime + 2);
+      this.playing = true; this.step = 0; this.nextAt = ctx.currentTime + 0.1;
+      this.timer = setInterval(() => this.schedule(), 120);
+    },
+    stop() {
+      if (!this.playing) return;
+      this.playing = false; clearInterval(this.timer);
+      const bus = this.bus;
+      try { bus.gain.cancelScheduledValues(ctx.currentTime); bus.gain.setValueAtTime(bus.gain.value, ctx.currentTime); bus.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6); } catch (e) { /* ignore */ }
+      setTimeout(() => { try { bus.disconnect(); } catch (e) { /* ignore */ } }, 800);
+    },
+    update(state, now) {
+      if (!state) return;
+      const E = window.Engine, c = E && E.gameClock ? E.gameClock(now) : { hour: 12 };
+      this.mood = c.hour >= 21 || c.hour < 6 ? 'night' : 'day';
+      if (state.settings.music && !this.playing && ctx && ctx.state === 'running') this.start();
+    },
+    note(freq, t, dur, type, vol, attack) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + (attack || 0.01));
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(this.bus);
+      o.start(t); o.stop(t + dur + 0.05);
+    },
+    noise(t, vol) {
+      const len = Math.floor(ctx.sampleRate * 0.05), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+      const src = ctx.createBufferSource(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+      f.type = 'highpass'; f.frequency.value = 6000;
+      src.buffer = buf; g.gain.value = vol;
+      src.connect(f).connect(g).connect(this.bus); src.start(t);
+    },
+    schedule() {
+      if (!this.playing) return;
+      const night = this.mood === 'night', beat = night ? 0.42 : 0.3;
+      const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+      const CHORDS = [[60, 64, 67], [57, 60, 64], [65, 69, 72], [67, 71, 74]];   // C  Am  F  G
+      const MEL = [76, 74, 72, 74, 76, 79, 76, 74, 72, 69, 72, 74, 71, 72, 74, 79];
+      while (this.nextAt < ctx.currentTime + 0.4) {
+        const t = this.nextAt, k = this.step % 32, bar = Math.floor(this.step / 8) % 4, ch = CHORDS[bar];
+        if (k % 8 === 0) { this.note(mtof(ch[0] - 24), t, beat * 3.5, 'triangle', 0.09, 0.02); ch.forEach(n => this.note(mtof(n), t, beat * 7.5, 'sine', 0.018, 0.3)); }
+        if (k % 8 === 4) this.note(mtof(ch[0] - 17), t, beat * 2, 'triangle', 0.06, 0.02);
+        if (!night && k % 2 === 1) this.noise(t, 0.035);
+        const m = MEL[(this.step + (bar % 2 ? 4 : 0)) % 16];
+        if (night ? k % 4 === 0 : k % 2 === 0 || k % 8 === 3) this.note(mtof(night ? m + 12 : m), t, night ? beat * 3 : beat * 1.4, night ? 'sine' : 'square', night ? 0.025 : 0.016, 0.005);
+        this.nextAt += beat; this.step++;
       }
     },
   };
@@ -235,5 +299,5 @@
     },
   };
 
-  window.Platform = { CONFIG, isNative, platform, Storage, Sound, Haptics, Ads, Store, Lifecycle };
+  window.Platform = { CONFIG, isNative, platform, Storage, Sound, Music, Haptics, Ads, Store, Lifecycle };
 })();

@@ -293,10 +293,11 @@
         toast(d.time ? `${I('hammer', 'inl')} Construction started: <b>${esc(d.name)}</b> (${ftime(d.time)})` : `${I(d.icon, 'inl')} <b>${esc(d.name)}</b> placed!`);
       } else toast(esc(E.canBuild(state, PK(), placing.t).why || 'Cannot build here'));
     }
+    const timed = !placing.moveU && def(placing.t).time > 0;
     if (use3d) W3.endPlacement();
     placing = null;
     renderPlaceBar();
-    if (u) { feedback('buy', true); select({ kind: 'b', u }); }
+    if (u) { feedback(timed ? 'build' : 'buy', true); select({ kind: 'b', u }); }
     onStateChanged();
     save();
   }
@@ -436,7 +437,7 @@
       const target = panelArg;
       const w = E.hire(state, +el.dataset.id);
       if (!w) { feedback('error'); toast(state.workers.length >= E.maxWorkers(state) ? 'Your team is full. Upgrade the Market Hall to employ more.' : 'Not enough cash for the signing fee.'); return; }
-      feedback('milestone', true);
+      feedback('hire', true);
       if (target && E.assign(state, w.id, target.park, target.u)) {
         const b = E.findB(state, target.park, target.u);
         toast(`${face(w, 'inl')} <b>${esc(w.name)}</b> started work at the ${esc(def(b.t).name)}!`);
@@ -482,7 +483,7 @@
     fillOrder(el) {
       const i = +el.dataset.i, o = E.fillOrder(state, i, now());
       if (!o) { feedback('error'); return; }
-      feedback('prestige', true);
+      feedback('register', true);
       const r = el.getBoundingClientRect();
       flyTo('cash', r.left + r.width / 2, r.top, 7);
       toast(`${I('receipt', 'inl')} Delivered to <b>${esc(o.who)}</b>! +${money(o.cash)} +${o.tokens} ${I('token', 'inl')}`, 3000);

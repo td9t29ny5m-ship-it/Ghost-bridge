@@ -1,5 +1,5 @@
 // Offline cache for the web/PWA build (not used inside the native apps).
-const CACHE = 'yum-empire-v4';
+const CACHE = 'yum-empire-v5';
 const ASSETS = [
   './', './index.html', './privacy.html', './css/style.css', './vendor/three.min.js', './js/icons.js', './js/engine.js', './js/platform.js', './js/world.js', './js/game.js',
   './fonts/lilita-one-latin-400-normal.woff2', './fonts/nunito-latin-700-normal.woff2', './fonts/nunito-latin-900-normal.woff2',

@@ -21,8 +21,9 @@ const SCENES = [
   { name: '1-park', stage: 'late', cam: [0, 0, 150], time: 0.25 },
   { name: '2-street-food', stage: 'mid', cam: [0, 4, 80], time: 0.3 },
   { name: '3-night', stage: 'late', cam: [0, 0, 130], time: 0.75 },
-  { name: '4-build', stage: 'mid', cam: [0, 4, 100], time: 0.3, panel: 'build' },
-  { name: '5-hall', stage: 'mid', cam: [0, 4, 100], time: 0.3, panel: 'hall' },
+  { name: '4-farms', stage: 'mid', cam: [0, -30, 90], time: 0.3 },
+  { name: '5-staff', stage: 'mid', cam: [0, 4, 100], time: 0.3, panel: 'staff' },
+  { name: '6-report', stage: 'mid', cam: [0, 4, 100], time: 0.3, panel: 'report' },
 ];
 (async () => {
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });

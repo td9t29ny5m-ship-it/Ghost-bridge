@@ -2,43 +2,40 @@
 
 ## Names
 - **App name** (both stores, ≤30 chars): `Yum Empire: Food Tycoon`
-- **iOS subtitle** (≤30): `Street Food Park Builder`
-- **Play short description** (≤80): `Build your own street-food park, expand your land and grow a 3D food empire!`
-- **iOS keywords** (≤100, comma-separated, no spaces): `tycoon,builder,city,park,food,restaurant,cooking,street,market,empire,idle,chef,simulation`
+- **iOS subtitle** (≤30): `Run a Street Food Business`
+- **Play short description** (≤80): `Hire staff, grow ingredients and turn one noodle cart into a 3D food empire!`
+- **iOS keywords** (≤100, comma-separated, no spaces): `tycoon,business,farm,restaurant,food,cooking,street,market,empire,staff,manager,city,simulation`
 - **Category:** Games → Simulation (secondary: Casual)
 
 ## Full description (≤4000)
 
-It starts with one little plot, a Market Hall and a single noodle cart. Build it into the biggest street-food park in town! 🍜
+It starts with one noodle cart, $400 and a few bags of flour and vegetables. Hire your first cook, and grow it into the biggest street-food business in the country!
 
-🏗️ BUILD YOUR OWN STREET-FOOD PARK
-Place noodle carts, dumpling stands, bubble tea bars, taco trucks, pizza parlors, sushi bars, burger joints and giant food courts wherever you like. Drag them around until your park is just right.
+RUN A REAL BUSINESS
+Every dish has a real price and real ingredients. Customers come and go through the day, with a lunch rush and a dinner peak. Pay wages, sales tax, supplies and rent, and watch your profit in the daily report.
 
-📜 EXPAND YOUR LAND
-Buy the plot next door to make your park bigger. Every expansion opens up room for more stalls, gardens and decorations.
+HIRE YOUR TEAM
+Choose cooks, farmers and fishers from the hiring board. Each has their own skills, personality and wage. Train them up, move them around and build the perfect team.
 
-🏛️ UPGRADE YOUR MARKET HALL
-The heart of your park unlocks new buildings, bigger upgrades and more land. Watch it grow from a little hall into a palace with a golden dome.
+GROW YOUR OWN FOOD
+Plant wheat fields, veggie gardens and fruit orchards, flood rice paddies, raise animals in the barn and dig fish ponds. Your farmers grow everything your stalls need, or buy the rest at the market.
 
-🥕 GROW INGREDIENTS
-Gardens, spice stalls, fish markets and greenhouses supply the ingredients you need for every upgrade.
+BUILD AND EXPAND
+Noodle carts, dumpling stands, bubble tea bars, taco trucks, pizza parlors, sushi bars, burger joints, food courts and a global kitchen. Buy the land next door to make room, and upgrade your Market Hall to unlock more.
 
-🌳 DESIGN FOR PROFIT
-Tables, lamps, flower planters, trees, fountains and a music stage boost every stall around them. Plan your layout for the biggest bonuses!
+A LIVING MINIATURE TOWN
+A tilt-shift toy town where customers queue and eat at your tables, cows wander the paddock, fish jump in the ponds, kitchens smoke, and rain and snow roll in. Day turns to night with glowing lights.
 
-🏙️ A LIVING MINIATURE TOWN
-A tilt-shift toy town with customers who queue and eat at your tables, traffic, trains, hot-air balloons, and a day-night cycle with glowing lights. Open new parks in Riverside Town, Downtown City and the Neon Metropolis.
+GOALS EVERYWHERE
+A story of missions, orders from around town, festivals and food critics, skill trees, research, reward cards and a leaderboard of rival tycoons to beat.
 
-👩‍🍳 CHEFS, QUESTS AND REWARDS
-Recruit and train chefs, complete endless quests, open reward crates, welcome VIP visitors and collect 75 awards.
+PLAYER-FRIENDLY
+- No forced ads; videos are optional
+- Plays offline, and your staff keep working while you're away
+- No account needed
 
-✨ PLAYER-FRIENDLY
-• No forced ads; videos are optional
-• Plays offline, and your park keeps earning while you're away
-• No account needed
-
-## What's new (v3.0.0)
-A whole new game! Build your own street-food park on a grid, expand your land, upgrade the Market Hall, grow ingredients, and design your layout for bonuses. All-new hand-drawn art.
+## What's new (v4.0.0)
+A real business! Hire cooks, farmers and fishers, grow your own ingredients on farms and fish ponds, pay wages and tax, and follow your profit in the daily report. New 3D farms, animals, weather and music.
 
 ## Screenshots
 Run `npm run serve` in one terminal, then `node tools/screenshots.js` in another. It takes several minutes, because the 3D city is rendered in software. The script writes the sizes each store needs to `store/screenshots/`:
@@ -68,7 +65,7 @@ Run `npm run serve` in one terminal, then `node tools/screenshots.js` in another
 - **Data not linked to you:** Usage Data (advertising data, product interaction) and Diagnostics (crash data), for Third-Party Advertising and Analytics.
 
 ## Review notes (paste into App Review / Play review)
-> Yum Empire is an idle tycoon game. No login is required. Rewarded video ads are optional and appear only when the player taps "Watch". The two in-app purchases are non-consumable: "Permanent 2× Profit" (yum_premium_2x) and "VIP Pass" (yum_vip_pass, which grants ad rewards without watching). They can be restored under More → Shop → Restore purchases.
+> Yum Empire is a business tycoon game. No login is required. Rewarded video ads are optional and appear only when the player taps "Watch". The two in-app purchases are non-consumable: "Premium Business" (yum_premium_2x, +50% customers) and "VIP Pass" (yum_vip_pass, which grants ad rewards without watching). They can be restored under Store → Restore purchases.
 
 ## Release checklist
 - [ ] Final app ID / bundle ID chosen
@@ -76,5 +73,5 @@ Run `npm run serve` in one terminal, then `node tools/screenshots.js` in another
 - [ ] IAP products created in both stores and linked in RevenueCat; keys set in `platform.js`
 - [ ] `privacy.html` placeholders filled in and hosted at a public URL
 - [ ] Version numbers bumped
-- [ ] Tested on a real phone: tap, buy, manager, offline earnings, rewarded ad, purchase + restore
+- [ ] Tested on a real phone: hire, build, farms, market, offline progress, rewarded ad, purchase + restore
 - [ ] Screenshots + feature graphic uploaded
