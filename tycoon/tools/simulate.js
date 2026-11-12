@@ -1,83 +1,93 @@
 #!/usr/bin/env node
 /*
  * Balance simulator: a greedy bot plays Yum Empire and prints pacing milestones.
- * Usage: node tools/simulate.js [hours=3] [runs=2]
+ * Usage: node tools/simulate.js [hoursPerRun=2] [runs=3]
  */
 const E = require('../www/js/engine.js');
 
-const HOURS = parseFloat(process.argv[2] || '3');
-const RUNS = parseInt(process.argv[3] || '2', 10);
+const HOURS = parseFloat(process.argv[2] || '2');
+const RUNS = parseInt(process.argv[3] || '3', 10);
+
+function income(s, now) {
+  // The bot taps every unmanaged shop, so count all shops.
+  return E.incomePerSec(s, now, { noTimed: true }) + 1e-9;
+}
 
 function bestAction(s, now) {
-  const base = E.incomePerSec(s, now, { noTimed: true }) + 1e-9;
+  const base = income(s, now);
   let best = null;
   const consider = (cost, gain, act, label) => {
-    if (cost <= 0 || gain <= 0) return;
-    // Payback time, plus time spent waiting for the cash
-    const wait = Math.max(0, cost - s.cash) / base;
-    const score = cost / gain + wait;
+    if (!(cost > 0) || !(gain > 0)) return;
+    const score = cost / gain + Math.max(0, cost - s.cash) / base;
     if (!best || score < best.score) best = { score, cost, act, label };
   };
-  E.BUSINESSES.forEach((b, i) => {
-    if (!E.isUnlocked(s, i) && s.biz[i].level === 0) return;
-    const lvl = s.biz[i].level;
-    const nx = E.milestoneInfo(lvl).next;
-    const n = nx ? Math.min(nx - lvl, 25) : 1;
-    const cost = E.costFor(i, lvl, n);
-    const clone = JSON.parse(JSON.stringify(s));
-    clone.biz[i].level += n;
-    clone.biz[i].manager = true;
-    const gain = E.incomePerSec(clone, now, { noTimed: true }) - base;
-    consider(cost, gain, st => { st.cash -= E.costFor(i, st.biz[i].level, n); st.biz[i].level += n; }, `${b.name} +${n}`);
-    if (!s.biz[i].manager && lvl > 0) {
-      // A manager is effectively mandatory; give it a strong preference.
-      consider(b.managerCost, base, st => E.hireManager(st, i), `Manager ${b.managerName}`);
+  // Build on empty land first: the best type the land allows that we can pay for
+  for (let d = 0; d < s.plots.length; d++) for (let p = 0; p < s.plots[d].length; p++) {
+    const x = s.plots[d][p];
+    if (!x || x.t !== -1) continue;
+    for (let t = E.TYPES.length - 1; t >= 0; t--) {
+      if (!E.canBuildOn(d, p, t)) continue;
+      const cost = E.buildCost(s, t);
+      if (cost > s.cash) continue;
+      return { cost, label: `Build ${E.TYPES[t].name} in ${E.DISTRICTS[d].name}`, act: st => E.build(st, d, p, t) };
     }
+  }
+  E.eachShop(s, (sh, d, p) => {
+    const nx = E.milestoneInfo(sh.level).next;
+    const n = nx ? Math.min(nx - sh.level, 25) : 1;
+    const cost = E.costFor(sh.t, sh.level, n);
+    const before = E.revenuePerCycle(s, d, p, now, { noTimed: true }) / E.cycleTime(s, d, p);
+    sh.level += n;
+    const after = E.revenuePerCycle(s, d, p, now, { noTimed: true }) / E.cycleTime(s, d, p);
+    sh.level -= n;
+    consider(cost, after - before, st => { const x = st.plots[d][p]; st.cash -= E.costFor(x.t, x.level, n); x.level += n; E.addXp(st, n); }, `Level ${E.TYPES[sh.t].name}`);
+    if (!sh.manager) consider(E.TYPES[sh.t].managerCost, base, st => E.hireManager(st, d, p), `Manager for ${E.TYPES[sh.t].name}`);
   });
   for (const u of E.availableUpgrades(s).slice(0, 6)) {
-    const clone = JSON.parse(JSON.stringify(s));
-    clone.upgrades[u.id] = true;
-    clone.biz.forEach(b => (b.manager = true));
-    const gain = E.incomePerSec(clone, now, { noTimed: true }) - base;
-    consider(u.cost, gain, st => E.buyUpgrade(st, u.id), `Upgrade ${u.name}`);
+    s.upgrades[u.id] = true;
+    const gain = income(s, now) - base;
+    delete s.upgrades[u.id];
+    consider(u.cost, gain, st => E.buyUpgrade(st, u.id), `Research ${u.name}`);
+  }
+  // Land and districts: valued as a share of current income (a new shop grows into it)
+  for (let d = 0; d < s.plots.length; d++) {
+    if (!s.districts[d]) {
+      if (s.districts[d - 1]) consider(E.DISTRICTS[d].cost, base * 0.6, st => E.unlockDistrict(st, d), `UNLOCK ${E.DISTRICTS[d].name}`);
+      continue;
+    }
+    for (let p = 0; p < s.plots[d].length; p++) {
+      if (s.plots[d][p]) continue;
+      consider(Math.max(1, E.landPrice(d, p)), base * 0.3, st => E.buyLand(st, d, p), `Land ${E.SIZES[E.DISTRICTS[d].plots[p].size].id} in ${E.DISTRICTS[d].name}`);
+      break; // cheapest plot of the district only
+    }
   }
   return best;
 }
 
 let s = E.newState(0);
 let t = 0;
-const dt = 1;
 const log = [];
 const mark = (msg) => log.push(`${E.formatTime(t).padStart(8)}  ${msg}`);
-const seen = new Set();
 
 for (let run = 0; run < RUNS; run++) {
   const end = t + HOURS * 3600;
-  let lastStarsReport = 0;
+  const seen = new Set();
   while (t < end) {
-    // Bot taps every unmanaged business
-    s.biz.forEach((b, i) => { if (!b.manager) E.tap(s, i); });
-    E.tick(s, dt, t * 1000);
-    t += dt;
+    E.eachShop(s, (sh, d, p) => { if (!sh.manager) E.tap(s, d, p); });
+    E.tick(s, 1, t * 1000);
+    t += 1;
     for (let k = 0; k < 20; k++) {
       const a = bestAction(s, t * 1000);
       if (!a || a.cost > s.cash) break;
       a.act(s);
-      if (!seen.has(a.label) && /Manager|Upgrade/.test(a.label)) { seen.add(a.label); if (seen.size < 25) mark(a.label); }
+      if (/Build|UNLOCK|Land/.test(a.label) && !seen.has(a.label + E.shopCount(s))) { seen.add(a.label + E.shopCount(s)); if (run === 0 || /UNLOCK/.test(a.label)) mark(`Run ${run + 1}: ${a.label}`); }
     }
-    E.BUSINESSES.forEach((b, i) => {
-      const key = `own${run}_${i}`;
-      if (s.biz[i].level > 0 && !seen.has(key)) { seen.add(key); mark(`Run ${run + 1}: bought first ${b.name}`); }
-    });
     E.checkAchievements(s);
-    const stars = E.claimableStars(s);
-    if (t % 900 === 0) {
-      mark(`Run ${run + 1}: cash ${E.formatMoney(s.cash)}  ips ${E.formatMoney(E.incomePerSec(s, t * 1000))}/s  claimable⭐ ${stars}  levels ${s.biz.map(b => b.level).join(',')}`);
-      lastStarsReport = stars;
+    if (t % 1800 === 0) {
+      mark(`Run ${run + 1}: cash ${E.formatMoney(s.cash)}  ${E.formatMoney(income(s, t * 1000))}/s  shops ${E.shopCount(s)}  ⭐+${E.claimableStars(s)}  Lv${s.level}  💎${s.gems}  levels ${E.totalLevels(s)}`);
     }
   }
   const gain = E.prestige(s);
   mark(`=== Franchise #${run + 1}: +${gain} stars (total ${s.stars}) ===`);
-  seen.clear();
 }
 console.log(log.join('\n'));

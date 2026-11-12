@@ -2,46 +2,42 @@
 
 ## Names
 - **App name** (both stores, ≤30 chars): `Yum Empire: Food Tycoon`
-- **iOS subtitle** (≤30): `3D Miniature City Builder`
-- **Play short description** (≤80): `Grow a tiny noodle cart into a food empire in a living 3D miniature city!`
+- **iOS subtitle** (≤30): `Build a 3D Food Empire`
+- **Play short description** (≤80): `Buy land, build shops and grow a food empire in a living 3D miniature world!`
 - **iOS keywords** (≤100, comma-separated, no spaces): `idle,tycoon,clicker,restaurant,cooking,food,business,money,empire,incremental,manager,chef,cafe`
 - **Category:** Games → Simulation (secondary: Casual)
 
 ## Full description (≤4000)
 
-Your street-food empire starts with one tiny noodle cart in the middle of a miniature city. At first only a few customers stop by. Serve them, earn cash, and watch your cart grow into a restaurant tower as the whole city comes alive around it! 🍜
+Your food empire starts with one tiny noodle cart in a quiet suburb. Only a few customers stop by at first. Serve them, save up, buy land, and watch a whole miniature world come alive around your shops! 🍜
 
-🏙️ A LIVING 3D MINIATURE CITY
-A charming tilt-shift toy city with walking customers, busy traffic, day and night, and a skyline that grows with your success. Drag, pinch and rotate to explore.
+🏙️ A LIVING 3D MINIATURE WORLD
+A charming tilt-shift toy town with walking customers, busy traffic, trains, hot-air balloons, day and night, and a skyline that grows with your success. Drag, pinch and rotate to explore.
 
-🏪 OPEN 10 FOOD BUSINESSES
-Go from Noodle Cart to Dumpling Stand, Bubble Tea Bar, Taco Truck, Pizza Parlor, Sushi Lounge, Burger Chain, Food Court, Snack Factory, and finally Global Cuisine.
+📜 BUY LAND, CHOOSE WHAT TO BUILD
+Plots come in four sizes. Bigger land costs more but holds grander, more profitable shops. Pick from 10 kinds of food business: noodles, dumplings, bubble tea, tacos, pizza, sushi, burgers, food courts, snack factories and global cuisine. Every new shop opens as a little stall and grows into a restaurant tower.
 
-🧑‍🍳 HIRE MANAGERS
-Let your managers cook for you. They keep earning even while you're away, so collect your earnings when you come back!
+🗺️ FROM SUBURB TO METROPOLIS
+Expand from Maple Suburb to Riverside Town, Downtown City and the Neon Metropolis. Every district is a new map with more land and bigger profits.
 
-⚡ UPGRADE EVERYTHING
-Unlock 60+ upgrades and level milestones that double speed and multiply profits. Watch the money roll in faster and faster.
+👩‍🍳 HIRE CHEFS AND MANAGERS
+Recruit Common, Rare, Epic and Legendary chefs, train them and put them in their favourite kitchens. Managers keep your shops running even while you're away.
 
-⭐ FRANCHISE FOR GOLDEN STARS
-Sell your empire to investors to earn Golden Stars. Every star permanently boosts your profit, so each new empire grows faster than the last.
+💎 QUESTS, CRATES AND REWARDS
+Endless quests, free reward crates, player levels, daily rewards and 74 awards, all paying gems you can spend on chefs, boosts and time warps.
 
-🤩 SERVE VIP CUSTOMERS
-Spot the golden VIP walking through town and tap them for huge tips or a 7× profit frenzy!
-
-🎁 DAILY REWARDS & 59 ACHIEVEMENTS
-Come back every day for growing rewards, and collect achievements that boost your profit.
+🔬 RESEARCH AND FRANCHISE
+Discover 62 upgrades, hit empire milestones, then franchise for Golden Stars that make every new empire grow faster.
 
 ✨ PLAYER-FRIENDLY
 • No forced ads. Watch videos only when you want a bonus.
 • Plays offline
 • No account needed
-• Satisfying sounds and haptics
 
-Start cooking and become the biggest food tycoon in the world!
+Start small, dream big, and become the greatest food tycoon in the world!
 
-## What's new (v1.0.0)
-Grand opening! 🎉 A living 3D miniature city, 10 businesses, managers, franchising, VIP visitors, daily rewards and 59 achievements.
+## What's new (v2.0.0)
+The big expansion! 🎉 Buy land in four sizes and choose what to build, four districts from the suburbs to the Neon Metropolis, chefs with rarities, gems, player levels, endless quests, reward crates, research and a brand-new look.
 
 ## Screenshots
 Run `npm run serve` in one terminal, then `node tools/screenshots.js` in another. It takes several minutes, because the 3D city is rendered in software. The script writes the sizes each store needs to `store/screenshots/`:

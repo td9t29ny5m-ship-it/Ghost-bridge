@@ -1,39 +1,45 @@
 # 🍜 Yum Empire: Food Tycoon
 
-A 3D idle tycoon game for **iOS (App Store)** and **Android (Google Play)**. You start with one tiny noodle cart in the middle of a miniature city, with only a trickle of customers, and grow it into a global food empire.
+A 3D tycoon game for **iOS (App Store)** and **Android (Google Play)**. Start with one tiny noodle cart in a quiet suburb, buy land, choose what to build, hire chefs and grow a food empire across four districts.
 
 The game is plain HTML/CSS/JS with no framework and no build step. The city is drawn with [Three.js](https://threejs.org) (bundled in `www/vendor/`, MIT licence), and every model is generated in code, so there are no art files to manage. [Capacitor](https://capacitorjs.com) wraps it as native iOS and Android apps.
 
-## The 3D city
+## The game
+
+You start with one noodle cart on a free plot in a quiet suburb, with only a trickle of customers. From there you buy land, choose what to build on it, hire managers and chefs, and expand through four districts.
 
 | Feature | What it does |
 |---|---|
-| **Tilt-shift miniature look** | A steep telephoto camera, a sharp band across the middle of the screen with blurred top and bottom, saturated toy colours and long soft shadows. Players can switch the lens blur off in Settings. |
-| **Your shops are real buildings** | Each business has five stages: street stall → small shop → restaurant → big restaurant → flagship tower. The building is rebuilt with confetti when it reaches level 25, 100, 300 and 500. Each business has its own colours, sign and rooftop mascot. |
-| **Customers** | People walk the sidewalks and use the crosswalks. Some decide to visit your shop, queue at the door and leave with a take-away bag. A new stall gets a customer every few seconds; a famous restaurant has a constant line. |
-| **A city that grows with you** | The skyline rises, and more pedestrians and traffic appear, as you open shops and hit milestones. |
-| **Day and night** | A five-minute cycle. At night, windows, shop signs and street lamps light up. |
-| **Controls** | Drag to move, pinch to zoom, twist with two fingers to rotate (mouse: drag, wheel, right-drag). Tap a shop to serve its customer or select it. Tap a FOR SALE lot twice to buy it. |
-| **VIP visitor** | The VIP is a golden character with a light beam who walks through town. Tap them for the reward. |
-| **Performance** | The game lowers detail automatically (shadows first, then resolution) if a device runs it slowly. If a device has no WebGL at all, it falls back to a classic list view. |
+| **Land** | Every district has plots for sale in four sizes: Small, Medium, Large and Huge. Bigger land costs more, earns more (up to ×3.2) and holds a grander building. A shop on Small land never grows beyond a small shop. |
+| **Choose what to build** | 10 kinds of shop, from Noodle Cart to Global Cuisine. Bigger shops need bigger land or a later district. Building a second shop of the same kind costs 5× more. Every new shop opens as a small stall at level 1. |
+| **4 districts** | 🏡 Maple Suburb (6 plots) → 🏘️ Riverside Town (8) → 🏙️ Downtown City (10) → 🌃 Neon Metropolis (12). Each is its own 3D map with its own look, and gives every shop there a profit bonus (×1.5, ×2.5, ×4). |
+| **Shops grow** | Level a shop up and its building is rebuilt with confetti: stall → shop → restaurant → big restaurant → flagship tower (as far as the land allows). Levels 25–500 double speed, 600–1000 quadruple profit. |
+| **Managers** | Run a shop automatically, including while the app is closed (up to 8 hours). |
+| **Chefs** | Recruit chefs (free every 8 hours, or with gems) in four rarities: Common, Rare, Epic, Legendary. Each boosts the shop they work in, +50% more in their favourite kind of shop. Train them up to level 10 with gems. |
+| **Currencies** | 💵 Cash for land, shops and upgrades. 💎 Gems for chefs, crates, boosts and time warps. ⭐ Golden Stars from franchising. ✨ XP for player levels. |
+| **Player level** | Almost everything earns XP. Each level pays 5 💎 and adds +2% profit. |
+| **Quests** | 11 endless quest lines (serve customers, own shops, buy land, recruit chefs…) that pay gems and XP. |
+| **Research** | 62 discoveries, each tripling profit for one kind of shop or for all of them. |
+| **Empire milestones** | Every time your total shop levels pass a milestone (100, 300, 700 …), all profit doubles. |
+| **Reward crate** | Free every 4 hours (or for gems): cash, gems, a 2-hour boost or a new chef. |
+| **Boosts** | 2× profit for 4 hours (video or gems, stacks to 24h) and a time warp that pays 2 hours of income instantly. |
+| **Franchise (prestige)** | Sell the empire for Golden Stars (+4% profit each, forever). Keeps gems, chefs, level and awards. |
+| **VIP visitor** | A golden character with a light beam walks through town. Tap them for a big tip or a ×7 frenzy, sometimes with gems. |
+| **Daily rewards** | A 7-day streak of cash and gems. Day 7 adds a free 4-hour boost. |
+| **74 awards** | Each one pays 5 💎 and adds +2% profit. |
 
-## Gameplay
+### The 3D world
 
 | Feature | What it does |
 |---|---|
-| **10 businesses** | Noodle Cart → Dumpling Stand → Bubble Tea Bar → Taco Truck → Pizza Parlor → Sushi Lounge → Burger Chain → Food Court → Snack Factory → Global Cuisine. |
-| **Tap to serve** | Tap a shop in the city to serve its customer. Each tap cooks one order until you hire that shop's manager. |
-| **Managers** | Run a business automatically, including while the app is closed. |
-| **Level milestones** | Levels 25/50/100/200/300/400/500 double speed. Levels 600–1000 quadruple profit. |
-| **Global milestones** | When every business reaches a milestone level, all profits double. |
-| **62 upgrades** | Each one triples profit for a single business or for all of them. |
-| **Buy modes** | ×1, ×10, ×100, "Next" (up to the next milestone) and "Max". |
-| **Franchise (prestige)** | Reset your empire for Golden Stars. Each star gives a permanent +4% profit. |
-| **VIP customers** | A random visitor you can tap for a big cash tip or a ×7 "frenzy" lasting 30s. |
-| **Offline earnings** | Up to 8 hours, with an option to double them by watching an ad. |
-| **Daily rewards** | A 7-day streak. Day 7 includes a free 4h boost. |
-| **59 achievements** | Each one adds +2% profit. |
-| **Polish** | Synthesized sound effects (no audio files), haptics, toasts, floating coins, a tutorial, safe-area support and reduced-motion support. |
+| **Tilt-shift miniature look** | Steep telephoto camera, a sharp band across the middle with blurred top and bottom, saturated toy colours and long soft shadows. The blur can be switched off in the profile settings. |
+| **A living town** | People with hats, backpacks and balloons walk the sidewalks and use the crosswalks. Customers queue at your shops and leave with a take-away bag. Cars, taxis, vans and buses stop for pedestrians and queue at junctions with traffic lights. |
+| **Every district looks different** | The suburb has houses with gardens, driveways and mailboxes, farm fields, a barn and a silo. The town has a river with sailboats. The city and metropolis have towers with water tanks, antennas, billboards and neon, bus stops, parked cars and a passing train. Parks have fountains, benches and flower beds. Hot-air balloons drift overhead. |
+| **Detailed shops** | Stalls have produce crates, stools, lanterns, string lights and a chef. Buildings have awnings, lit signs, planters, menu boards, café tables, balconies and a rooftop mascot for each kind of food. Empty land shows a construction site; land for sale shows a FOR SALE sign with its size and price. |
+| **Grows with you** | Towers rise, and crowds and traffic grow, as you build up each district. |
+| **Day and night** | A five-minute cycle. At night windows, signs, string lights, headlights and street lamps glow. |
+| **Controls** | Drag to move, pinch to zoom, twist to rotate (mouse: drag, wheel, right-drag). Tap a shop to serve or select it; tap a FOR SALE sign twice to buy; tap empty land twice to build. |
+| **Performance** | Thousands of small details are drawn in a handful of batches. Detail drops automatically on slow devices, and without WebGL the game still plays through its menus. |
 
 ### Monetization (player-friendly)
 - **Rewarded ads only**: the game never forces an interstitial. Players choose to watch a video for a 4h ×2 boost or for double offline earnings.
@@ -49,7 +55,8 @@ tycoon/
 │   ├── index.html
 │   ├── css/style.css
 │   ├── js/engine.js      ← pure game logic (economy, saves, prestige) — no DOM
-│   ├── js/world.js       ← the 3D city: buildings, customers, cars, camera, tilt-shift lens
+│   ├── js/world.js       ← the 3D world: districts, buildings, customers, traffic, camera, tilt-shift lens
+│   ├── fonts/            ← Lilita One + Nunito (SIL Open Font License)
 │   ├── vendor/three.min.js ← Three.js r159 (MIT)
 │   ├── js/platform.js    ← storage, sound, haptics, ads, purchases (native or web fallback)
 │   ├── js/game.js        ← UI controller
@@ -82,8 +89,8 @@ Ads are simulated in the browser (a 3-second placeholder). Purchases show "In ap
 ## Tests
 
 ```bash
-npm test               # 19 engine unit tests
-npm run simulate -- 1.5 6   # bot plays 6 franchise runs of 1.5h each and prints pacing
+npm test               # 25 engine unit tests
+npm run simulate -- 2 8     # bot plays 8 franchise runs of 2h each and prints pacing
 npm run serve & npm run playtest   # full UI playthrough in headless Chromium
 ```
 
@@ -144,4 +151,4 @@ The game is fully playable before any of this is done: ads fall back to Google's
 
 ## Tuning the economy
 
-All numbers live at the top of `www/js/engine.js`: business costs and revenues, milestone levels, upgrade cost curves, the star bonus and the offline cap. After changing them, run `npm run simulate` to check that pacing still feels right. The current tuning gives a first franchise worth roughly 20 stars after 1–1.5 hours of active play. After that, each franchise run gives noticeably more stars than the last.
+All numbers live at the top of `www/js/engine.js`: shop costs and revenues, land sizes and prices, district costs and bonuses, milestones, research costs, chef rarities, quest goals and the star formula. After changing them, run `npm run simulate` to check pacing. The current tuning: second plot within the first minutes, Riverside Town after about 15–20 minutes, a first franchise worth about 100 stars after two hours, then steadily bigger franchises with each run.

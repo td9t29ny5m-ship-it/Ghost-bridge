@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-  <meta name="theme-color" content="#1b1236">
+  <meta name="theme-color" content="#14204a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="Build a street-food empire from a single noodle cart. Hire managers, unlock upgrades and franchise for Golden Stars.">
+  <meta name="description" content="Build a food empire in a living 3D miniature world. Buy land, choose your shops, hire chefs and expand from the suburbs to the metropolis.">
   <title>Yum Empire</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -16,112 +16,66 @@
 <body>
   <div id="app">
     <canvas id="city" aria-label="Your city"></canvas>
-    <header class="topbar">
-      <div class="cash-box">
-        <div id="cash" class="cash">$0</div>
-        <div id="ips" class="ips">$0 / sec</div>
-      </div>
-      <button id="boostBtn" class="boost-btn" type="button">
-        <span class="boost-icon">🚀</span>
-        <span id="boostLabel">2× Profit</span>
+
+    <!-- Top HUD: player, resources -->
+    <header class="hud-top">
+      <button id="avatarBtn" class="avatar" type="button" aria-label="Profile and settings">
+        <span class="av-face">🧑‍🍳</span><span id="lvBadge" class="av-lv">1</span>
       </button>
+      <div class="hud-id">
+        <div class="xp" aria-label="Experience"><div id="xpFill"></div><span id="xpText">0 / 50 XP</span></div>
+        <button id="districtBtn" class="chip-btn" type="button">🏡 Maple Suburb</button>
+      </div>
+      <div class="res-col">
+        <div class="res cash"><i>💵</i><b id="cash">$0</b></div>
+        <div class="res-row">
+          <button id="gemBtn" class="res gems" type="button" aria-label="Gems"><i>💎</i><b id="gems">0</b><span class="plus">+</span></button>
+          <div class="res stars"><i>⭐</i><b id="stars">0</b></div>
+        </div>
+      </div>
     </header>
-    <div id="statusRow" class="status-row"></div>
+    <div class="hud-sub"><span id="ips" class="ips"></span><span id="statusRow" class="pills"></span></div>
 
-    <main id="screens">
-      <section id="tab-biz" class="screen active" aria-label="City">
-        <button id="listBtn" class="fab" type="button" aria-label="All shops">☰</button>
-        <div id="shopCard" class="shop-card">
-          <div class="sc-head">
-            <button id="scPrev" class="sc-nav" type="button" aria-label="Previous shop">◀</button>
-            <button id="scIcon" class="sc-icon" type="button" aria-label="Cook"><span id="scEmoji">🍜</span><span id="scLevel" class="biz-level">1</span></button>
-            <div class="sc-title"><div id="scName" class="biz-name"></div><div id="scTime" class="biz-time"></div></div>
-            <button id="buyMode" class="chip" type="button">Buy ×1</button>
-            <button id="scNext" class="sc-nav" type="button" aria-label="Next shop">▶</button>
-          </div>
-          <div class="bar" id="scBar"><div class="bar-fill" id="scFill"></div><div class="bar-text" id="scBarText"></div></div>
-          <div class="ms"><div id="scMs"></div></div>
-          <div id="scMsLabel" class="ms-label"></div>
-          <div class="sc-actions">
-            <button id="scHire" class="btn btn-purple" type="button" hidden></button>
-            <button id="scBuy" class="buy" type="button"><span id="scBuyN"></span><span id="scBuyC"></span></button>
-          </div>
-        </div>
-        <div id="bizSheet" class="sheet" hidden>
-          <div class="toolbar" id="sheetBar">
-            <div id="globalMilestone" class="global-ms"></div>
-            <button id="sheetClose" class="chip" type="button">✕ Close</button>
-          </div>
-          <div id="bizList" class="list"></div>
-        </div>
-      </section>
+    <!-- Side buttons -->
+    <div class="side left">
+      <button class="sbtn" type="button" data-panel="quests"><span>📜</span><small>Quests</small><i class="badge" id="badge-quests"></i></button>
+      <button class="sbtn" type="button" data-panel="shops" id="listBtn"><span>🏪</span><small>Shops</small></button>
+      <button class="sbtn" type="button" data-panel="awards"><span>🏆</span><small>Awards</small></button>
+    </div>
+    <div class="side right">
+      <button class="sbtn boost" type="button" id="boostBtn"><span>🚀</span><small id="boostLabel">2× Boost</small></button>
+      <button class="sbtn" type="button" id="crateBtn"><span>🎁</span><small id="crateLabel">Crate</small><i class="badge" id="badge-crate"></i></button>
+      <button class="sbtn" type="button" data-panel="store"><span>🛍️</span><small>Store</small></button>
+    </div>
 
-      <section id="tab-managers" class="screen" aria-label="Managers">
-        <p class="hint">Managers run a business automatically — even while you're away.</p>
-        <div id="mgrList" class="list"></div>
-      </section>
+    <!-- Selected plot -->
+    <div id="shopCard" class="card"></div>
 
-      <section id="tab-upgrades" class="screen" aria-label="Upgrades">
-        <p class="hint">Each upgrade triples profits. Cheapest first.</p>
-        <div id="upgList" class="list"></div>
-      </section>
-
-      <section id="tab-franchise" class="screen" aria-label="Franchise">
-        <div class="franchise-card">
-          <div class="big-star">⭐</div>
-          <h2>Franchise</h2>
-          <p>Sell your empire to investors and start over with <b>Golden Stars</b>. Each star permanently adds <b id="starPct">+4%</b> profit.</p>
-          <div class="stat-grid">
-            <div><span>Golden Stars</span><b id="starsOwned">0</b></div>
-            <div><span>Current bonus</span><b id="starsBonus">+0%</b></div>
-            <div><span>Stars on franchise</span><b id="starsClaim" class="gold">0</b></div>
-            <div><span>Next star at</span><b id="starsNext">—</b></div>
-          </div>
-          <button id="prestigeBtn" class="btn btn-gold" type="button">Franchise now</button>
-          <p class="fine">You keep: Golden Stars, achievements, purchases and boosts.<br>You reset: cash, businesses, managers and upgrades.</p>
-        </div>
-      </section>
-
-      <section id="tab-more" class="screen" aria-label="More">
-        <div class="panel">
-          <h3>🛍️ Shop</h3>
-          <div id="shopList" class="list"></div>
-        </div>
-        <div class="panel">
-          <h3>🏆 Achievements <small id="achCount"></small></h3>
-          <div id="achList" class="ach-grid"></div>
-        </div>
-        <div class="panel">
-          <h3>📊 Stats</h3>
-          <div id="statsList" class="stats"></div>
-        </div>
-        <div class="panel">
-          <h3>⚙️ Settings</h3>
-          <label class="toggle"><input type="checkbox" id="setSound"> Sound effects</label>
-          <label class="toggle"><input type="checkbox" id="setHaptics"> Vibration</label>
-          <label class="toggle"><input type="checkbox" id="setLens"> Tilt-shift miniature lens</label>
-          <button id="resetBtn" class="btn btn-ghost danger" type="button">Delete save &amp; restart</button>
-          <p class="fine"><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a> · Yum Empire v<span id="ver"></span></p>
-        </div>
-      </section>
-    </main>
-
-    <nav class="tabbar">
-      <button data-tab="biz" class="active" type="button"><span>🏙️</span>City</button>
-      <button data-tab="managers" type="button"><span>🧑‍🍳</span>Managers<i class="badge" id="badge-managers"></i></button>
-      <button data-tab="upgrades" type="button"><span>⚡</span>Upgrades<i class="badge" id="badge-upgrades"></i></button>
-      <button data-tab="franchise" type="button"><span>⭐</span>Franchise<i class="badge" id="badge-franchise"></i></button>
-      <button data-tab="more" type="button"><span>☰</span>More<i class="badge" id="badge-more"></i></button>
+    <!-- Bottom navigation -->
+    <nav class="nav">
+      <button type="button" data-panel="staff"><span>👩‍🍳</span><small>Chefs</small><i class="badge" id="badge-staff"></i></button>
+      <button type="button" data-panel="research"><span>🔬</span><small>Research</small><i class="badge" id="badge-research"></i></button>
+      <button type="button" id="navCity" class="nav-main"><span>🏙️</span><small>City</small></button>
+      <button type="button" data-panel="world"><span>🗺️</span><small>World</small><i class="badge" id="badge-world"></i></button>
+      <button type="button" data-panel="franchise"><span>⭐</span><small>Franchise</small><i class="badge" id="badge-franchise"></i></button>
     </nav>
 
-    <button id="vip" class="vip" type="button" hidden aria-label="VIP customer">🤩</button>
+    <!-- Pop-up window used by every menu -->
+    <div id="panel" class="panel" hidden>
+      <div class="panel-win">
+        <div class="panel-head"><span id="panelIcon" class="panel-icon"></span><h2 id="panelTitle"></h2><button id="panelClose" class="x-btn" type="button" aria-label="Close">✕</button></div>
+        <div id="panelBody" class="panel-body"></div>
+      </div>
+    </div>
+
+    <button id="vip" class="vip" type="button" hidden aria-label="VIP visitor">🤩</button>
     <div id="floaters" aria-hidden="true"></div>
     <div id="toasts" aria-live="polite"></div>
 
     <div id="modal" class="modal" hidden>
       <div class="modal-card">
+        <div class="ribbon"><span id="modalTitle"></span></div>
         <div id="modalIcon" class="modal-icon"></div>
-        <h2 id="modalTitle"></h2>
         <div id="modalBody"></div>
         <div id="modalActions" class="modal-actions"></div>
       </div>
