@@ -33,11 +33,11 @@ function staffWith(s, b, role, skill) {
 }
 const cart = (s) => s.parks[0].b.find(b => b.t === E.ID.cart);
 
-test('new game: one noodle cart, two plots, some cash and ingredients, no hall', () => {
+test('new game: one noodle cart and the Market Hall on two plots, some cash and ingredients', () => {
   const s = fresh();
-  assert.deepEqual(s.parks[0].b.map(b => E.DEFS[b.t].id), ['cart']);
+  assert.deepEqual(s.parks[0].b.map(b => E.DEFS[b.t].id), ['cart', 'hall']);
   assert.equal(s.parks[0].parcels.filter(Boolean).length, 2);
-  assert.equal(E.hallLevel(s), 0);
+  assert.equal(E.hallLevel(s), 1);
   assert.equal(s.cash, 400);
   assert.ok(s.inv.wheat > 0 && s.inv.veg > 0);
   assert.equal(s.workers.length, 0);
@@ -173,7 +173,7 @@ test('the market sells at a mark-up and buys back at a discount', () => {
 test('Market Hall level gates buildings, counts, levels and land', () => {
   const s = rich();
   assert.equal(E.canBuild(s, 0, E.ID.dumpling).ok, false);
-  assert.equal(E.maxParcels(s), 3);
+  assert.equal(E.maxParcels(s), 5);
   hallTo(s, 2);
   assert.ok(E.canBuild(s, 0, E.ID.dumpling).ok);
   assert.equal(E.maxLevel(s, E.ID.cart), 2);
@@ -214,10 +214,12 @@ test('land: adjacent plots only, price rises, Market Hall limits how much', () =
   const s = rich();
   assert.equal(E.canBuyParcel(s, 0, 0).ok, false, 'not adjacent');
   assert.ok(E.buyParcel(s, 0, 2 * 6 + 1));
-  assert.equal(E.canBuyParcel(s, 0, 2 * 6 + 4).ok, false, 'needs a hall for more');
+  assert.ok(E.buyParcel(s, 0, 2 * 6 + 4));
+  assert.ok(E.buyParcel(s, 0, 1 * 6 + 2));
+  assert.equal(E.canBuyParcel(s, 0, 1 * 6 + 3).ok, false, 'Market Hall 1 allows 5 plots');
   hallTo(s, 2);
   const p1 = E.landPrice(s);
-  assert.ok(E.buyParcel(s, 0, 2 * 6 + 4));
+  assert.ok(E.buyParcel(s, 0, 1 * 6 + 3));
   assert.ok(E.landPrice(s) > p1);
 });
 
@@ -237,8 +239,10 @@ test('workers: skill and traits change output; training raises level and wage', 
 
 test('hiring is capped by the Market Hall and candidates can be refreshed', () => {
   const s = rich();
-  assert.equal(E.maxWorkers(s), 2);
-  E.hire(s, s.candidates[0].id); E.hire(s, s.candidates[0].id);
+  assert.equal(E.maxWorkers(s), 5);
+  for (let k = 0; k < 5; k++) E.hire(s, s.candidates[0].id);
+  assert.equal(s.workers.length, 5);
+  E.rerollCandidates(s, T0, true);
   assert.equal(E.hire(s, s.candidates[0].id), null);
   const ids = s.candidates.map(c => c.id).join();
   assert.ok(E.rerollCandidates(s, T0, true));
@@ -411,4 +415,13 @@ test('long offline gaps are simulated in steps and capped', () => {
   assert.ok(s.stats.playTime <= E.OFFLINE_CAP_SEC + 60);
 });
 
+
+test('a save without a Market Hall gets one placed automatically', () => {
+  const s = fresh();
+  s.parks[0].b = s.parks[0].b.filter(b => b.t !== E.HALL);
+  s.parks[0].b.push({ u: 50, t: E.ID.field, x: 8, y: 8, lv: 1 }, { u: 51, t: E.ID.garden, x: 13, y: 8, lv: 1 });
+  const l = E.loadState(JSON.parse(JSON.stringify(s)), T0);
+  assert.equal(E.hallLevel(l), 1);
+  assert.equal(l.parks[0].b.length, 4);
+});
 console.log(`\n${passed} passed${process.exitCode ? ', some FAILED' : ''}`);

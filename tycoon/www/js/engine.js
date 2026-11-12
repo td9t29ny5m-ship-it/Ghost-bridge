@@ -188,6 +188,8 @@
     };
     // You start with one stand on your little plot.
     s.parks[0].b.push({ u: s.uid++, t: ID.cart, x: 11, y: 10, lv: 1 });
+    // ...next to the Market Hall, the heart of your business.
+    s.parks[0].b.push({ u: s.uid++, t: HALL, x: 13, y: 9, lv: 1 });
     s.candidates = makeCandidates(s, now);
     s.orders = [makeOrder(s, now), makeOrder(s, now), makeOrder(s, now)];
     return s;
@@ -230,6 +232,7 @@
       if (!s.parks[s.park].unlocked) s.park = 0;
     }
     s.uid = Math.max(s.uid, 1 + Math.max(0, ...s.parks.flatMap(p => p.b.map(b => b.u))));
+    ensureHall(s);
     if (Array.isArray(raw.jobs)) s.jobs = raw.jobs.filter(j => j && findB(s, j.park, j.u)).slice(0, 3).map(j => ({ u: j.u, park: j.park, end: num(j.end, 0), dur: Math.max(1, num(j.dur, 1)) }));
     const okWorker = (w) => w && typeof w === 'object' && ['cook', 'farmer', 'fisher'].includes(w.role);
     const cleanWorker = (w) => ({ id: Math.floor(num(w.id, 0)), name: String(w.name || 'Worker').slice(0, 16), role: w.role, skill: Math.min(5, Math.max(1, Math.floor(num(w.skill, 1)))),
@@ -251,6 +254,29 @@
     if (Array.isArray(raw.ledger)) s.ledger = raw.ledger.slice(-14).filter(e => e && typeof e.day === 'string').map(e => Object.fromEntries(Object.entries(e).map(([k, v]) => [k, k === 'day' ? v : num(v, 0)])));
     if (raw.stats) for (const k of Object.keys(s.stats)) s.stats[k] = num(raw.stats[k], s.stats[k]);
     return s;
+  }
+
+  // Every business has a Market Hall. Older saves without one get it placed for free.
+  function ensureHall(s) {
+    const park = s.parks[0];
+    if (park.b.some(b => b.t === HALL)) return;
+    const find = () => {
+      let best = null, bd = 1e9;
+      for (let y = 0; y < CELLS; y++) for (let x = 0; x < CELLS; x++) {
+        if (!fits(park, HALL, x, y, -1)) continue;
+        const d = Math.abs(x - 12) + Math.abs(y - 10);
+        if (d < bd) { bd = d; best = [x, y]; }
+      }
+      return best;
+    };
+    let spot = find();
+    for (let k = 0; !spot && k < PN * PN; k++) {   // no room: add the plot next door for free
+      const q = park.parcels.findIndex((o, i) => !o && parcelAdjacent(park, i));
+      if (q < 0) break;
+      park.parcels[q] = true;
+      spot = find();
+    }
+    if (spot) park.b.push({ u: s.uid++, t: HALL, x: spot[0], y: spot[1], lv: 1 });
   }
 
   // ---------- Lookups ----------
@@ -786,7 +812,7 @@
     { title: 'Hire a farmer for the field', hint: 'Farms only grow with a farmer', check: s => staffed(s, 'field'), cash: 150, gems: 5 },
     { title: 'Build a Veggie Garden and staff it', hint: 'Noodles need vegetables too', check: s => staffed(s, 'garden'), cash: 200, gems: 5 },
     { title: 'Place 2 picnic tables by your cart', hint: 'Tables bring more customers to the stalls next to them', check: s => countType(s, ID.table) >= 2, cash: 100, gems: 5 },
-    { title: 'Build the Market Hall', hint: 'The hall unlocks buildings, land and upgrades', check: s => hallLevel(s) >= 1, cash: 300, gems: 10 },
+    { title: 'Place a Trash Bin', hint: 'Build → Decor. Bins keep the park clean, and litter puts customers off', check: s => countType(s, ID.bin) >= 1, cash: 300, gems: 10 },
     { title: 'Buy the land next door', hint: 'Tap a FOR SALE sign', check: s => s.stats.landBought >= 1, cash: 300, gems: 10 },
     { title: 'Upgrade the Market Hall to level 2', hint: 'Tap the Hall button', check: s => hallLevel(s) >= 2, cash: 500, gems: 10, tokens: 2 },
     { title: 'Build a Livestock Barn', hint: 'Dumplings and tacos need meat', check: s => has1(s, 'barn'), cash: 400, gems: 10 },

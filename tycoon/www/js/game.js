@@ -1203,7 +1203,7 @@
     ready = true;
     lastFrame = performance.now();
     if (isNew) {
-      modal({ icon: 'noodle', title: 'Welcome, Boss!', body: `<p>You own one little <b>Noodle Cart</b>, ${money(state.cash)} and a few bags of wheat and vegetables.</p>
+      modal({ icon: 'noodle', title: 'Welcome, Boss!', body: `<p>You own one little <b>Noodle Cart</b> next to your <b>Market Hall</b>, ${money(state.cash)} and a few bags of wheat and vegetables.</p>
           <p>But nobody is cooking! <b>Hire your first cook</b> and they will sell noodles by themselves.</p>
           <p>Your job is to run the business: hire staff, grow ingredients, pay wages and grow from one cart into a food empire.</p>`, actions: [{ label: "Let's hire someone!", cls: 'gold' }] });
     } else maybeDaily();

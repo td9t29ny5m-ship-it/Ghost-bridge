@@ -114,18 +114,12 @@ const SHOTS = process.argv[3] || '';
   await click('[data-act=fillOrder][data-i="0"]');
   check((await S()).ordersDone === done0 + 1, 'order delivered');
 
-  // 7. Build the Market Hall from the Hall button
+  // 7. The Market Hall is already there, and the Hall button selects it
   await run(() => YumEmpire.closePanel());
+  check((await run(() => Engine.hallLevel(YumEmpire.state))) === 1, 'Market Hall placed from the start');
   await click('#navHall');
   await page.waitForTimeout(300);
-  await click('[data-act=buildHall]');
-  await page.waitForTimeout(600);
-  await click('[data-act=confirmPlace]');
-  await page.waitForTimeout(300);
-  await click('#cSpeed');
-  await page.waitForFunction(() => Engine.hallLevel(YumEmpire.state) >= 1, null, { timeout: 20000 }).catch(() => {});
-  await closeModals();
-  check((await run(() => Engine.hallLevel(YumEmpire.state))) === 1, 'Market Hall built');
+  check((await run(() => YumEmpire.sel && Engine.findB(YumEmpire.state, 0, YumEmpire.sel.u).t)) === 0, 'Hall button selects the Market Hall');
 
   // 8. Every window opens without errors
   for (const p of ['build', 'staff', 'hall', 'buildings', 'world', 'quests', 'orders', 'market', 'report', 'research', 'cards', 'ranks', 'store', 'builders', 'profile']) {
