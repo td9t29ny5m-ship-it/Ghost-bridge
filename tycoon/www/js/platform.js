@@ -101,7 +101,9 @@
       if (!this.enabled) return;
       const H = plugin('Haptics');
       if (H) { H.impact({ style: strong ? 'MEDIUM' : 'LIGHT' }).catch(() => {}); return; }
-      if (navigator.vibrate) try { navigator.vibrate(strong ? 25 : 8); } catch (e) { /* ignore */ }
+      // Browsers only allow vibration after the player has touched the page.
+      const touched = !navigator.userActivation || navigator.userActivation.hasBeenActive;
+      if (navigator.vibrate && touched) try { navigator.vibrate(strong ? 25 : 8); } catch (e) { /* ignore */ }
     },
   };
 
