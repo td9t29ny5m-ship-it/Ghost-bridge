@@ -1494,6 +1494,9 @@
       disposeGroup(root);
     }
     D = d; cfg = DCFG[d]; N = cfg.n;
+    // Each district has its own sky: bright for the suburb, violet neon dusk for the metropolis.
+    skyDay.setHex([0x9ad8ff, 0x8fd3ff, 0x9fcbf5, 0xb3a3f5][d]);
+    skyNight.setHex([0x161b3d, 0x161b3d, 0x141638, 0x1c0f3d][d]);
     HALF = (N * BLOCK + (N - 1) * ROAD) / 2;
     seed = 1337 + d * 7919;
     root = new T.Group();
