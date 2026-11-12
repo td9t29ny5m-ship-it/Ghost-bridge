@@ -57,13 +57,13 @@
 
   // ---------- Ingredients ----------
   const INGS = [
-    { id: 'wheat', name: 'Wheat',      icon: 'wheat', price: 1.2 },
-    { id: 'veg',   name: 'Vegetables', icon: 'veg',   price: 1.0 },
-    { id: 'rice',  name: 'Rice',       icon: 'rice',  price: 1.4 },
-    { id: 'fruit', name: 'Fruit',      icon: 'fruit', price: 1.6 },
-    { id: 'spice', name: 'Spices',     icon: 'spice', price: 2.5 },
-    { id: 'fish',  name: 'Fish',       icon: 'fish',  price: 3.0 },
-    { id: 'meat',  name: 'Meat',       icon: 'meat',  price: 3.5 },
+    { id: 'wheat', name: 'Wheat',      icon: 'wheat', price: 1.2, spoil: 0.001 },
+    { id: 'veg',   name: 'Vegetables', icon: 'veg',   price: 1.0, spoil: 0.012 },
+    { id: 'rice',  name: 'Rice',       icon: 'rice',  price: 1.4, spoil: 0.001 },
+    { id: 'fruit', name: 'Fruit',      icon: 'fruit', price: 1.6, spoil: 0.012 },
+    { id: 'spice', name: 'Spices',     icon: 'spice', price: 2.5, spoil: 0.0005 },
+    { id: 'fish',  name: 'Fish',       icon: 'fish',  price: 3.0, spoil: 0.025 },
+    { id: 'meat',  name: 'Meat',       icon: 'meat',  price: 3.5, spoil: 0.015 },
   ];
   const ING = Object.fromEntries(INGS.map(i => [i.id, i]));
   const MARKUP = 1.3;               // buying at the market costs 30% more than an ingredient's value
@@ -189,6 +189,7 @@
       lastSeen: now, createdAt: now,
       daily: { last: '', streak: 0 },
       ledger: [],                         // one entry per day: revenue, tax, wages, rent, market, dishes
+      rating: 3.5, reviews: [], rseed: (now % 7717) + 5,
       stats: { dishes: 0, earned: 0, landBought: 0, built: 0, upgraded: 0, hired: 0, crates: 0, golden: 0, tips: 0, playTime: 0, maxLevels: 0, bought: 0 },
       settings: { sound: true, music: true, haptics: true, lens: true, weather: true, autoBuy: true },
       tutorialDone: false,
@@ -215,7 +216,7 @@
     s.premium = !!raw.premium; s.adsRemoved = !!raw.adsRemoved;
     if (raw.settings) for (const k of Object.keys(s.settings)) if (typeof raw.settings[k] === 'boolean') s.settings[k] = raw.settings[k];
     if (raw.v !== SAVE_VERSION) return s;   // older versions were different games: start fresh, keep gems and purchases
-    ['cash', 'tokens', 'rep', 'xp', 'boostUntil', 'rushUntil', 'crateAt', 'uid', 'wseq', 'candAt', 'cseed', 'orderSeed', 'ordersDone', 'nextEventAt', 'wseed', 'mission', 'grantAt', 'clockShift']
+    ['cash', 'tokens', 'rep', 'xp', 'boostUntil', 'rushUntil', 'crateAt', 'uid', 'wseq', 'candAt', 'cseed', 'orderSeed', 'ordersDone', 'nextEventAt', 'wseed', 'mission', 'grantAt', 'clockShift', 'rseed']
       .forEach(k => { s[k] = Math.max(0, num(raw[k], s[k])); });
     s.level = Math.max(1, Math.floor(num(raw.level, 1)));
     s.boughtBuilder = !!raw.boughtBuilder; s.tutorialDone = !!raw.tutorialDone;
@@ -266,6 +267,8 @@
     if (raw.quests) for (const id of Object.keys(raw.quests)) if (QUEST_BY_KIND[id]) s.quests[id] = Math.max(0, Math.floor(num(raw.quests[id], 0)));
     if (raw.daily) s.daily = { last: String(raw.daily.last || ''), streak: num(raw.daily.streak, 0) };
     if (Array.isArray(raw.ledger)) s.ledger = raw.ledger.slice(-14).filter(e => e && typeof e.day === 'string').map(e => Object.fromEntries(Object.entries(e).map(([k, v]) => [k, k === 'day' ? v : num(v, 0)])));
+    s.rating = Math.max(1, Math.min(5, num(raw.rating, 3.5)));
+    if (Array.isArray(raw.reviews)) s.reviews = raw.reviews.slice(0, 30).filter(r => r && typeof r.text === 'string').map(r => ({ who: String(r.who || '').slice(0, 20), stars: Math.max(1, Math.min(5, Math.round(num(r.stars, 3)))), text: String(r.text).slice(0, 120), stall: Math.floor(num(r.stall, 1)), about: String(r.about || ''), at: num(r.at, 0), face: Math.floor(num(r.face, 1)) }));
     if (raw.stats) for (const k of Object.keys(s.stats)) s.stats[k] = num(raw.stats[k], s.stats[k]);
     return s;
   }
@@ -611,6 +614,7 @@
       if (state.boostUntil > now) m *= 2;
       m *= WEATHER[state.weather.kind].demand * dayFactor(state, now);
     }
+    m *= 0.55 + 0.15 * (state.rating || 3.5);   // word of mouth: 3.5 stars is normal, 5 stars brings 30% more
     if (state.premium) m *= 1.5;
     return m;
   }
@@ -678,7 +682,7 @@
   function ledgerToday(state, now) {
     const key = 'Day ' + gameDay(state, now);
     let e = state.ledger[state.ledger.length - 1];
-    if (!e || e.day !== key) { e = { day: key, revenue: 0, tax: 0, supplies: 0, wages: 0, rent: 0, market: 0, dishes: 0, harvest: 0 }; state.ledger.push(e); if (state.ledger.length > 14) state.ledger.shift(); }
+    if (!e || e.day !== key) { e = { day: key, revenue: 0, tax: 0, supplies: 0, wages: 0, rent: 0, market: 0, dishes: 0, harvest: 0, spoiled: 0 }; state.ledger.push(e); if (state.ledger.length > 14) state.ledger.shift(); }
     return e;
   }
   // Simulates dt seconds (long gaps in 2-minute steps). Returns { done: finished jobs, events }.
@@ -744,13 +748,19 @@
         L.market += n * buyPrice(state, k);
       }
     }
+    // fresh food goes off: vegetables, fruit, meat and fish lose a little every hour
+    for (const k of Object.keys(state.inv)) {
+      const rate = ING[k].spoil * (has(state, 'cold') ? 0.5 : 1);
+      const lost = state.inv[k] * (1 - Math.exp(-rate * hrs));
+      if (lost > 0) { state.inv[k] -= lost; L.spoiled = (L.spoiled || 0) + lost * ING[k].price; }
+    }
     // 3. stalls sell what the ingredients allow; scarce ingredients are shared fairly
     const need = {};
     for (const [, , h] of all) for (const [k, v] of Object.entries(h.need)) need[k] = (need[k] || 0) + v * hrs;
     const share = {};
     for (const k of Object.keys(need)) share[k] = need[k] > 0 ? Math.min(1, state.inv[k] / need[k]) : 1;
     let revenue = 0, dishes = 0, wages = 0, repGain = 0;
-    for (const [, b, h] of all) {
+    for (const [pi, b, h] of all) {
       wages += h.wages * hrs;
       b.starved = false;
       if (!h.sold) continue;
@@ -762,6 +772,10 @@
       dishes += sold;
       const value = Math.min(1.5, Math.max(0.4, 1 / Math.pow(b.pm || 1, 2)));   // fair prices make happy customers
       const happy = h.sold / (h.sold + (h.lost || 0));   // share of the queue that got served
+      const sc = stallScore(state, pi, b, h);
+      const w = 1 - Math.exp(-sold / 400);                 // more customers move the average more
+      state.rating = (state.rating || 3.5) + (sc.stars - (state.rating || 3.5)) * w;
+      if (Math.random() < Math.min(0.9, sold / 60)) addReview(state, b, sc, h, now);
       repGain += sold * 0.06 * value * happy;
     }
     const tax = revenue * taxRate(state), supplies = revenue * SUPPLIES, rentDue = rent(state) * hrs;
@@ -773,6 +787,43 @@
     state.rep += repGain * clean * repMult;
     if (state.event && state.event.until > now && EVENTS[state.event.id].tokens) state.tokens += dishes / 100;
     L.revenue += revenue; L.tax += tax; L.supplies += supplies; L.wages += wages; L.rent += rentDue; L.dishes += dishes;
+  }
+
+  // ---------- What customers think: stars and reviews ----------
+  const DISH = { cart: 'noodles', dumpling: 'dumplings', tea: 'bubble tea', taco: 'tacos', pizza: 'pizza', sushi: 'sushi', burger: 'burgers', court: 'food', global: 'platter' };
+  function stallScore(state, pi, b, h) {
+    h = h || hourly(state, pi, b);
+    const d = DEFS[b.t], ws = workersAt(state, pi, b.u);
+    const f = {
+      wait: h.sold + (h.lost || 0) > 0 ? h.sold / (h.sold + (h.lost || 0)) : 1,
+      price: Math.max(0, Math.min(1, (1.6 - (b.pm || 1)) / 0.9)),
+      food: Math.min(1, (ws.length ? ws.reduce((a, w) => a + (w.skill - 1) / 4 + (w.lvl - 1) * 0.04, 0) / ws.length : 0) + 0.1 * skillTier(state, b.t, 'menu') + (b.starved ? -0.3 : 0.15)),
+      clean: (cleanliness(state, pi, h.demand) - 0.5) * 2,
+      place: Math.min(1, decorBonus(state.parks[pi], b) / 0.3),
+    };
+    f.food = Math.max(0, f.food);
+    const stars = 1 + 4 * (0.32 * f.wait + 0.2 * f.price + 0.22 * f.food + 0.14 * f.clean + 0.12 * f.place);
+    return { stars, f, dish: DISH[d.id] || 'food' };
+  }
+  const REVIEW_NAMES = ['Sam', 'Alex', 'Jo', 'Maya', 'Leo', 'Ava', 'Ben', 'Zoe', 'Kai', 'Ella', 'Max', 'Ivy', 'Noah', 'Lily', 'Omar', 'Ruby', 'Theo', 'Nina', 'Finn', 'Isla'];
+  const REVIEW_TEXT = {
+    wait: { bad: ['Waited ages in the queue for {dish} and gave up.', 'The line at the {stall} was way too long.', 'Only one cook for that crowd? Left hungry.', 'Twenty minutes for {dish}. Never again.'], good: ['Super quick service, got my {dish} in a minute.', 'No queue at all, great!', 'Fast, friendly and efficient.'] },
+    price: { bad: ['{price} for {dish}? Way too expensive.', 'Tasty but overpriced.'], good: ['Great value, {price} for a proper portion!', 'Cheap and cheerful {dish}. Love it.'] },
+    food: { bad: ['The {dish} was bland. The cook seemed new.', 'They ran out of ingredients halfway through my order.'], good: ['Best {dish} in town. The cook really knows their stuff!', 'Fresh, hot and delicious {dish}.'] },
+    clean: { bad: ['Litter everywhere. They need more bins.', 'Dirty tables, flies everywhere.'], good: ['Spotless park, very clean.'] },
+    place: { bad: ['Nowhere to sit, ate standing up.', 'Grey and boring spot, no tables.', 'Had to eat my {dish} on the kerb.'], good: ['Lovely place to eat, with tables, trees and flowers.', 'Such a nice atmosphere in the evening!'] },
+  };
+  function addReview(state, b, sc, h, now) {
+    const r = rng(state.rseed++);
+    const keys = Object.keys(sc.f);
+    const worst = keys.reduce((a, k) => (sc.f[k] < sc.f[a] ? k : a)), best = keys.reduce((a, k) => (sc.f[k] > sc.f[a] ? k : a));
+    const stars = Math.max(1, Math.min(5, Math.round(sc.stars + (r() - 0.5) * 1.6)));
+    const weak = keys.filter(k => sc.f[k] < 0.55), strong = keys.filter(k => sc.f[k] > 0.65);
+    const pool = stars <= 3 ? (weak.length ? weak : [worst]) : (strong.length ? strong : [best]);
+    const about = pool[Math.floor(r() * pool.length)], list = REVIEW_TEXT[about][stars <= 3 ? 'bad' : 'good'];
+    const text = list[Math.floor(r() * list.length)].replace('{dish}', sc.dish).replace('{stall}', DEFS[b.t].name).replace('{price}', formatMoney(h.price));
+    state.reviews.unshift({ who: REVIEW_NAMES[Math.floor(r() * REVIEW_NAMES.length)] + ' ' + String.fromCharCode(65 + Math.floor(r() * 26)) + '.', stars, text, stall: b.t, about, at: now, face: Math.floor(r() * 9999) + 1 });
+    if (state.reviews.length > 30) state.reviews.length = 30;
   }
 
   function setPrice(state, pi, u, pm) {
@@ -1048,7 +1099,7 @@
   return {
     SAVE_VERSION, CELLS, PARCEL, PN, HALL, HALL_MAX, ID, DEFS, PARKS, INGS, ING, TRAITS, ROLE, EVENTS, WEATHER, CARDS, RESEARCH, SKILL_BRANCHES,
     MISSIONS, ACHIEVEMENTS, QUESTS, COST, FREE_FINISH_SEC, SALES_TAX, SUPPLIES, RENT_PER_PLOT, OFFLINE_CAP_SEC,
-    TIME_SCALE, DAY_CURVE, OPEN_HOUR, CLOSE_HOUR, isOpen, shopOpen, gameClock, gameDay, grantStatus, claimGrant, setPrice, harvestIn, PRICE_MIN, PRICE_MAX, formatNumber, formatMoney, formatTime, dayKey,
+    TIME_SCALE, DAY_CURVE, OPEN_HOUR, CLOSE_HOUR, isOpen, shopOpen, gameClock, gameDay, grantStatus, claimGrant, stallScore, setPrice, harvestIn, PRICE_MIN, PRICE_MAX, formatNumber, formatMoney, formatTime, dayKey,
     newState, loadState,
     eachB, findB, hallB, hallLevel, countType, countCat, totalLevels, parcelCount, jobFor, builderCount, freeBuilders, workersAt,
     parcelOf, ownsCell, occupant, fits, parcelAdjacent, landPrice, canBuyParcel, buyParcel, maxParcels,

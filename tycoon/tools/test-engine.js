@@ -85,7 +85,7 @@ test('sales are limited by ingredients and stop when they run out', () => {
   staffWith(s, cart(s), 'cook');
   s.inv.wheat = 5; s.inv.veg = 100;
   E.tick(s, 3600, T0 + 3600e3);
-  assert.ok(Math.abs(s.stats.dishes - 5) < 1e-6, 'only 5 bowls: ' + s.stats.dishes);
+  assert.ok(Math.abs(s.stats.dishes - 5) < 0.05, 'only 5 bowls: ' + s.stats.dishes);
   assert.ok(cart(s).starved);
   assert.ok(s.inv.wheat < 1e-9);
 });
@@ -135,10 +135,10 @@ test('farms need a farmer, then fill the inventory up to its cap', () => {
   assert.equal(s.inv.wheat, 0, 'wheat is still growing after one game hour');
   assert.ok(f.g > 0.3 && f.g < 0.4);
   const r = E.tick(s, 240, T0 + 480e3);
-  assert.ok(Math.abs(s.inv.wheat - 120) < 1e-6, 'a 3-hour crop is harvested in one batch: ' + s.inv.wheat);
+  assert.ok(Math.abs(s.inv.wheat - 120) < 0.5, 'a 3-hour crop is harvested in one batch: ' + s.inv.wheat);
   assert.ok(r.harvests.length === 1 && r.harvests[0].k === 'wheat');
   E.tick(s, 3600 * 3, T0 + 4 * 3600e3);
-  assert.equal(s.inv.wheat, E.invCap(s));
+  assert.ok(s.inv.wheat > E.invCap(s) - 3 && s.inv.wheat <= E.invCap(s));
 });
 
 test('a warehouse raises storage for every ingredient', () => {
@@ -504,6 +504,28 @@ test('a new business opens at 8:00 in the morning, whatever the real time', () =
     assert.equal(E.gameClock(t, s).hour, 8);
     assert.equal(E.gameDay(s, t), 1);
   }
+});
+
+test('customers rate the business: good cooks, fair prices and short queues earn stars and reviews', () => {
+  const run = (skill, pm, cooks) => {
+    const s = fresh(); const c = cart(s);
+    for (let k = 0; k < cooks; k++) staffWith(s, c, 'cook', skill);
+    s.inv.wheat = s.inv.veg = 1e5; E.setPrice(s, 0, c.u, pm);
+    for (let k = 0; k < 20; k++) E.tick(s, 120, T0 + k * 120e3);
+    return s;
+  };
+  const good = run(5, 0.9, 1), bad = run(1, 1.6, 1);
+  assert.ok(good.rating > bad.rating + 0.5, `good ${good.rating.toFixed(2)} vs bad ${bad.rating.toFixed(2)}`);
+  assert.ok(good.reviews.length > 0 && good.reviews[0].text.length > 5);
+  assert.ok(E.demandMult(good, T0) > E.demandMult(bad, T0), 'better ratings bring more customers');
+});
+
+test('fresh food spoils; dry goods keep', () => {
+  const s = fresh();
+  s.inv.fish = 100; s.inv.rice = 100;
+  E.tick(s, 1200, T0 + 1200e3);
+  assert.ok(s.inv.fish < 85 && s.inv.rice > 98, `fish ${s.inv.fish.toFixed(1)} rice ${s.inv.rice.toFixed(1)}`);
+  assert.ok(s.ledger[s.ledger.length - 1].spoiled > 0);
 });
 
 console.log(`\n${passed} passed${process.exitCode ? ', some FAILED' : ''}`);

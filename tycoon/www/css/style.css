@@ -587,3 +587,15 @@ b { font-weight: 900; }
 .coach .c-txt { display: flex; flex-direction: column; }
 .coach .c-txt small { font-family: var(--display); font-weight: 400; font-size: 11px; color: #b86a00; letter-spacing: .4px; text-transform: uppercase; }
 .coach.top { top: calc(150px + var(--safe-top)); }
+.stars-mini { font-style: normal; color: var(--gold); display: inline-flex; align-items: center; gap: 1px; margin-right: 4px; }
+.srow { display: inline-flex; gap: 2px; vertical-align: middle; margin-left: 4px; }
+.srow i { width: 13px; height: 13px; background: rgba(255, 255, 255, .2); clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
+.srow i.on { background: var(--gold); }
+.hero.rating .big-num { font-family: var(--display); font-size: 54px; line-height: 1; color: var(--gold); text-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
+.hero.rating .srow i { width: 26px; height: 26px; }
+.factor { display: grid; grid-template-columns: 150px 1fr; align-items: center; gap: 8px; padding: 3px 6px; font-size: 13px; }
+.factor .pbar { margin: 0; }
+.review { display: flex; gap: 10px; padding: 9px 10px; border-radius: 14px; background: rgba(255, 255, 255, .07); margin-bottom: 7px; }
+.review .face { width: 44px; height: 44px; flex: none; border-radius: 12px; background: linear-gradient(180deg, #55b8ff, #2b7fe6); display: grid; place-items: center; }
+.review .face .ic { width: 40px; height: 40px; }
+.review .rtext { font-size: 14px; font-style: italic; margin: 2px 0; }

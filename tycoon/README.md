@@ -26,6 +26,8 @@ You start with **one noodle cart, $400 and a few bags of wheat and vegetables**.
 | **Cards, skills, research** | Rush Hour, Instant Build, Bumper Harvest and Job Fair cards; 3-tier skill trees for every kind of stall; 10 research upgrades. |
 | **Guided tutorial** | Rosa, your mentor, walks you through the first 9 missions. The screen dims except for a spotlight on the exact thing to tap, with a short line about why. Buttons appear only when the story reaches them (Staff first, then Build, Business, Hall and More), so a new player is never swamped. 18 story missions in all. |
 | **Menu prices** | Set each stall's price from −30% to +60%. Cheaper brings more customers, dearer fewer. When the queue is longer than your cooks can serve, people give up and your reputation grows more slowly, so you choose between raising prices, hiring another cook or upgrading. The stall card tells you which problem you have. |
+| **Stars and reviews** | Every customer judges waiting time, prices, food quality (cook skill and training), cleanliness and seating. Your star rating moves with them and changes how many people come: 3.5 stars is normal, 5 stars brings 30% more. Customers write reviews ("Had to eat my noodles on the kerb"), and the Reviews screen shows what they think and what to fix. |
+| **Fresh food spoils** | Vegetables, fruit, meat and fish lose a little every hour (fish fastest); wheat, rice and spices keep. Cold Chain research halves it. Spoilage shows in Stock and the Daily Report. |
 | **Crops that grow** | Fields, gardens, orchards, rice paddies, spice gardens and greenhouses grow from green shoots to a golden crop and are harvested in batches ("Harvest in 2m 54s · +1.6K wheat"). Growth pauses at night and without a farmer. The barn and fish ponds give a steady supply. |
 | **Top Tycoons** | A leaderboard of eight rival tycoons who grow over time, ranked by net worth. Everything runs offline. |
 | **4 locations** | Riverside Town (Hall 8), Downtown City (Hall 13) and Neon Metropolis (Hall 17), where customers spend more. |
@@ -35,6 +37,7 @@ You start with **one noodle cart, $400 and a few bags of wheat and vegetables**.
 | Feature | What it does |
 |---|---|
 | **Original art, no emoji** | Every icon is drawn in code (`www/js/icons.js`): over 80 icons in a glossy cartoon style, plus generated staff portraits with a hat for each job. Every model and texture (grass, asphalt, pavers, brick, plaster, gravel, soil, wood, water) is made in code too. |
+| **Lighting** | Physically based materials that catch the sun, soft light reflected from the sky (dimmer at night and in rain), and a film-style colour curve. |
 | **Tilt-shift miniature look** | A steep telephoto camera, a sharp band in the middle with blurred top and bottom, toy colours and soft shadows. It can be turned off in the profile settings. |
 | **A living town** | Sidewalks, a ring road with traffic (cars, taxis, vans and buses) that stops at the crossings, houses or towers depending on the location, parks, a river with boats, a train, hot-air balloons, and a day-night cycle in which windows, signs, lamps and headlights light up. |
 | **Farms that work** | Wheat sways in the fields, cows and pigs wander the barn's paddock, fish jump in the ponds, and farmers and fishers walk around working. Cooks appear behind the counter only once you hire them, customers arrive as often as a stall really sells, and busy kitchens smoke. A red bubble marks buildings with no staff; an orange one marks stalls running out of ingredients. |
@@ -93,7 +96,7 @@ Ads are simulated in the browser (a 3-second placeholder). Purchases show "In ap
 ## Tests
 
 ```bash
-npm test               # 40 rule tests
+npm test               # 42 rule tests
 npm run simulate -- 120     # a bot runs the business for 5 days and prints Market Hall levels and the books
 npm run serve & npm run playtest   # full UI playthrough in headless Chromium
 ```

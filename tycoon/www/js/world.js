@@ -49,7 +49,10 @@
   // ---------- Helpers ----------
   const cache = {};
   const once = (key, make) => (cache[key] || (cache[key] = make()));
-  const mat = (color, opts) => once('m' + color + (opts ? JSON.stringify(opts) : ''), () => new T.MeshLambertMaterial(Object.assign({ color }, opts || {})));
+  // Surfaces react to light like real painted wood, plaster and plastic, and pick up the sky's light.
+  const stdMats = [];
+  const stdMat = (o) => { const m = new T.MeshStandardMaterial(Object.assign({ roughness: 0.78, metalness: 0 }, o)); stdMats.push(m); return m; };
+  const mat = (color, opts) => once('m' + color + (opts ? JSON.stringify(opts) : ''), () => stdMat(Object.assign({ color }, opts || {})));
   const geo = (key, make) => once('g' + key, () => { const g = make(); g.userData.shared = true; return g; });
   const boxGeo = () => geo('box', () => new T.BoxGeometry(1, 1, 1));
   // Boxes with softly rounded edges: the toy look. Each size is built once and shared.
@@ -245,7 +248,7 @@
       const t = base.clone();
       t.needsUpdate = true;
       t.repeat.set(rx, ry);
-      return new T.MeshLambertMaterial({ map: t, color: color || 0xffffff });
+      return stdMat({ map: t, color: color || 0xffffff, roughness: 0.9 });
     });
   }
   const awningMat = (col, rep) => {
@@ -2047,10 +2050,12 @@
     fog.color.copy(sky);
     sun.intensity = (0.35 + day * 2.9) * dim;
     sun.color.setHex(0xfff1dc).lerp(tmpColor.setHex(0xff9a5c), dusk * 0.7);
-    hemi.intensity = 0.7 + day * 1.0;
+    hemi.intensity = 0.4 + day * 0.5;
     const night = 1 - day;
     for (const n of nightMats) n.m.emissiveIntensity = (n.min || 0) + (n.max - (n.min || 0)) * night;
     glowMat.color.setScalar(0.5 + 0.5 * night);
+    const envI = (0.12 + 0.38 * day) * (wxKind === 'rain' ? 0.75 : 1);
+    if (Math.abs(envI - (W.envI || 0)) > 0.01) { W.envI = envI; for (const m of stdMats) m.envMapIntensity = envI; }
     W.night = night;
   }
   let post = null;
@@ -2076,10 +2081,11 @@
       const finalFs = `uniform sampler2D sharp; uniform sampler2D blur; uniform float focus; uniform float band; varying vec2 vUv;
         ${amount}
         void main(){
-          vec3 c = mix(texture2D(sharp, vUv).rgb, texture2D(blur, vUv).rgb, amount(vUv.y));
+          vec3 c = mix(texture2D(sharp, vUv).rgb, texture2D(blur, vUv).rgb, amount(vUv.y)) * 1.0;
+          c = clamp((c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14), 0.0, 1.0);   // ACES film curve
           float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-          c = mix(vec3(l), c, 1.28);
-          c = (c - 0.18) * 1.08 + 0.18;
+          c = mix(vec3(l), c, 1.26);
+          c *= vec3(1.02, 1.0, 0.97);
           vec2 v = vUv - 0.5;
           c *= 1.0 - dot(v, v) * 0.55;
           gl_FragColor = vec4(max(c, 0.0), 1.0);
@@ -2116,13 +2122,24 @@
     if (!renderer.getContext()) return false;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = T.PCFSoftShadowMap;
+    renderer.toneMapping = T.ACESFilmicToneMapping;   // used when the miniature lens is off
+    renderer.toneMappingExposure = 1.12;
     scene = new T.Scene();
     skyDay = new T.Color(0x9ad8ff); skyDusk = new T.Color(0xff9e6b); skyNight = new T.Color(0x161b3d);
     scene.background = skyDay.clone();
     fog = new T.Fog(scene.background.getHex(), 320, 900);
     scene.fog = fog;
     camera = new T.PerspectiveCamera(24, 1, 2, 1500);
-    hemi = new T.HemisphereLight(0xd8e9ff, 0x8f86b0, 1.7);
+    try {
+      const envScene = new T.Scene();
+      envScene.add(new T.Mesh(new T.SphereGeometry(10, 32, 16), new T.ShaderMaterial({ side: T.BackSide,
+        vertexShader: 'varying vec3 p; void main(){ p = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader: 'varying vec3 p; void main(){ float h = p.y; vec3 sky = mix(vec3(0.62, 0.7, 0.78), vec3(0.78, 0.9, 1.05), smoothstep(0.0, 0.7, h)); vec3 gnd = mix(vec3(0.42, 0.46, 0.36), vec3(0.6, 0.62, 0.55), smoothstep(-0.6, 0.0, h)); gl_FragColor = vec4(h > 0.0 ? sky : gnd, 1.0); }' })));
+      const pmrem = new T.PMREMGenerator(renderer);
+      scene.environment = pmrem.fromScene(envScene, 0.04).texture;
+      pmrem.dispose();
+    } catch (e) { /* no environment light on very old devices */ }
+    hemi = new T.HemisphereLight(0xd8e9ff, 0x8f86b0, 0.95);
     scene.add(hemi);
     sun = new T.DirectionalLight(0xfff1dc, 2.8);
     sun.position.set(-70, 80, 40);

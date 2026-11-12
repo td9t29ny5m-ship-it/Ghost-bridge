@@ -143,5 +143,6 @@ while (t < HOURS * 3600) {
 console.log(log.join('\n'));
 console.log('\n--- every 6 hours ---\n' + hourly.join('\n'));
 console.log(`\nAfter ${HOURS}h: Market Hall ${E.hallLevel(s)}, level ${s.level}, ${s.workers.length} workers, ${s.parks[0].b.length} buildings, ${s.stats.landBought} land bought, rep ${E.repLevel(s)}, mission ${s.mission}/${E.MISSIONS.length}, orders ${s.ordersDone}, earned ${E.formatMoney(s.stats.earned)}`);
+console.log('Rating:', s.rating.toFixed(2), 'stars ·', s.reviews.slice(0, 3).map(r => r.stars + '* ' + r.text).join(' | '));
 console.log('Inventory:', Object.fromEntries(Object.entries(s.inv).map(([k, v]) => [k, Math.round(v)])), 'cap', E.invCap(s));
 console.log('Leaderboard:', E.leaderboard(s, now()).map(x => `${x.name} ${E.formatMoney(x.worth)}`).join(' | '));

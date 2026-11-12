@@ -181,7 +181,7 @@
       cardKey = key;
       const maxLv = E.maxLevel(state, b.t);
       let info = '';
-      if (d.cat === 'stall') info = `${money(d.price)} a dish · ${recipeHtml(d.recipe)}`;
+      if (d.cat === 'stall') info = `${money(d.price)} a dish · ${recipeHtml(d.recipe)}<span id="cStars"></span>`;
       else if (d.makes) info = `Grows ${Object.keys(d.makes).map(k => `${I(E.ING[k].icon, 'inl')} ${E.ING[k].name}`).join(' + ')}`;
       else if (d.cat === 'storage') info = `+${num(Math.round(d.store * Math.pow(1.7, Math.max(0, b.lv - 1))))} storage for every ingredient`;
       else if (d.cat === 'decor') info = d.clean ? `Keeps ${d.clean} customers an hour tidy` : `+${Math.round(d.bonus * 100)}% customers to stalls within ${d.radius} cell${d.radius > 1 ? 's' : ''}${d.seats ? ` · ${d.seats} seats` : ''}`;
@@ -242,6 +242,7 @@
         else if (hr.staff && hr.capacity > hr.demand * 1.4) tip = `<span class="good">${I('chefhat', 'inl')} Your cooks have spare time. Lower the price or add decorations to bring more customers.</span>`;
         else if (hr.staff) tip = `<span class="good">${I('check', 'inl')} Busy and running smoothly.</span>`;
         setHTML($('cTip'), tip);
+        if (hr.sold) { const sc = E.stallScore(state, PK(), b, hr); setHTML($('cStars'), ` · ${I('star', 'inl')}<b>${sc.stars.toFixed(1)}</b>`); }
       }
       if (d.grow) {
         const ws2 = E.workersAt(state, PK(), b.u), open = E.shopOpen(state, t);
@@ -612,6 +613,7 @@
     cards: { icon: 'cards', title: 'Cards', render: renderCards },
     ranks: { icon: 'trophy', title: 'Top Tycoons', render: renderRanks },
     more: { icon: 'quests', title: 'More', render: renderMore },
+    reviews: { icon: 'star', title: 'Customer Reviews', render: renderReviews },
   };
   function openPanel(name, arg) {
     if (placing) cancelPlace();
@@ -800,7 +802,7 @@
       html += `<div class="inv-row"><div class="r-icon">${I(ing.icon)}</div><div class="r-main">
         <div class="r-title">${esc(ing.name)} <span class="r-sub">${num(have)} / ${num(cap)}</span></div>
         <div class="pbar ${have < use * 0.5 ? 'low' : ''}"><div style="width:${Math.min(100, have / cap * 100).toFixed(1)}%"></div></div>
-        <div class="r-sub">+${num(make)}/h grown · −${num(use)}/h used · <b class="${net < 0 ? 'neg' : 'pos'}">${net >= 0 ? '+' : ''}${num(net)}/h</b>${net < 0 && have > 0 ? ` · empty in ${ftime(have / -net * 3600 / E.TIME_SCALE)}` : ''}</div>
+        <div class="r-sub">${ing.spoil >= 0.01 ? `<span class="warn">spoils ${(ing.spoil * 100).toFixed(1)}%/h</span> · ` : ''}+${num(make)}/h grown · −${num(use)}/h used · <b class="${net < 0 ? 'neg' : 'pos'}">${net >= 0 ? '+' : ''}${num(net)}/h</b>${net < 0 && have > 0 ? ` · empty in ${ftime(have / -net * 3600 / E.TIME_SCALE)}` : ''}</div>
         <div class="acts"><button class="btn small" type="button" data-act="buyIng" data-k="${ing.id}" data-n="10" data-cost="${(bp * 10).toFixed(2)}">Buy 10 · ${money(bp * 10)}</button>
           <button class="btn small" type="button" data-act="buyIng" data-k="${ing.id}" data-n="100" data-cost="${(bp * 100).toFixed(2)}">100 · ${money(bp * 100)}</button>
           <button class="btn small ghost" type="button" data-act="sellIng" data-k="${ing.id}" data-n="10" ${have >= 10 ? '' : 'disabled'}>Sell 10 · ${money(E.sellPrice(ing.id) * 10)}</button></div>
@@ -853,7 +855,7 @@
         <span>Dishes sold</span><b>${num(today.dishes)}</b><span>Harvested</span><b>${num(today.harvest)}</b>
         <span>Sales</span><b class="pos">${money(today.revenue)}</b><span>Tax</span><b class="neg">−${money(today.tax)}</b>
         <span>Supplies</span><b class="neg">−${money(today.supplies || 0)}</b><span>Wages</span><b class="neg">−${money(today.wages)}</b>
-        <span>Rent</span><b class="neg">−${money(today.rent)}</b><span>Market buys</span><b class="neg">−${money(today.market)}</b>
+        <span>Rent</span><b class="neg">−${money(today.rent)}</b><span>Market buys</span><b class="neg">−${money(today.market)}</b><span>Spoiled food (value)</span><b class="neg">−${money(today.spoiled || 0)}</b>
         <span class="tot">Profit</span><b class="tot ${prof[prof.length - 1] < 0 ? 'neg' : 'pos'}">${money(prof[prof.length - 1])}</b></div>`;
     }
     return html;
@@ -888,13 +890,39 @@
     return html;
   }
 
-  const MORE = [['quests', 'quests', 'Goals'], ['orders', 'receipt', 'Orders'], ['market', 'crate', 'Stock & Market'], ['report', 'chart', 'Daily Report'],
+  const MORE = [['reviews', 'star', 'Reviews'], ['quests', 'quests', 'Goals'], ['orders', 'receipt', 'Orders'], ['market', 'crate', 'Stock & Market'], ['report', 'chart', 'Daily Report'],
     ['research', 'flask', 'Research'], ['cards', 'cards', 'Cards'], ['ranks', 'trophy', 'Top Tycoons'], ['world', 'map', 'Locations'],
     ['builders', 'builder', 'Builders'], ['store', 'bag', 'Store'], ['profile', 'chefhat', 'Profile']];
   function renderMore() {
     return '<div class="more-grid">' + MORE.map(([id, ic, name]) => `<button class="more-tile" type="button" data-act="openPanel" data-p="${id}">${I(ic)}<b>${name}</b>${moreBadge(id) ? `<i class="badge show">${moreBadge(id)}</i>` : ''}</button>`).join('') + '</div>';
   }
   function moreBadge(id) { const b = shadowBadges[id] || $('badge-' + id); return b && b.classList.contains('show') ? b.textContent : ''; }
+  const FACTOR = { wait: ['clock', 'Waiting time'], price: ['cash', 'Prices'], food: ['chefhat', 'Food quality'], clean: ['bin', 'Cleanliness'], place: ['planter', 'Seating and decor'] };
+  const FIX = { wait: 'Hire more cooks, upgrade busy stalls or raise prices to shorten queues.', price: 'Customers think you are expensive. Lower some menu prices.', food: 'Hire skilled cooks, train them and learn the Bigger Menu skill. Keep ingredients in stock.', clean: 'Build more Trash Bins.', place: 'Place tables, planters and trees next to your stalls.' };
+  const starRow = (n) => `<span class="srow">${[1, 2, 3, 4, 5].map(k => `<i class="${k <= Math.round(n) ? 'on' : ''}"></i>`).join('')}</span>`;
+  function renderReviews(t) {
+    const tot = { wait: 0, price: 0, food: 0, clean: 0, place: 0 };
+    let wsum = 0;
+    state.parks.forEach((p, pi) => p.unlocked && p.b.forEach(b => {
+      if (def(b.t).cat !== 'stall' || b.lv < 1) return;
+      const h2 = E.hourly(state, pi, b, t);
+      if (!h2.sold) return;
+      const sc = E.stallScore(state, pi, b, h2);
+      for (const k of Object.keys(tot)) tot[k] += sc.f[k] * h2.sold;
+      wsum += h2.sold;
+    }));
+    const r = state.rating || 3.5;
+    let html = `<div class="hero rating"><div class="big-num">${r.toFixed(1)}</div>${starRow(r)}<p>${r >= 4.3 ? 'People love you! Great reviews bring up to 30% more customers.' : r >= 3.5 ? 'Customers are happy. Push for 4.5 stars to bring in more people.' : 'Customers are not impressed, so fewer people come. See below what to fix.'}</p></div>`;
+    if (wsum) {
+      const worst = Object.keys(tot).reduce((a, k) => (tot[k] < tot[a] ? k : a));
+      html += '<div class="sect">What customers think</div>' + Object.keys(tot).map(k => { const v = tot[k] / wsum; return `<div class="factor"><span>${I(FACTOR[k][0], 'inl')} ${FACTOR[k][1]}</span><div class="pbar ${v < 0.45 ? 'low' : ''}"><div style="width:${Math.round(v * 100)}%"></div></div></div>`; }).join('');
+      html += `<div class="c-info warn">${I('pointer', 'inl')} ${FIX[worst]}</div>`;
+    }
+    html += '<div class="sect">Latest reviews</div>';
+    if (!state.reviews.length) return html + '<div class="empty">No reviews yet. Serve some customers!</div>';
+    return html + state.reviews.slice(0, 15).map(rv => `<div class="review"><div class="face">${face({ id: rv.face })}</div><div class="r-main"><div class="r-title">${esc(rv.who)} ${starRow(rv.stars)}</div>
+      <div class="rtext">“${esc(rv.text)}”</div><div class="r-sub">${I(def(rv.stall).icon, 'inl')} ${esc(def(rv.stall).name)} · ${ftime((t - rv.at) / 1000)} ago</div></div></div>`).join('');
+  }
   function renderCards() {
     let html = '<p class="hint">Cards come from crates and daily rewards. Use them when they help most.</p>';
     for (const [id, c] of Object.entries(E.CARDS)) {
@@ -994,7 +1022,7 @@
     const L = state.ledger[state.ledger.length - 1];
     const today = L ? L.revenue - L.tax - (L.supplies || 0) - L.wages - L.rent - L.market : 0;
     const open = E.shopOpen(state, t);
-    setText($('rates'), open ? `Today ${today >= 0 ? '+' : ''}${money(today)}` : `Closed · opens ${E.OPEN_HOUR}:00`);
+    setHTML($('rates'), `<span class="stars-mini">${I('star', 'inl')}${(state.rating || 3.5).toFixed(1)}</span> ${open ? `Today ${today >= 0 ? '+' : ''}${money(today)}` : `Closed · opens ${E.OPEN_HOUR}:00`}`);
     toggle($('profitBtn'), 'neg', open && today < 0);
     toggle($('profitBtn'), 'closed', !open);
     const left = state.boostUntil - t;
@@ -1293,7 +1321,7 @@
     $('avatarBtn').addEventListener('click', () => { P.Sound.unlock(); feedback('tap'); openPanel('profile'); });
     $('gemBtn').addEventListener('click', () => { P.Sound.unlock(); feedback('tap'); openPanel('store'); });
     $('clockBtn').addEventListener('click', () => { P.Sound.unlock(); feedback('tap'); openPanel('report'); });
-    $('profitBtn').addEventListener('click', () => { P.Sound.unlock(); feedback('tap'); openPanel('report'); });
+    $('profitBtn').addEventListener('click', () => { P.Sound.unlock(); feedback('tap'); openPanel('reviews'); });
     $('boostBtn').addEventListener('click', () => { P.Sound.unlock(); feedback('tap'); openPanel('store'); });
     $('crateBtn').addEventListener('click', () => { P.Sound.unlock(); if (E.crateStatus(state, now()).free) ACT.crate(); else { feedback('tap'); openPanel('store'); } });
     document.addEventListener('pointerdown', () => { P.Sound.unlock(); if (P.Music && state.settings.music) P.Music.start(); }, { once: false, passive: true });
