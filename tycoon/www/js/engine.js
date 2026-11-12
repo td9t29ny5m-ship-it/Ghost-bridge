@@ -30,6 +30,7 @@
   const HALL_MAX = 20;
   const SALES_TAX = 0.1;            // 10% of every sale
   const RENT_PER_PLOT = 5;          // $ per hour for each plot of land
+  const PRICE_MIN = 0.7, PRICE_MAX = 1.6, ELASTICITY = 1.6;   // menu price range and how strongly customers react
   const SUPPLIES = 0.08;            // packaging, gas and napkins: 8% of sales
   const OFFLINE_CAP_SEC = 12 * 3600;
   const FREE_FINISH_SEC = 60;
@@ -46,12 +47,12 @@
   })();
   const OPEN_HOUR = 6, CLOSE_HOUR = 23;
   // New businesses stay open through the night until the tutorial is done, so nobody starts in the dark.
-  function dayFactor(state, now) { const f = DAY_CURVE[gameClock(now).hour]; return state.tutorialDone ? f : Math.max(f, 0.5); }
-  function shopOpen(state, now) { return !state.tutorialDone || isOpen(now); }
-  function isOpen(now) { const h = gameClock(now).hour; return h >= OPEN_HOUR && h < CLOSE_HOUR; }
+  function dayFactor(state, now) { const f = DAY_CURVE[gameClock(now, state).hour]; return state.tutorialDone ? f : Math.max(f, 0.5); }
+  function shopOpen(state, now) { return !state.tutorialDone || isOpen(now, state); }
+  function isOpen(now, state) { const h = gameClock(now, state).hour; return h >= OPEN_HOUR && h < CLOSE_HOUR; }
   const gameHours = (now) => (now / 1000) * TIME_SCALE / 3600;
-  function gameDay(state, now) { return Math.max(1, gameClock(now).day - gameClock(state.createdAt).day + 1); }
-  function gameClock(now) { const h = gameHours(now); return { day: Math.floor(h / 24), hour: Math.floor(h % 24), minute: Math.floor((h % 1) * 60), frac: (h % 24) / 24 }; }
+  function gameDay(state, now) { return Math.max(1, gameClock(now, state).day - gameClock(state.createdAt, state).day + 1); }
+  function gameClock(now, state) { const h = gameHours(now) + (state && state.clockShift || 0); return { day: Math.floor(h / 24), hour: Math.floor(h % 24), minute: Math.floor((h % 1) * 60), frac: (h % 24) / 24 }; }
   const COST = { builder: 250, reroll: 10, orderSkip: 5, boost: 25, crate: 20 };   // gem prices
 
   // ---------- Ingredients ----------
@@ -72,7 +73,7 @@
   // cat: hall | stall | farm (needs farmers) | water (needs fishers) | storage | decor
   // stalls: price ($ per dish), recipe (ingredients per dish), demand (customers/h at L1), rate (dishes/h per cook)
   // farms: makes {ingredient: units per hour per worker}
-  // slots: workers that fit at level 1 (one more every 3 levels, up to maxSlots)
+  // slots: workers that fit at level 1 (one more every 2 levels, up to maxSlots)
   const DEFS = [
     { id: 'hall',      name: 'Market Hall',     icon: 'hall',     cat: 'hall',    w: 2, h: 2, hall: 0,  n0: 1, every: 99, cap: 1,  cost: 400,   time: 60 },
     { id: 'cart',      name: 'Noodle Cart',     icon: 'noodle',   cat: 'stall',   w: 1, h: 1, hall: 0,  n0: 1, every: 3, cap: 4,  cost: 250,   time: 30,    price: 6,   recipe: { wheat: 1, veg: 1 }, demand: 90, rate: 60, slots: 1, maxSlots: 3 },
@@ -84,14 +85,14 @@
     { id: 'burger',    name: 'Burger Joint',    icon: 'burger',   cat: 'stall',   w: 2, h: 2, hall: 9,  n0: 1, every: 3, cap: 3,  cost: 2.5e5, time: 7200,  price: 13,  recipe: { meat: 1, wheat: 1, veg: 1 }, demand: 260, rate: 70, slots: 3, maxSlots: 8 },
     { id: 'court',     name: 'Food Court',      icon: 'court',    cat: 'stall',   w: 3, h: 3, hall: 12, n0: 1, every: 4, cap: 2,  cost: 1.2e6, time: 14400, price: 20,  recipe: { rice: 1, meat: 1, veg: 1, spice: 1 }, demand: 450, rate: 80, slots: 4, maxSlots: 12, rep: 8 },
     { id: 'global',    name: 'Global Kitchen',  icon: 'globe',    cat: 'stall',   w: 3, h: 3, hall: 15, n0: 1, every: 4, cap: 2,  cost: 6e6,   time: 28800, price: 36,  recipe: { fish: 1, meat: 1, spice: 1, fruit: 1 }, demand: 500, rate: 70, slots: 4, maxSlots: 12, rep: 14 },
-    { id: 'field',     name: 'Wheat Field',     icon: 'wheat',    cat: 'farm',    w: 2, h: 2, hall: 0,  n0: 1, every: 3, cap: 5,  cost: 300,   time: 45,    makes: { wheat: 40 }, slots: 1, maxSlots: 3 },
-    { id: 'garden',    name: 'Veggie Garden',   icon: 'garden',   cat: 'farm',    w: 2, h: 2, hall: 0,  n0: 1, every: 3, cap: 5,  cost: 300,   time: 45,    makes: { veg: 40 }, slots: 1, maxSlots: 3 },
-    { id: 'orchard',   name: 'Fruit Orchard',   icon: 'fruit',    cat: 'farm',    w: 2, h: 2, hall: 3,  n0: 1, every: 3, cap: 4,  cost: 2000,  time: 480,   makes: { fruit: 40 }, slots: 1, maxSlots: 3 },
-    { id: 'paddy',     name: 'Rice Paddy',      icon: 'rice',     cat: 'farm',    w: 2, h: 2, hall: 6,  n0: 1, every: 3, cap: 4,  cost: 20000, time: 2400,  makes: { rice: 50 }, slots: 1, maxSlots: 3 },
-    { id: 'spicegdn',  name: 'Spice Garden',    icon: 'spice',    cat: 'farm',    w: 1, h: 1, hall: 4,  n0: 1, every: 3, cap: 4,  cost: 5000,  time: 900,   makes: { spice: 30 }, slots: 1, maxSlots: 2 },
+    { id: 'field',     name: 'Wheat Field',     icon: 'wheat',    cat: 'farm',    w: 2, h: 2, hall: 0,  n0: 1, every: 3, cap: 5,  cost: 300,   time: 45,    makes: { wheat: 40 }, grow: 3, slots: 1, maxSlots: 3 },
+    { id: 'garden',    name: 'Veggie Garden',   icon: 'garden',   cat: 'farm',    w: 2, h: 2, hall: 0,  n0: 1, every: 3, cap: 5,  cost: 300,   time: 45,    makes: { veg: 40 }, grow: 3, slots: 1, maxSlots: 3 },
+    { id: 'orchard',   name: 'Fruit Orchard',   icon: 'fruit',    cat: 'farm',    w: 2, h: 2, hall: 3,  n0: 1, every: 3, cap: 4,  cost: 2000,  time: 480,   makes: { fruit: 40 }, grow: 5, slots: 1, maxSlots: 3 },
+    { id: 'paddy',     name: 'Rice Paddy',      icon: 'rice',     cat: 'farm',    w: 2, h: 2, hall: 6,  n0: 1, every: 3, cap: 4,  cost: 20000, time: 2400,  makes: { rice: 50 }, grow: 4, slots: 1, maxSlots: 3 },
+    { id: 'spicegdn',  name: 'Spice Garden',    icon: 'spice',    cat: 'farm',    w: 1, h: 1, hall: 4,  n0: 1, every: 3, cap: 4,  cost: 5000,  time: 900,   makes: { spice: 30 }, grow: 4, slots: 1, maxSlots: 2 },
     { id: 'barn',      name: 'Livestock Barn',  icon: 'meat',     cat: 'farm',    w: 2, h: 3, hall: 2,  n0: 1, every: 3, cap: 4,  cost: 1500,  time: 360,   makes: { meat: 30 }, slots: 1, maxSlots: 3 },
     { id: 'pond',      name: 'Fish Pond',       icon: 'fishmkt',  cat: 'water',   w: 2, h: 2, hall: 5,  n0: 1, every: 3, cap: 4,  cost: 12000, time: 1800,  makes: { fish: 30 }, slots: 1, maxSlots: 3 },
-    { id: 'greenhouse', name: 'Greenhouse',     icon: 'farm',     cat: 'farm',    w: 3, h: 2, hall: 10, n0: 1, every: 4, cap: 2,  cost: 5e5,   time: 10800, makes: { veg: 120, fruit: 120 }, slots: 2, maxSlots: 4 },
+    { id: 'greenhouse', name: 'Greenhouse',     icon: 'farm',     cat: 'farm',    w: 3, h: 2, hall: 10, n0: 1, every: 4, cap: 2,  cost: 5e5,   time: 10800, makes: { veg: 120, fruit: 120 }, grow: 3, slots: 2, maxSlots: 4 },
     { id: 'warehouse', name: 'Warehouse',       icon: 'crate',    cat: 'storage', w: 2, h: 2, hall: 1,  n0: 1, every: 5, cap: 3,  cost: 800,   time: 180,   store: 600 },
     { id: 'table',     name: 'Picnic Table',    icon: 'table',    cat: 'decor',   w: 1, h: 1, hall: 0,  n0: 3, every: 1, cap: 30, cost: 60,    time: 0, bonus: 0.06, radius: 1, seats: 4 },
     { id: 'bin',       name: 'Trash Bin',       icon: 'bin',      cat: 'decor',   w: 1, h: 1, hall: 0,  n0: 2, every: 1, cap: 24, cost: 80,    time: 0, bonus: 0,    radius: 0, clean: 120 },
@@ -163,7 +164,7 @@
     return Math.min(d.cap, d.n0 + Math.floor((hl - d.hall) / d.every));
   }
   function maxParcels(state) { return Math.min(PN * PN, 3 + hallLevel(state) * 2); }
-  function slotsFor(t, lv) { const d = DEFS[t]; return d.slots ? Math.min(d.maxSlots, d.slots + Math.floor(Math.max(0, lv - 1) / 3)) : 0; }
+  function slotsFor(t, lv) { const d = DEFS[t]; return d.slots ? Math.min(d.maxSlots, d.slots + Math.floor(Math.max(0, lv - 1) / 2)) : 0; }
 
   // ---------- State ----------
   function newPark(i) {
@@ -191,11 +192,13 @@
       stats: { dishes: 0, earned: 0, landBought: 0, built: 0, upgraded: 0, hired: 0, crates: 0, golden: 0, tips: 0, playTime: 0, maxLevels: 0, bought: 0 },
       settings: { sound: true, music: true, haptics: true, lens: true, weather: true, autoBuy: true },
       tutorialDone: false,
+      clockShift: 0,
     };
     // You start with one stand on your little plot.
     s.parks[0].b.push({ u: s.uid++, t: ID.cart, x: 11, y: 10, lv: 1 });
     // ...next to the Market Hall, the heart of your business.
     s.parks[0].b.push({ u: s.uid++, t: HALL, x: 13, y: 9, lv: 1 });
+    s.clockShift = ((8 - gameHours(now)) % 24 + 24) % 24;   // a new business opens at 8:00 in the morning
     s.candidates = makeCandidates(s, now);
     // the first board always has an affordable beginner cook and farmer
     s.candidates[0] = Object.assign(s.candidates[0], { role: 'cook', skill: 1, trait: 'none', wage: 15, name: 'Mei' });
@@ -212,7 +215,7 @@
     s.premium = !!raw.premium; s.adsRemoved = !!raw.adsRemoved;
     if (raw.settings) for (const k of Object.keys(s.settings)) if (typeof raw.settings[k] === 'boolean') s.settings[k] = raw.settings[k];
     if (raw.v !== SAVE_VERSION) return s;   // older versions were different games: start fresh, keep gems and purchases
-    ['cash', 'tokens', 'rep', 'xp', 'boostUntil', 'rushUntil', 'crateAt', 'uid', 'wseq', 'candAt', 'cseed', 'orderSeed', 'ordersDone', 'nextEventAt', 'wseed', 'mission', 'grantAt']
+    ['cash', 'tokens', 'rep', 'xp', 'boostUntil', 'rushUntil', 'crateAt', 'uid', 'wseq', 'candAt', 'cseed', 'orderSeed', 'ordersDone', 'nextEventAt', 'wseed', 'mission', 'grantAt', 'clockShift']
       .forEach(k => { s[k] = Math.max(0, num(raw[k], s[k])); });
     s.level = Math.max(1, Math.floor(num(raw.level, 1)));
     s.boughtBuilder = !!raw.boughtBuilder; s.tutorialDone = !!raw.tutorialDone;
@@ -233,6 +236,8 @@
             const t = Math.floor(num(b.t, -1));
             if (!DEFS[t] || (t === HALL && (i !== 0 || p.b.some(o => o.t === HALL)))) return;
             const nb = { u: Math.floor(num(b.u, 0)), t, x: Math.floor(num(b.x, -1)), y: Math.floor(num(b.y, -1)), lv: Math.max(0, Math.min(HALL_MAX, Math.floor(num(b.lv, 0)))) };
+            if (b.pm !== undefined) nb.pm = Math.min(PRICE_MAX, Math.max(PRICE_MIN, num(b.pm, 1)));
+            if (b.g !== undefined) nb.g = Math.min(0.999, Math.max(0, num(b.g, 0)));
             if (nb.u < 1 || s.parks.some(pp => pp.b.some(o => o.u === nb.u))) nb.u = s.uid++;
             if (fits(p, t, nb.x, nb.y, -1)) p.b.push(nb);
           });
@@ -624,9 +629,13 @@
       const charm = ws.some(w => w.trait === 'charming') ? 1.15 : 1;
       out.demand = d.demand * Math.pow(1.3, lvl - 1) * (1 + decorBonus(state.parks[pi], b)) * (1 + 0.15 * skillTier(state, b.t, 'sign')) * charm *
         PARKS[pi].mult * (dm === undefined ? demandMult(state, now) : dm);
-      out.capacity = d.rate * power * Math.pow(1.07, lvl - 1) * (1 + 0.2 * skillTier(state, b.t, 'grill'));
+      out.capacity = d.rate * power * Math.pow(1.12, lvl - 1) * (1 + 0.2 * skillTier(state, b.t, 'grill'));
+      // your menu price: cheaper brings more customers, dearer brings fewer
+      const pm = b.pm || 1;
+      out.demand *= Math.pow(pm, -ELASTICITY);
       out.sold = Math.min(out.demand, out.capacity);
-      out.price = d.price * Math.pow(1.04, lvl - 1) * (1 + 0.1 * skillTier(state, b.t, 'menu')) * (1 + (PARKS[pi].mult - 1) * 0.3);
+      out.lost = Math.max(0, out.demand - out.capacity);   // people who gave up waiting in the queue
+      out.price = d.price * pm * Math.pow(1.04, lvl - 1) * (1 + 0.1 * skillTier(state, b.t, 'menu')) * (1 + (PARKS[pi].mult - 1) * 0.3);
       out.revenue = out.sold * out.price;
       for (const [k, q] of Object.entries(d.recipe)) out.need[k] = q * out.sold;
     } else if (d.makes) {
@@ -647,12 +656,12 @@
   function rent(state) { return state.tutorialDone ? parcelCount(state) * RENT_PER_PLOT : 0; }
   function summary(state, now) {
     const dm = demandMult(state, now);
-    const s = { revenue: 0, tax: 0, wages: 0, rent: rent(state), dishes: 0, customers: 0, makes: {}, need: {}, idleWorkers: 0 };
+    const s = { revenue: 0, tax: 0, wages: 0, rent: rent(state), dishes: 0, customers: 0, lost: 0, makes: {}, need: {}, idleWorkers: 0 };
     state.parks.forEach((p, pi) => {
       if (!p.unlocked) return;
       for (const b of p.b) {
         const h = hourly(state, pi, b, now, dm);
-        s.revenue += h.revenue; s.wages += h.wages; s.dishes += h.sold; s.customers += h.demand;
+        s.revenue += h.revenue; s.wages += h.wages; s.dishes += h.sold; s.customers += h.demand; s.lost += h.lost || 0;
         for (const [k, v] of Object.entries(h.makes)) s.makes[k] = (s.makes[k] || 0) + v;
         for (const [k, v] of Object.entries(h.need)) s.need[k] = (s.need[k] || 0) + v;
       }
@@ -674,14 +683,14 @@
   }
   // Simulates dt seconds (long gaps in 2-minute steps). Returns { done: finished jobs, events }.
   function tick(state, dt, now) {
-    const out = { done: [], events: [] };
+    const out = { done: [], events: [], harvests: [] };
     if (!(dt > 0)) return out;
     dt = Math.min(dt, OFFLINE_CAP_SEC + 60);
     const steps = Math.max(1, Math.ceil(dt / 120)), sdt = dt / steps;
     for (let k = 0; k < steps; k++) {
       const t = now - (steps - 1 - k) * sdt * 1000;
       out.events.push(...updateWorldClock(state, t));
-      step(state, sdt, t);
+      step(state, sdt, t, out.harvests);
       for (let i = state.jobs.length - 1; i >= 0; i--) {
         const j = state.jobs[i];
         if (j.end > t) continue;
@@ -698,17 +707,29 @@
     state.stats.maxLevels = Math.max(state.stats.maxLevels, totalLevels(state));
     return out;
   }
-  function step(state, dt, now) {
+  function step(state, dt, now, harvests) {
     const hrs = dt * TIME_SCALE / 3600, dm = demandMult(state, now);
     const L = ledgerToday(state, now);
     const cap = invCap(state);
     const all = [];
     state.parks.forEach((p, pi) => { if (p.unlocked) p.b.forEach(b => all.push([pi, b, hourly(state, pi, b, now, dm)])); });
-    // 1. farms fill the inventory (up to capacity)
-    for (const [, , h] of all) for (const [k, v] of Object.entries(h.makes)) {
-      const add = Math.min(v * hrs, Math.max(0, cap - state.inv[k]));
-      state.inv[k] += add;
-      L.harvest += add;
+    // 1. animals and fish give a steady supply; crops grow and are harvested in batches
+    for (const [pi, b, h] of all) {
+      const d = DEFS[b.t];
+      if (!Object.keys(h.makes).length) continue;
+      if (!d.grow) {
+        for (const [k, v] of Object.entries(h.makes)) { const add = Math.min(v * hrs, Math.max(0, cap - state.inv[k])); state.inv[k] += add; L.harvest += add; }
+        continue;
+      }
+      b.g = (b.g || 0) + hrs / d.grow;
+      while (b.g >= 1) {
+        b.g -= 1;
+        for (const [k, v] of Object.entries(h.makes)) {
+          const add = Math.min(v * d.grow, Math.max(0, cap - state.inv[k]));
+          state.inv[k] += add; L.harvest += add;
+          if (harvests) harvests.push({ park: pi, u: b.u, k, n: add });
+        }
+      }
     }
     // 2. the manager restocks from the market when stock runs short (if allowed)
     if (state.settings.autoBuy) {
@@ -728,7 +749,7 @@
     for (const [, , h] of all) for (const [k, v] of Object.entries(h.need)) need[k] = (need[k] || 0) + v * hrs;
     const share = {};
     for (const k of Object.keys(need)) share[k] = need[k] > 0 ? Math.min(1, state.inv[k] / need[k]) : 1;
-    let revenue = 0, dishes = 0, wages = 0;
+    let revenue = 0, dishes = 0, wages = 0, repGain = 0;
     for (const [, b, h] of all) {
       wages += h.wages * hrs;
       b.starved = false;
@@ -739,6 +760,9 @@
       for (const [k, q] of Object.entries(DEFS[b.t].recipe)) state.inv[k] = Math.max(0, state.inv[k] - q * sold);
       revenue += sold * h.price;
       dishes += sold;
+      const value = Math.min(1.5, Math.max(0.4, 1 / Math.pow(b.pm || 1, 2)));   // fair prices make happy customers
+      const happy = h.sold / (h.sold + (h.lost || 0));   // share of the queue that got served
+      repGain += sold * 0.06 * value * happy;
     }
     const tax = revenue * taxRate(state), supplies = revenue * SUPPLIES, rentDue = rent(state) * hrs;
     state.cash = Math.max(0, state.cash + revenue - tax - supplies - wages - rentDue);
@@ -746,10 +770,18 @@
     state.stats.earned += revenue;
     const clean = cleanliness(state, 0, dishes / Math.max(hrs, 1e-9));
     const repMult = state.event && state.event.until > now && EVENTS[state.event.id].rep ? EVENTS[state.event.id].rep : 1;
-    state.rep += dishes * 0.06 * clean * repMult;
+    state.rep += repGain * clean * repMult;
     if (state.event && state.event.until > now && EVENTS[state.event.id].tokens) state.tokens += dishes / 100;
     L.revenue += revenue; L.tax += tax; L.supplies += supplies; L.wages += wages; L.rent += rentDue; L.dishes += dishes;
   }
+
+  function setPrice(state, pi, u, pm) {
+    const b = findB(state, pi, u);
+    if (!b || DEFS[b.t].cat !== 'stall') return false;
+    b.pm = Math.round(Math.min(PRICE_MAX, Math.max(PRICE_MIN, pm)) * 20) / 20;
+    return true;
+  }
+  function harvestIn(state, b) { const d = DEFS[b.t]; return d.grow ? (1 - (b.g || 0)) * d.grow * 3600 / TIME_SCALE : 0; }
 
   // ---------- Market ----------
   function buyPrice(state, k) { return ING[k].price * MARKUP * marketMult(state); }
@@ -1016,7 +1048,7 @@
   return {
     SAVE_VERSION, CELLS, PARCEL, PN, HALL, HALL_MAX, ID, DEFS, PARKS, INGS, ING, TRAITS, ROLE, EVENTS, WEATHER, CARDS, RESEARCH, SKILL_BRANCHES,
     MISSIONS, ACHIEVEMENTS, QUESTS, COST, FREE_FINISH_SEC, SALES_TAX, SUPPLIES, RENT_PER_PLOT, OFFLINE_CAP_SEC,
-    TIME_SCALE, DAY_CURVE, OPEN_HOUR, CLOSE_HOUR, isOpen, shopOpen, gameClock, gameDay, grantStatus, claimGrant, formatNumber, formatMoney, formatTime, dayKey,
+    TIME_SCALE, DAY_CURVE, OPEN_HOUR, CLOSE_HOUR, isOpen, shopOpen, gameClock, gameDay, grantStatus, claimGrant, setPrice, harvestIn, PRICE_MIN, PRICE_MAX, formatNumber, formatMoney, formatTime, dayKey,
     newState, loadState,
     eachB, findB, hallB, hallLevel, countType, countCat, totalLevels, parcelCount, jobFor, builderCount, freeBuilders, workersAt,
     parcelOf, ownsCell, occupant, fits, parcelAdjacent, landPrice, canBuyParcel, buyParcel, maxParcels,

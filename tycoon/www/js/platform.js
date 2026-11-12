@@ -119,7 +119,7 @@
     },
     update(state, now) {
       if (!state) return;
-      const E = window.Engine, c = E && E.gameClock ? E.gameClock(now) : { hour: 12 };
+      const E = window.Engine, c = E && E.gameClock ? E.gameClock(now, state) : { hour: 12 };
       this.mood = c.hour >= 21 || c.hour < 6 ? 'night' : 'day';
       if (state.settings.music && !this.playing && ctx && ctx.state === 'running') this.start();
     },

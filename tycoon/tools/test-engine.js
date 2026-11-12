@@ -10,7 +10,7 @@ function test(name, fn) {
 }
 // Noon on a June day (game clock): a busy hour, sunny, no events.
 const T0 = (() => { let t = Date.UTC(2026, 5, 1, 12); while (E.gameClock(t).hour !== 12) t += 120e3; return t; })();
-const fresh = () => { const s = E.newState(T0); s.settings.autoBuy = false; s.tutorialDone = true; s.weather = { kind: 'cloud', until: T0 + 365 * 86400e3 }; s.nextEventAt = T0 + 365 * 86400e3; return s; };
+const fresh = () => { const s = E.newState(T0); s.clockShift = 0; s.settings.autoBuy = false; s.tutorialDone = true; s.weather = { kind: 'cloud', until: T0 + 365 * 86400e3 }; s.nextEventAt = T0 + 365 * 86400e3; return s; };
 const rich = () => { const s = fresh(); s.cash = 1e30; s.tokens = 1e9; s.gems = 1e6; for (const k in s.inv) s.inv[k] = 1e5; return s; };
 const finishAll = (s, t) => { s.jobs.forEach(j => (j.end = 0)); return E.tick(s, 0.001, t || T0); };
 function hallTo(s, lv) {
@@ -132,7 +132,11 @@ test('farms need a farmer, then fill the inventory up to its cap', () => {
   assert.equal(s.inv.wheat, 0);
   staffWith(s, f, 'farmer');
   E.tick(s, 120, T0 + 240e3);
-  assert.ok(Math.abs(s.inv.wheat - 40) < 1e-6, 'one game hour of wheat: ' + s.inv.wheat);
+  assert.equal(s.inv.wheat, 0, 'wheat is still growing after one game hour');
+  assert.ok(f.g > 0.3 && f.g < 0.4);
+  const r = E.tick(s, 240, T0 + 480e3);
+  assert.ok(Math.abs(s.inv.wheat - 120) < 1e-6, 'a 3-hour crop is harvested in one batch: ' + s.inv.wheat);
+  assert.ok(r.harvests.length === 1 && r.harvests[0].k === 'wheat');
   E.tick(s, 3600 * 3, T0 + 4 * 3600e3);
   assert.equal(s.inv.wheat, E.invCap(s));
 });
@@ -471,6 +475,35 @@ test('a broke business gets a small-business grant', () => {
   const g = E.claimGrant(s, T0);
   assert.ok(g && s.cash >= 500);
   assert.equal(E.claimGrant(s, T0), null, 'only every 2 hours');
+});
+
+test('menu prices: cheaper brings more customers, dearer fewer; long queues lose customers and reputation', () => {
+  const s = fresh();
+  const c = cart(s);
+  staffWith(s, c, 'cook');
+  const base = E.hourly(s, 0, c, T0);
+  E.setPrice(s, 0, c.u, 0.8);
+  const cheap = E.hourly(s, 0, c, T0);
+  E.setPrice(s, 0, c.u, 1.4);
+  const dear = E.hourly(s, 0, c, T0);
+  assert.ok(cheap.demand > base.demand && dear.demand < base.demand);
+  assert.ok(dear.price > base.price && cheap.price < base.price);
+  E.setPrice(s, 0, c.u, 9);
+  assert.equal(c.pm, E.PRICE_MAX);
+  E.setPrice(s, 0, c.u, 1);
+  assert.ok(base.lost > 0, 'one cook cannot serve the lunch rush');
+  // a queue that is served earns more reputation than one where people give up
+  const grow = (pm, cooks) => { const t = fresh(); const cc = cart(t); for (let k = 0; k < cooks; k++) staffWith(t, cc, 'cook'); t.inv.wheat = t.inv.veg = 1e4; E.setPrice(t, 0, cc.u, pm); E.tick(t, 120, T0 + 120e3); return t.rep; };
+  assert.ok(grow(1.3, 1) > grow(0.7, 1) * 0.5, 'cheap prices with a long queue are not a free win');
+});
+
+test('a new business opens at 8:00 in the morning, whatever the real time', () => {
+  for (const h of [0, 5, 13, 22]) {
+    const t = Date.UTC(2026, 0, 3, h, 17);
+    const s = E.newState(t);
+    assert.equal(E.gameClock(t, s).hour, 8);
+    assert.equal(E.gameDay(s, t), 1);
+  }
 });
 
 console.log(`\n${passed} passed${process.exitCode ? ', some FAILED' : ''}`);

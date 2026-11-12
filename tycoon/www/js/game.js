@@ -176,7 +176,7 @@
     if (!b) { select(null); return; }
     const d = def(b.t), job = E.jobFor(state, PK(), b.u), up = E.canUpgrade(state, PK(), b.u);
     const ws = E.workersAt(state, PK(), b.u);
-    const key = ['b', b.u, b.lv, !!job, ws.map(w => w.id + ':' + w.lvl).join(','), up.ok, up.why, !!b.starved, state.tokens >= (up.cost ? up.cost.tokens : 0)].join(':');
+    const key = ['b', b.u, b.lv, b.pm || 1, !!job, ws.map(w => w.id + ':' + w.lvl).join(','), up.ok, up.why, !!b.starved, state.tokens >= (up.cost ? up.cost.tokens : 0)].join(':');
     if (key !== cardKey) {
       cardKey = key;
       const maxLv = E.maxLevel(state, b.t);
@@ -195,7 +195,10 @@
           ${state.cards.instant ? `<button class="btn blue fit" type="button" data-act="instantCard">${I('cards', 'inl')} ${state.cards.instant}</button>` : ''}</div>`;
       }
       if (E.ROLE[d.cat] && b.lv >= 1) {
-        html += staffSlots(b) + '<div class="live" id="cLive"></div>';
+        html += staffSlots(b);
+        if (d.cat === 'stall') html += `<div class="price-row"><span>Menu price</span><button class="pbtn" type="button" data-act="price" data-d="-0.05">−</button><b id="cPrice"></b><button class="pbtn" type="button" data-act="price" data-d="0.05">+</button></div>`;
+        if (d.grow) html += `<div class="bar grow"><div class="bar-fill" id="cGrowFill"></div><div class="bar-text" id="cGrowText"></div></div>`;
+        html += '<div class="live" id="cLive"></div><div class="c-tip" id="cTip"></div>';
         if (!ws.length) html += `<div class="c-info warn">${I('person', 'inl')} Nobody works here. ${d.cat === 'stall' ? 'Hire a cook to start selling!' : d.cat === 'water' ? 'Hire a fisher to start fishing!' : 'Hire a farmer to start growing!'}</div>`;
         else if (b.starved) html += `<div class="c-info warn">${I('crate', 'inl')} Running out of ingredients! ${state.settings.autoBuy ? 'Not enough cash to restock.' : '<button class="link" type="button" data-act="openMarket">Buy at the market</button>'} Build farms to grow your own.</div>`;
         else if (!E.shopOpen(state, now())) html += `<div class="c-info">${I('moon', 'inl')} Closed for the night. Staff are home and not paid. Opens at ${E.OPEN_HOUR}:00.</div>`;
@@ -230,8 +233,23 @@
     const live = $('cLive');
     if (live) {
       const hr = E.hourly(state, PK(), b, t);
-      if (d.cat === 'stall') setHTML(live, `<span>${I('person', 'inl')} <b>${num(hr.demand)}</b> want food/h</span><span>${I('chefhat', 'inl')} cooks <b>${num(hr.capacity)}</b>/h</span><span>${I('cash', 'inl')} <b>${money(hr.revenue)}</b>/h</span>`);
-      else if (d.makes) setHTML(live, Object.entries(hr.makes).map(([k, v]) => `<span>${I(E.ING[k].icon, 'inl')} <b>+${num(v)}</b>/h</span>`).join('') + `<span>${I('cash', 'inl')} wages <b>${money(hr.wages)}</b>/h</span>`);
+      if (d.cat === 'stall') {
+        setHTML(live, `<span>${I('person', 'inl')} <b>${num(hr.demand)}</b> customers/h</span><span>${I('chefhat', 'inl')} can serve <b>${num(hr.capacity)}</b>/h</span><span>${I('cash', 'inl')} <b>${money(hr.revenue)}</b>/h</span>`);
+        const pm = b.pm || 1;
+        setHTML($('cPrice'), `${money(hr.price || d.price * pm)} <small>${pm === 1 ? 'normal' : (pm > 1 ? '+' : '') + Math.round((pm - 1) * 100) + '%'}</small>`);
+        let tip = '';
+        if (hr.staff && hr.lost > hr.demand * 0.12) tip = `<span class="bad">${I('person', 'inl')} ${num(hr.lost)} people/h give up waiting in the queue. Raise the price, hire another cook or upgrade.</span>`;
+        else if (hr.staff && hr.capacity > hr.demand * 1.4) tip = `<span class="good">${I('chefhat', 'inl')} Your cooks have spare time. Lower the price or add decorations to bring more customers.</span>`;
+        else if (hr.staff) tip = `<span class="good">${I('check', 'inl')} Busy and running smoothly.</span>`;
+        setHTML($('cTip'), tip);
+      }
+      if (d.grow) {
+        const ws2 = E.workersAt(state, PK(), b.u), open = E.shopOpen(state, t);
+        $('cGrowFill').style.transform = `scaleX(${(b.g || 0).toFixed(3)})`;
+        const batch = Object.entries(d.makes).map(([k]) => `+${num((hr.makes[k] || 0) * d.grow)} ${E.ING[k].name.toLowerCase()}`).join(', ');
+        setText($('cGrowText'), !ws2.length ? 'Growth paused: no farmer' : !open ? 'Night: growth paused' : `Harvest in ${ftime(E.harvestIn(state, b))} · ${batch}`);
+      }
+      if (d.makes) setHTML(live, Object.entries(hr.makes).map(([k, v]) => `<span>${I(E.ING[k].icon, 'inl')} <b>+${num(v)}</b>/h</span>`).join('') + `<span>${I('cash', 'inl')} wages <b>${money(hr.wages)}</b>/h</span>`);
     }
   }
 
@@ -499,6 +517,8 @@
       onStateChanged(); save();
     },
     visit(el) { feedback('tap'); goPark(+el.dataset.p, true); },
+    openPanel(el) { feedback('tap'); openPanel(el.dataset.p); },
+    price(el) { if (sel && sel.kind === 'b') { const b = E.findB(state, PK(), sel.u); E.setPrice(state, PK(), sel.u, (b.pm || 1) + +el.dataset.d); feedback('tap'); sumCache = null; cardKey = ''; renderCard(); } },
     unlockPark(el) {
       const i = +el.dataset.p;
       if (!E.unlockPark(state, i)) { feedback('error'); return; }
@@ -591,6 +611,7 @@
     report: { icon: 'chart', title: 'Daily Report', render: renderReport },
     cards: { icon: 'cards', title: 'Cards', render: renderCards },
     ranks: { icon: 'trophy', title: 'Top Tycoons', render: renderRanks },
+    more: { icon: 'quests', title: 'More', render: renderMore },
   };
   function openPanel(name, arg) {
     if (placing) cancelPlace();
@@ -867,6 +888,13 @@
     return html;
   }
 
+  const MORE = [['quests', 'quests', 'Goals'], ['orders', 'receipt', 'Orders'], ['market', 'crate', 'Stock & Market'], ['report', 'chart', 'Daily Report'],
+    ['research', 'flask', 'Research'], ['cards', 'cards', 'Cards'], ['ranks', 'trophy', 'Top Tycoons'], ['world', 'map', 'Locations'],
+    ['builders', 'builder', 'Builders'], ['store', 'bag', 'Store'], ['profile', 'chefhat', 'Profile']];
+  function renderMore() {
+    return '<div class="more-grid">' + MORE.map(([id, ic, name]) => `<button class="more-tile" type="button" data-act="openPanel" data-p="${id}">${I(ic)}<b>${name}</b>${moreBadge(id) ? `<i class="badge show">${moreBadge(id)}</i>` : ''}</button>`).join('') + '</div>';
+  }
+  function moreBadge(id) { const b = shadowBadges[id] || $('badge-' + id); return b && b.classList.contains('show') ? b.textContent : ''; }
   function renderCards() {
     let html = '<p class="hint">Cards come from crates and daily rewards. Use them when they help most.</p>';
     for (const [id, c] of Object.entries(E.CARDS)) {
@@ -950,25 +978,19 @@
   // =====================================================================
   //  HUD, missions and pointer
   // =====================================================================
+  // Buttons appear as the story reaches them, so a new player only sees what they need.
+  const NAV_UNLOCK = { navStaff: 0, navBuild: 2, navHall: 7, navBiz: 4, navMore: 5 };
+  function navOpen(id) { return state.tutorialDone || state.mission >= NAV_UNLOCK[id]; }
   function updateHud(t) {
     setText($('cash'), money(state.cash));
     setText($('tokens'), num(Math.floor(state.tokens)));
+    $('tokBox').hidden = !(state.tokens >= 1 || E.hallLevel(state) >= 3);
     setText($('gems'), num(state.gems));
     setText($('lvBadge'), String(state.level));
-    const need = E.xpForLevel(state.level);
-    $('xpFill').style.width = Math.min(100, state.xp / need * 100).toFixed(1) + '%';
-    setText($('xpText'), `${num(state.xp)} / ${num(need)} XP`);
-    const pk = E.PARKS[PK()];
-    setText($('parkName'), pk.name);
-    const pi = $('parkIc');
-    if (pi.dataset.ic !== pk.icon) { pi.dataset.ic = pk.icon; window.Icons.hydrate($('parkBtn')); }
-    const gc = E.gameClock(t);
+    const gc = E.gameClock(t, state);
     setText($('clockText'), `Day ${E.gameDay(state, t)} · ${String(gc.hour).padStart(2, '0')}:${String(Math.floor(gc.minute / 10) * 10).padStart(2, '0')}`);
     const wx = $('wxIc'), wk = E.WEATHER[state.weather.kind].icon;
     if (wx.dataset.ic !== wk) { wx.dataset.ic = wk; window.Icons.hydrate($('clockBtn')); }
-    const free = E.freeBuilders(state), n = E.builderCount(state);
-    setText($('builderText'), `${free}/${n}`);
-    toggle($('builderBtn'), 'idle', free > 0);
     const L = state.ledger[state.ledger.length - 1];
     const today = L ? L.revenue - L.tax - (L.supplies || 0) - L.wages - L.rent - L.market : 0;
     const open = E.shopOpen(state, t);
@@ -976,15 +998,17 @@
     toggle($('profitBtn'), 'neg', open && today < 0);
     toggle($('profitBtn'), 'closed', !open);
     const left = state.boostUntil - t;
-    toggle($('boostBtn'), 'active', left > 0);
-    setText($('boostLabel'), left > 0 ? '2× ' + ftime(left / 1000) : '2× Boost');
-    const crate = E.crateStatus(state, t);
-    setText($('crateLabel'), crate.free ? 'Free!' : ftime(crate.wait));
-    toggle($('crateBtn'), 'ready', crate.free);
+    $('boostBtn').hidden = left <= 0;
+    if (left > 0) setText($('boostLabel'), ftime(left / 1000));
+    $('crateBtn').hidden = !(state.tutorialDone && E.crateStatus(state, t).free);
     let pills = '';
     if (state.event && state.event.until > t) { const e = E.EVENTS[state.event.id]; pills += `<span class="pill event">${I(e.icon, 'inl')} ${esc(e.name)} · ${ftime((state.event.until - t) / 1000)}</span>`; }
     if (state.rushUntil > t) pills += `<span class="pill event">${I('clock', 'inl')} Rush · ${ftime((state.rushUntil - t) / 1000)}</span>`;
     setHTML($('statusRow'), pills);
+    for (const id of Object.keys(NAV_UNLOCK)) {
+      const el = $(id), on = navOpen(id);
+      if (el.hidden === on) { el.hidden = !on; if (on && ready) { el.classList.add('fresh'); setTimeout(() => el.classList.remove('fresh'), 4000); } }
+    }
   }
 
   // ---------- The guided tutorial: an arrow and a short instruction for every tap ----------
@@ -995,9 +1019,9 @@
   function firstOf(id, pred) { const t = E.ID[id]; return park().b.find(b => b.t === t && (!pred || pred(b))) || null; }
   function guide() {
     const m = E.mission(state);
-    if (!m || modalOpen) return null;
+    if (!m || modalOpen || state.mission >= 9) return null;   // after the tutorial the mission bar is enough
     const i = state.mission;
-    if (m.check(state)) return { el: $('missionBar'), text: 'Mission complete! Tap the gold bar to collect your reward.' };
+    if (m.check(state)) return { el: $('missionBar'), text: 'Well done! Tap here to collect your reward.' };
     if (i >= 13) return null;
     const bid = TUT_BUILD[i], sid = TUT_STAFF[i];
     const need = bid && !(i === 5 ? E.countType(state, E.ID.table) >= 2 : firstOf(bid));
@@ -1034,7 +1058,7 @@
         return { u: b.u, text: `Tap your ${d.name}. Nobody works there yet.` };
       }
     }
-    if (i === 1) return { text: 'Your cook is selling noodles all by themselves. Watch your cash go up! The manager restocks ingredients automatically.' };
+    if (i === 1) return { text: `Look, customers are queuing! Your cook sells on their own. Every bowl makes about ${money(3.5)} after ingredients, tax and supplies. Sell 25 bowls.` };
     if (i === 7) {
       if (sel && sel.kind === 'parcel') return { el: q('[data-act=buyParcel]'), text: 'Buy this plot to make your park bigger.' };
       const k = park().parcels.findIndex((o, j) => !o && E.parcelAdjacent(park(), j));
@@ -1063,27 +1087,43 @@
     setHTML(bar, `<span class="m-ic">${I(done ? 'check' : 'star')}</span><span class="m-txt"><small>Mission ${state.mission + 1}${state.mission < 9 ? ' · Tutorial' : ''}</small><b>${esc(m.title)}</b></span><span class="m-go">${done ? 'CLAIM' : I('pointer', 'inl')}</span>`);
     const g = guide();
     const box = $('app').getBoundingClientRect();
-    // coach text
-    if (g && g.text && (state.mission < 13 || done)) {
+    const spot = $('spot');
+    // where is the thing to tap?
+    let x = null, y = null, w = 0, hgt = 0;
+    if (g && g.el && g.el.offsetParent !== null) { const r = g.el.getBoundingClientRect(); x = r.left + r.width / 2; y = r.top + r.height / 2; w = r.width; hgt = r.height; }
+    else if (g && g.u && use3d) { const p = W3.buildingScreenPos(g.u); if (p && p.on) { x = p.x; y = p.y + 30; w = hgt = 110; } }
+    else if (g && g.cell && use3d) { const p = W3.cellScreenPos(g.cell[0], g.cell[1]); if (p && p.on) { x = p.x; y = p.y; w = hgt = 120; } }
+    const tutorial = state.mission < 9 && g;
+    // the spotlight: everything else goes dark while the tutorial is talking
+    if (tutorial && x !== null) {
+      spot.hidden = false;
+      const pad = 10, sw = Math.max(48, w + pad * 2), sh = Math.max(48, hgt + pad * 2);
+      spot.style.left = (x - box.left - sw / 2) + 'px'; spot.style.top = (y - box.top - sh / 2) + 'px';
+      spot.style.width = sw + 'px'; spot.style.height = sh + 'px';
+      toggle(spot, 'round', !g.el);
+    } else spot.hidden = true;
+    // the mentor's speech bubble, kept clear of the spotlight
+    if (g && g.text) {
       coach.hidden = false;
-      setHTML(coach, `<span class="c-face">${face({ id: 3 })}</span><span>${esc(g.text)}</span>`);
+      setHTML(coach, `<span class="c-face">${face({ id: 11 })}</span><span class="c-txt">${state.mission < 9 ? '<small>Rosa, your mentor</small>' : ''}${esc(g.text)}</span>`);
+      const lowTarget = y !== null && y - box.top > box.height * 0.55;
       const cardUp = !panel && (!$('shopCard').hidden || !$('placeBar').hidden);
-      toggle(coach, 'top', !!cardUp);
+      toggle(coach, 'top', lowTarget || cardUp);
     } else coach.hidden = true;
-    // arrow
-    let x = null, y = null, top = 0;
-    if (g && g.el && g.el.offsetParent !== null) { const r = g.el.getBoundingClientRect(); x = r.left + r.width / 2; y = r.top; top = r.bottom; }
-    else if (g && g.u && use3d) { const p = W3.buildingScreenPos(g.u); if (p && p.on) { x = p.x; y = p.y - 6; top = p.y + 20; } }
-    else if (g && g.cell && use3d) { const p = W3.cellScreenPos(g.cell[0], g.cell[1]); if (p && p.on) { x = p.x; y = p.y - 40; top = p.y; } }
     if (x === null) { ptr.hidden = true; return; }
     ptr.hidden = false;
     if (ptr._html !== 'p') { ptr.innerHTML = I('pointer'); ptr._html = 'p'; }
-    const up = y - box.top < 130;   // too close to the top: point up from below
+    const up = y - box.top < 140;
     toggle(ptr, 'down', !up);
     ptr.style.left = (x - box.left - 20) + 'px';
-    ptr.style.top = (up ? top - box.top + 4 : y - box.top - 44) + 'px';
+    ptr.style.top = (up ? y - box.top + hgt / 2 + 6 : y - box.top - hgt / 2 - 46) + 'px';
   }
-  function setBadge(id, txt) { const b = $('badge-' + id); if (!b) return; setText(b, txt); toggle(b, 'show', !!txt); }
+  const shadowBadges = {};
+  function setBadge(id, txt) {
+    let b = $('badge-' + id);
+    if (!b) { b = shadowBadges[id] || (shadowBadges[id] = Object.assign(document.createElement('i'), { id: 'badge-' + id, className: 'badge' })); }
+    setText(b, txt); toggle(b, 'show', !!txt);
+  }
   function updateBadges() {
     const t = now();
     const q = E.questList(state).filter(x => x.done).length + (E.mission(state) && E.mission(state).check(state) ? 1 : 0);
@@ -1102,6 +1142,8 @@
     setBadge('buildings', unstaffed || park().b.some(b => b.starved) ? '!' : '');
     const canBuildSomething = E.freeBuilders(state) > 0 && E.DEFS.some((d, t2) => d.cat !== 'decor' && t2 !== E.HALL && E.canBuild(state, PK(), t2).ok && E.countType(state, t2) === 0);
     setBadge('build', canBuildSomething ? 'New' : '');
+    const anyMore = ['quests', 'orders', 'market', 'research', 'cards', 'world', 'crate'].some(k => shadowBadges[k] && shadowBadges[k].classList.contains('show'));
+    setBadge('more', anyMore ? '!' : '');
   }
 
   // =====================================================================
@@ -1180,13 +1222,19 @@
       tickAcc = 0;
       sumCache = null;
       if (r.events.length) worldEvents(r.events);
+      for (const hv of r.harvests) {
+        if (hv.park !== PK() || hv.n < 1 || !use3d) continue;
+        const p = W3.buildingScreenPos(hv.u);
+        if (p && p.on) { floater(`+${num(hv.n)} ${I(E.ING[hv.k].icon, 'fl')}`, p.x, p.y - 10, 'ing'); W3.pulse(hv.u); }
+        feedback('coin');
+      }
       if (r.done.length) { r.done.forEach(jobDone); onStateChanged(); save(); }
     }
     if (t >= state.candAt) { E.rerollCandidates(state, t, false); if (panel === 'staff') renderPanel(); }
     if (use3d) { W3.update(dt, state, t); W3.render(); watchPerformance(rawDt); }
     updateHud(t);
     if (sel) renderCard();
-    if (state.mission < 14) updateMission();
+    if (state.mission < 10) updateMission();
     if (ts - lastSlow > 500) {
       lastSlow = ts;
       for (const a of E.checkAchievements(state)) { feedback('milestone', true); toast(`${I(a.icon, 'inl')} <b>${esc(a.name)}</b> earned! +5 ${I('gem', 'inl')}`, 3200); }
@@ -1243,11 +1291,9 @@
     });
     $('missionBar').addEventListener('click', () => { P.Sound.unlock(); ACT.claimMission(); });
     $('avatarBtn').addEventListener('click', () => { P.Sound.unlock(); feedback('tap'); openPanel('profile'); });
-    $('parkBtn').addEventListener('click', () => { P.Sound.unlock(); feedback('tap'); openPanel('world'); });
     $('gemBtn').addEventListener('click', () => { P.Sound.unlock(); feedback('tap'); openPanel('store'); });
     $('clockBtn').addEventListener('click', () => { P.Sound.unlock(); feedback('tap'); openPanel('report'); });
     $('profitBtn').addEventListener('click', () => { P.Sound.unlock(); feedback('tap'); openPanel('report'); });
-    $('builderBtn').addEventListener('click', () => { P.Sound.unlock(); feedback('tap'); openPanel('builders'); });
     $('boostBtn').addEventListener('click', () => { P.Sound.unlock(); feedback('tap'); openPanel('store'); });
     $('crateBtn').addEventListener('click', () => { P.Sound.unlock(); if (E.crateStatus(state, now()).free) ACT.crate(); else { feedback('tap'); openPanel('store'); } });
     document.addEventListener('pointerdown', () => { P.Sound.unlock(); if (P.Music && state.settings.music) P.Music.start(); }, { once: false, passive: true });

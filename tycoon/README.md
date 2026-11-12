@@ -24,7 +24,9 @@ You start with **one noodle cart, $400 and a few bags of wheat and vegetables**.
 | **Orders** | Cafés, hotels and the football club order ingredients for cash, tokens and reputation. |
 | **Events and weather** | Lunch rushes, food festivals, critics and tour buses. Sun, cloud, rain and winter snow change how many people come out. |
 | **Cards, skills, research** | Rush Hour, Instant Build, Bumper Harvest and Job Fair cards; 3-tier skill trees for every kind of stall; 10 research upgrades. |
-| **Guided tutorial** | The first missions show an arrow on the exact button for every tap, with a short instruction: tap the cart, tap the empty slot, hire the recommended beginner, open Build, pick the field, and so on. 18 story missions in all. |
+| **Guided tutorial** | Rosa, your mentor, walks you through the first 9 missions. The screen dims except for a spotlight on the exact thing to tap, with a short line about why. Buttons appear only when the story reaches them (Staff first, then Build, Business, Hall and More), so a new player is never swamped. 18 story missions in all. |
+| **Menu prices** | Set each stall's price from −30% to +60%. Cheaper brings more customers, dearer fewer. When the queue is longer than your cooks can serve, people give up and your reputation grows more slowly, so you choose between raising prices, hiring another cook or upgrading. The stall card tells you which problem you have. |
+| **Crops that grow** | Fields, gardens, orchards, rice paddies, spice gardens and greenhouses grow from green shoots to a golden crop and are harvested in batches ("Harvest in 2m 54s · +1.6K wheat"). Growth pauses at night and without a farmer. The barn and fish ponds give a steady supply. |
 | **Top Tycoons** | A leaderboard of eight rival tycoons who grow over time, ranked by net worth. Everything runs offline. |
 | **4 locations** | Riverside Town (Hall 8), Downtown City (Hall 13) and Neon Metropolis (Hall 17), where customers spend more. |
 
@@ -91,7 +93,7 @@ Ads are simulated in the browser (a 3-second placeholder). Purchases show "In ap
 ## Tests
 
 ```bash
-npm test               # 38 rule tests
+npm test               # 40 rule tests
 npm run simulate -- 120     # a bot runs the business for 5 days and prints Market Hall levels and the books
 npm run serve & npm run playtest   # full UI playthrough in headless Chromium
 ```

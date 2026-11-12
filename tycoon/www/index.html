@@ -22,51 +22,36 @@
         <span class="av-face" data-ic="avatar"></span><span id="lvBadge" class="av-lv">1</span>
       </button>
       <div class="hud-id">
-        <div class="xp" aria-label="Experience"><div id="xpFill"></div><span id="xpText">0 / 80 XP</span></div>
-        <button id="parkBtn" class="chip-btn" type="button"><i data-ic="suburb" id="parkIc"></i><span id="parkName">Maple Suburb</span></button>
+        <button id="clockBtn" class="chip-btn clock" type="button" aria-label="Today's report"><i id="wxIc" data-ic="sun"></i><span id="clockText">Day 1 · 12:00</span></button>
+        <button id="profitBtn" class="chip-btn profit" type="button"><span id="rates">Today $0</span></button>
       </div>
       <div class="res-col">
         <div class="res cash"><i data-ic="cash"></i><b id="cash">$0</b></div>
         <div class="res-row">
-          <div class="res tok" id="tokBox"><i data-ic="token"></i><b id="tokens">0</b></div>
+          <div class="res tok" id="tokBox" hidden><i data-ic="token"></i><b id="tokens">0</b></div>
           <button id="gemBtn" class="res gems" type="button" aria-label="Gems"><i data-ic="gem"></i><b id="gems">0</b><span class="plus">+</span></button>
         </div>
       </div>
     </header>
-    <div class="hud-sub">
-      <button id="clockBtn" class="pill clock" type="button" aria-label="Today's report"><i id="wxIc" data-ic="sun"></i><span id="clockText">Day 1 · 12:00</span></button>
-      <button id="builderBtn" class="pill builders" type="button"><i data-ic="builder"></i><span id="builderText">1/1</span></button>
-      <button id="profitBtn" class="pill profit" type="button"><span id="rates">$0/h</span></button>
-      <span id="statusRow" class="pills"></span>
-    </div>
+    <div class="hud-sub"><span id="statusRow" class="pills"></span></div>
     <button id="missionBar" class="mission" type="button" hidden></button>
-
-    <div class="side left">
-      <button class="sbtn" type="button" data-panel="quests"><span data-ic="quests"></span><small>Goals</small><i class="badge" id="badge-quests"></i></button>
-      <button class="sbtn" type="button" data-panel="orders"><span data-ic="receipt"></span><small>Orders</small><i class="badge" id="badge-orders"></i></button>
-      <button class="sbtn" type="button" data-panel="market"><span data-ic="crate"></span><small>Stock</small><i class="badge" id="badge-market"></i></button>
-      <button class="sbtn" type="button" data-panel="report"><span data-ic="chart"></span><small>Report</small></button>
-      <button class="sbtn" type="button" data-panel="research"><span data-ic="flask"></span><small>Research</small><i class="badge" id="badge-research"></i></button>
-    </div>
-    <div class="side right">
-      <button class="sbtn boost" type="button" id="boostBtn"><span data-ic="rocket"></span><small id="boostLabel">2× Boost</small></button>
-      <button class="sbtn" type="button" id="crateBtn"><span data-ic="gift"></span><small id="crateLabel">Crate</small><i class="badge" id="badge-crate"></i></button>
-      <button class="sbtn" type="button" data-panel="cards"><span data-ic="cards"></span><small>Cards</small><i class="badge" id="badge-cards"></i></button>
-      <button class="sbtn" type="button" data-panel="ranks"><span data-ic="trophy"></span><small>Ranks</small></button>
-      <button class="sbtn" type="button" data-panel="store"><span data-ic="bag"></span><small>Store</small></button>
+    <div class="quick">
+      <button class="qbtn" type="button" id="crateBtn" hidden><span data-ic="gift"></span><small>Free!</small></button>
+      <button class="qbtn boost" type="button" id="boostBtn" hidden><span data-ic="rocket"></span><small id="boostLabel">2×</small></button>
     </div>
 
+    <div id="spot" class="spot" hidden></div>
     <div id="pointer" class="pointer" hidden></div>
     <div id="coach" class="coach" hidden></div>
     <div id="shopCard" class="card" hidden></div>
     <div id="placeBar" class="card place-bar" hidden></div>
 
     <nav class="nav">
-      <button type="button" data-panel="build"><span data-ic="hammer"></span><small>Build</small><i class="badge" id="badge-build"></i></button>
-      <button type="button" data-panel="staff"><span data-ic="chefhat"></span><small>Staff</small><i class="badge" id="badge-staff"></i></button>
+      <button type="button" data-panel="staff" id="navStaff"><span data-ic="chefhat"></span><small>Staff</small><i class="badge" id="badge-staff"></i></button>
+      <button type="button" data-panel="build" id="navBuild"><span data-ic="hammer"></span><small>Build</small><i class="badge" id="badge-build"></i></button>
       <button type="button" id="navHall" class="nav-main"><span data-ic="hall"></span><small>Hall</small><i class="badge" id="badge-hall"></i></button>
-      <button type="button" data-panel="buildings"><span data-ic="shop"></span><small>Business</small><i class="badge" id="badge-buildings"></i></button>
-      <button type="button" data-panel="world"><span data-ic="map"></span><small>World</small><i class="badge" id="badge-world"></i></button>
+      <button type="button" data-panel="buildings" id="navBiz"><span data-ic="chart"></span><small>Business</small><i class="badge" id="badge-buildings"></i></button>
+      <button type="button" data-panel="more" id="navMore"><span data-ic="quests"></span><small>More</small><i class="badge" id="badge-more"></i></button>
     </nav>
 
     <div id="panel" class="panel" hidden>

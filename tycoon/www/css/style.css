@@ -546,3 +546,44 @@ b { font-weight: 900; }
 .best-tag { position: absolute; top: -9px; right: 10px; font: 400 11px/18px var(--display); padding: 0 8px; border-radius: 9px; background: linear-gradient(180deg, #8dffb8, #1fae5f); color: #053d1d; }
 .toggle.auto { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: rgba(69, 224, 138, .14); margin-bottom: 8px; }
 .toggle.auto small { color: var(--muted); font-weight: 700; }
+
+/* ===================== v4.1: clean screen ===================== */
+.side { display: none !important; }
+.hud-top { align-items: center; }
+.hud-id { gap: 5px; }
+.chip-btn.clock, .chip-btn.profit { display: inline-flex; align-items: center; gap: 4px; font-family: var(--display); font-size: 13px; padding: 2px 10px 3px 4px; }
+.chip-btn.clock i { width: 22px; height: 22px; display: block; }
+.chip-btn.profit { padding-left: 10px; color: #c9ffb0; }
+.chip-btn.profit.neg { color: #ffc2c9; }
+.chip-btn.profit.closed { color: #c9d3f5; }
+.chip-btn.clock::after, .chip-btn.profit::after { display: none; }
+.hud-sub { top: calc(66px + var(--safe-top)); }
+.mission { left: 10px; right: auto; max-width: 62%; top: calc(98px + var(--safe-top)); padding: 3px 8px 4px 4px; border-radius: 12px; }
+.mission .m-ic { width: 24px; height: 24px; }
+.mission .m-txt b { font-size: 12px; }
+.quick { position: absolute; z-index: 5; right: 10px; top: calc(98px + var(--safe-top)); display: flex; flex-direction: column; gap: 8px; }
+.qbtn { width: 50px; height: 50px; border-radius: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(180deg, #ff7aa8, #e2457d); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .35), 0 4px 0 #8a1f45; color: #fff; animation: wobble 2.4s infinite; }
+.qbtn.boost { background: linear-gradient(180deg, #b78bff, #6f46e6); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .35), 0 4px 0 #4527a8; animation: none; }
+.qbtn span { width: 30px; height: 30px; }
+.qbtn small { font-family: var(--display); font-size: 10px; }
+.nav button.fresh span { animation: bump .5s ease-in-out 6; }
+.more-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 4px; }
+.more-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 6px 10px; border-radius: 16px; background: linear-gradient(180deg, #3b5cc0, #24398a); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .3), 0 4px 0 #131f4d; color: var(--text); }
+.more-tile .ic { width: 44px; height: 44px; }
+.more-tile b { font-family: var(--display); font-weight: 400; font-size: 13px; text-align: center; line-height: 1.1; }
+.more-tile .badge { top: -4px; right: -4px; }
+.price-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 6px 0 2px; font-size: 13px; color: var(--muted); }
+.price-row b { min-width: 104px; text-align: center; font-family: var(--display); font-weight: 400; font-size: 18px; color: var(--gold); }
+.price-row b small { font-size: 11px; color: var(--muted); }
+.pbtn { width: 36px; height: 32px; border-radius: 10px; font: 400 22px/1 var(--display); color: #fff; background: linear-gradient(180deg, #55b8ff, #2b7fe6); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .35), 0 3px 0 #1b55a8; }
+.c-tip { text-align: center; font-size: 12.5px; font-weight: 800; margin: 2px 4px; }
+.c-tip .bad { color: #ffb9c1; }
+.c-tip .good { color: #a6f5c3; }
+.bar.grow .bar-fill { background: linear-gradient(180deg, #ffe27a, #e0a21e); }
+.spot { position: absolute; z-index: 28; pointer-events: none; border-radius: 16px; box-shadow: 0 0 0 3px #ffd24a, 0 0 0 9999px rgba(8, 12, 32, .62); transition: left .25s, top .25s, width .25s, height .25s; animation: spotpulse 1.2s ease-in-out infinite; }
+.spot.round { border-radius: 50%; }
+@keyframes spotpulse { 50% { box-shadow: 0 0 0 6px #ffd24a, 0 0 0 9999px rgba(8, 12, 32, .62); } }
+.coach { z-index: 31; }
+.coach .c-txt { display: flex; flex-direction: column; }
+.coach .c-txt small { font-family: var(--display); font-weight: 400; font-size: 11px; color: #b86a00; letter-spacing: .4px; text-transform: uppercase; }
+.coach.top { top: calc(150px + var(--safe-top)); }

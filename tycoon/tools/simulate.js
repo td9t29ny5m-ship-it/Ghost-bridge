@@ -78,6 +78,14 @@ function act() {
   for (const id of Object.keys(s.cards)) if (s.cards[id] && id !== 'reroll' && id !== 'instant') E.useCard(s, id, now());
   if (s.cards.instant && s.jobs.length) E.useCard(s, 'instant', now());
   staff();
+  // price each stall so the queue matches what the kitchen can cook
+  for (const b of s.parks[0].b) {
+    if (E.DEFS[b.t].cat !== 'stall' || b.lv < 1) continue;
+    const pm0 = b.pm || 1; b.pm = 1;
+    const h = E.hourly(s, 0, b, now());
+    b.pm = pm0;
+    if (h.capacity > 0 && h.demand > 0) E.setPrice(s, 0, b.u, Math.pow(h.demand / h.capacity, 1 / 1.6));
+  }
   for (let k = 0; k < 30; k++) {
     const hall = E.hallB(s);
     const hc = hall ? E.upgradeCost(E.HALL, hall.lv) : { cash: 400 };
@@ -129,7 +137,7 @@ while (t < HOURS * 3600) {
   if (t - last >= 6 * 3600) {
     last = t;
     const sm = E.summary(s, now());
-    hourly.push(`${E.formatTime(t).padStart(8)}  revenue ${E.formatMoney(sm.revenue)}/h  supplies ${E.formatMoney(sm.supplies)}  wages ${E.formatMoney(sm.wages)}  tax ${E.formatMoney(sm.tax)}  rent ${E.formatMoney(sm.rent)}  profit ${E.formatMoney(sm.profit)}/h  cash ${E.formatMoney(s.cash)}  dishes/h ${Math.round(sm.dishes)}`);
+    hourly.push(`${E.formatTime(t).padStart(8)}  rep ${Math.round(s.rep)} lost ${Math.round(sm.lost)}/h  revenue ${E.formatMoney(sm.revenue)}/h  supplies ${E.formatMoney(sm.supplies)}  wages ${E.formatMoney(sm.wages)}  tax ${E.formatMoney(sm.tax)}  rent ${E.formatMoney(sm.rent)}  profit ${E.formatMoney(sm.profit)}/h  cash ${E.formatMoney(s.cash)}  dishes/h ${Math.round(sm.dishes)}`);
   }
 }
 console.log(log.join('\n'));

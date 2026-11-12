@@ -979,14 +979,15 @@
     const h = 0.55 + Math.min(1, lv / 8) * 0.55, list = [];
     for (let r = 0; r < 6; r++) for (let k = 0; k < 10; k++) list.push([-3.2 + k * 0.71 + (r % 2) * 0.2, 0.3 + h * 0.5, -3.0 + r * 1.2, 1, 0, Math.random() * 3, (Math.random() - 0.5) * 0.25]);
     const stalk = geo('wheat', () => { const c = new T.ConeGeometry(0.28, 1, 6); return c; });
-    const ears = scatter(g, stalk, mat(0xf2c94c), list.map(p => [p[0], p[1], p[2], 1, p[4], p[5], p[6]]), true);
+    const earMat = new T.MeshLambertMaterial({ color: 0xf2c94c });
+    const ears = scatter(g, stalk, earMat, list.map(p => [p[0], p[1], p[2], 1, p[4], p[5], p[6]]), true);
+    g.userData.crop = { mesh: ears, h, mat: earMat, from: 0x6fcf4a, to: 0xf2c94c };
     ears.scale.y = h;
     ears.position.y = -(h - 1) * 0.25;
     fenceAround(g, 7.8, 7.8, 0xfff1d6);
     hayBale(g, 3.1, 3.2, 0.3);
     if (lv >= 3) scarecrow(g, -0.1, 0.6);
     if (lv >= 5) tractor(g, -2.6, 3.4, 0.2);
-    g.userData.sway = ears;
     return g;
   }
   function vegGardenModel(lv) {
@@ -1006,7 +1007,7 @@
       c.scale.set(1, 0.85, 1);
       for (let k = 0; k < 7; k++) { const a = k * 0.9 + i, r = 0.95; fruit.push([x + Math.cos(a) * r * 0.9, 2.1 + Math.sin(k * 2.1) * 0.45, z + Math.sin(a) * r * 0.9, 1]); }
     }
-    scatter(g, geo('ofruit', () => new T.SphereGeometry(0.14, 7, 5)), mat(0xff4d5e, { emissive: 0x330000 }), fruit);
+    g.userData.fruitMesh = scatter(g, geo('ofruit', () => new T.SphereGeometry(0.14, 7, 5)), mat(0xff4d5e, { emissive: 0x330000 }), fruit);
     fenceAround(g, 7.8, 7.8, 0xd9b38c);
     for (let k = 0; k < 2; k++) { box(0.7, 0.4, 0.5, mat(0xc99b66), 2.6 - k * 0.9, 0.5, 3.3, g); scatter(g, geo('ofruit', () => new T.SphereGeometry(0.14, 7, 5)), mat(0xff4d5e), [[2.45 - k * 0.9, 0.75, 3.25], [2.7 - k * 0.9, 0.75, 3.35], [2.6 - k * 0.9, 0.82, 3.3]]); }
     if (lv >= 3) { const l = box(0.08, 2.2, 0.5, mat(0xd9a66c), -0.4, 1.2, 0.5, g); l.rotation.z = 0.35; }
@@ -1020,7 +1021,9 @@
     for (const c of [-3.7, 0, 3.7]) { box(7.6, 0.35, 0.3, mat(0x7c9a4a), 0, 0.3, c, g, true); box(0.3, 0.35, 7.6, mat(0x7c9a4a), c, 0.3, 0, g, true); }
     const h = 0.4 + Math.min(1, lv / 8) * 0.4, list = [];
     for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) for (let a = 0; a < 5; a++) for (let b = 0; b < 5; b++) list.push([-3.1 + i * 3.6 + a * 0.62, 0.3 + h / 2, -3.1 + j * 3.6 + b * 0.62, 1, 0, Math.random() * 3]);
-    const shoots = scatter(g, geo('shoot', () => new T.ConeGeometry(0.16, 1, 5)), mat(0x7fdc5a), list, false);
+    const shootMat = new T.MeshLambertMaterial({ color: 0x7fdc5a });
+    const shoots = scatter(g, geo('shoot', () => new T.ConeGeometry(0.16, 1, 5)), shootMat, list, false);
+    g.userData.crop = { mesh: shoots, h, mat: shootMat, from: 0x8be85a, to: 0xd9c75a };
     shoots.scale.y = h;
     g.userData.sway = shoots;
     if (lv >= 3) {   // a little stilt hut
@@ -1823,6 +1826,14 @@
       }
       if (ud.boat) ud.boat.rotation.z = Math.sin(time * 1.5) * 0.05;
       if (ud.sway) ud.sway.rotation.z = Math.sin(time * 1.3 + b.u) * 0.02;
+      // crops grow from short green shoots to a tall golden harvest, then start again
+      if (def.grow) {
+        const gg = b.g || 0;
+        if (ud.crop) { const c = ud.crop; c.mesh.scale.y = c.h * (0.12 + 0.88 * gg); c.mat.color.setHex(c.from).lerp(tmpColor.setHex(c.to), Math.min(1, gg * 1.3)); }
+        if (ud.fruitMesh) ud.fruitMesh.visible = gg > 0.35;
+        if (v.lastG !== undefined && gg < v.lastG - 0.5) { v.pop = 1; W.burst(v.g.position.x, 2, v.g.position.z, 24); }
+        v.lastG = gg;
+      }
     }
   }
 
@@ -2025,7 +2036,7 @@
   // =====================================================================
   function updateDayNight(dt) {
     if (fixedDay !== null) dayT = fixedDay;
-    else if (clockNow) { const c = E.gameClock(clockNow), hr = c.hour + c.minute / 60; dayT = (((hr - 6.5) / 24) % 1 + 1) % 1; }
+    else if (clockNow) { const c = E.gameClock(clockNow, lastState), hr = c.hour + c.minute / 60; dayT = (((hr - 6.5) / 24) % 1 + 1) % 1; }
     let day;
     if (dayT < 0.55) day = 1; else if (dayT < 0.65) day = 1 - (dayT - 0.55) / 0.1; else if (dayT < 0.9) day = 0; else day = (dayT - 0.9) / 0.1;
     const dusk = 1 - Math.abs(day - 0.5) * 2;

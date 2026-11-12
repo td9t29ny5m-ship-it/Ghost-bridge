@@ -66,6 +66,13 @@ const SHOTS = process.argv[3] || '';
   await page.waitForTimeout(300);
   s = await S();
   check(s.mission === 1, 'mission 1 claimed');
+  check(!(await page.isVisible('.nav [data-panel=build]')), 'Build stays hidden until the tutorial reaches it');
+  await run(() => { YumEmpire.state.stats.dishes = 30; });
+  await page.waitForTimeout(700);
+  await click('#missionBar');
+  await page.waitForTimeout(600);
+  check((await S()).mission === 2 && await page.isVisible('.nav [data-panel=build]'), 'selling 25 bowls unlocks Build');
+  check(await page.isVisible('#spot'), 'tutorial spotlight shown');
 
   // 4. Build a wheat field through the Build menu, finish it, staff it
   await run(() => { YumEmpire.state.cash += 2000; YumEmpire.sync(); });
@@ -98,7 +105,7 @@ const SHOTS = process.argv[3] || '';
 
   // 5. Market: buy vegetables
   await run(() => YumEmpire.closePanel());
-  await click('[data-panel=market]');
+  await run(() => YumEmpire.openPanel('market'));
   await page.waitForTimeout(300);
   const veg0 = (await S()).inv.veg;
   await click('[data-act=buyIng][data-k=veg][data-n="10"]');
@@ -108,7 +115,7 @@ const SHOTS = process.argv[3] || '';
   // 6. Orders: deliver one
   await run(() => { const s = YumEmpire.state; for (const k in s.inv) s.inv[k] = 150; s.orders[0].readyAt = 0; YumEmpire.sync(); });
   await run(() => YumEmpire.closePanel());
-  await click('.side [data-panel=orders]');
+  await run(() => YumEmpire.openPanel('orders'));
   await page.waitForTimeout(300);
   const done0 = (await S()).ordersDone;
   await click('[data-act=fillOrder][data-i="0"]');
@@ -117,6 +124,9 @@ const SHOTS = process.argv[3] || '';
   // 7. The Market Hall is already there, and the Hall button selects it
   await run(() => YumEmpire.closePanel());
   check((await run(() => Engine.hallLevel(YumEmpire.state))) === 1, 'Market Hall placed from the start');
+  await run(() => { YumEmpire.state.mission = 8; YumEmpire.sync(); });
+  await page.waitForTimeout(300);
+  check(await page.isVisible('#navHall') && await page.isVisible('#navMore'), 'Hall and More appear later in the story');
   await click('#navHall');
   await page.waitForTimeout(300);
   check((await run(() => YumEmpire.sel && Engine.findB(YumEmpire.state, 0, YumEmpire.sel.u).t)) === 0, 'Hall button selects the Market Hall');
