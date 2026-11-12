@@ -52,9 +52,40 @@
   const mat = (color, opts) => once('m' + color + (opts ? JSON.stringify(opts) : ''), () => new T.MeshLambertMaterial(Object.assign({ color }, opts || {})));
   const geo = (key, make) => once('g' + key, () => { const g = make(); g.userData.shared = true; return g; });
   const boxGeo = () => geo('box', () => new T.BoxGeometry(1, 1, 1));
+  // Boxes with softly rounded edges: the toy look. Each size is built once and shared.
+  // The box is split so that a band of radius r along every edge can bend into a quarter circle.
+  let ROUND = true;
+  function roundedBoxGeo(w, h, d, r, k) {
+    const S = 2 * k + 1, g = new T.BoxGeometry(1, 1, 1, S, S, S);
+    const pos = g.attributes.position, nor = g.attributes.normal, half = [w / 2, h / 2, d / 2];
+    const p = [0, 0, 0], inner = [0, 0, 0];
+    for (let v = 0; v < pos.count; v++) {
+      for (let a = 0; a < 3; a++) {
+        const i = Math.round((pos.getComponent(v, a) + 0.5) * S), H = half[a];
+        p[a] = i <= k ? -H + r * (i / k) : i >= S - k ? H - r * ((S - i) / k) : 0;
+        if (i > k && i < S - k) p[a] = 0;
+        inner[a] = Math.max(-H + r, Math.min(H - r, p[a]));
+      }
+      const dx = p[0] - inner[0], dy = p[1] - inner[1], dz = p[2] - inner[2], len = Math.hypot(dx, dy, dz);
+      if (len > 1e-6) {
+        pos.setXYZ(v, inner[0] + dx / len * r, inner[1] + dy / len * r, inner[2] + dz / len * r);
+        nor.setXYZ(v, dx / len, dy / len, dz / len);
+      } else pos.setXYZ(v, p[0], p[1], p[2]);
+    }
+    g.computeBoundingSphere();
+    return g;
+  }
   function box(w, h, d, material, x, y, z, parent, noShadow) {
-    const m = new T.Mesh(boxGeo(), material);
-    m.scale.set(w, h, d);
+    const mn = Math.min(w, h, d);
+    let m;
+    if (ROUND && mn >= 0.22 && quality < 2) {
+      const r = Math.min(0.16, mn * 0.2), q = (v) => Math.round(v * 20) / 20;
+      const key = 'rb' + q(w) + '_' + q(h) + '_' + q(d);
+      m = new T.Mesh(geo(key, () => roundedBoxGeo(q(w), q(h), q(d), r, 2)), material);
+    } else {
+      m = new T.Mesh(boxGeo(), material);
+      m.scale.set(w, h, d);
+    }
     m.position.set(x || 0, y || 0, z || 0);
     if (!noShadow) { m.castShadow = true; m.receiveShadow = true; }
     if (parent) parent.add(m);
@@ -2260,6 +2291,8 @@
 
   W.debug = {
     get stats() { return { people: people.length, cars: cars.length, views: views.size, quality, park: P }; },
+    get scene() { return scene; },
+    setRound(on) { ROUND = !!on; },
     setTime(t) { fixedDay = t; },
     get vip() { return vip ? { x: vip.p.x, z: vip.p.z } : null; },
     dropTip(x, z) { dropTip(x, z); },
