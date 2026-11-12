@@ -39,10 +39,16 @@
   const TIME_SCALE = 30;
   // How busy the street is at each hour of the game day (lunch and dinner peaks).
   const DAY_CURVE = (() => {
-    const c = [0.25, 0.15, 0.1, 0.1, 0.1, 0.2, 0.45, 0.75, 0.9, 0.8, 0.9, 1.4, 1.9, 1.7, 1.1, 0.9, 1.0, 1.3, 1.8, 1.9, 1.5, 1.1, 0.7, 0.45];
+    // closed from 23:00 to 6:00: no customers and no wages
+    const c = [0, 0, 0, 0, 0, 0, 0.45, 0.75, 0.9, 0.8, 0.9, 1.4, 1.9, 1.7, 1.1, 0.9, 1.0, 1.3, 1.8, 1.9, 1.5, 1.1, 0.7, 0];
     const mean = c.reduce((a, v) => a + v, 0) / c.length;
     return c.map(v => v / mean);
   })();
+  const OPEN_HOUR = 6, CLOSE_HOUR = 23;
+  // New businesses stay open through the night until the tutorial is done, so nobody starts in the dark.
+  function dayFactor(state, now) { const f = DAY_CURVE[gameClock(now).hour]; return state.tutorialDone ? f : Math.max(f, 0.5); }
+  function shopOpen(state, now) { return !state.tutorialDone || isOpen(now); }
+  function isOpen(now) { const h = gameClock(now).hour; return h >= OPEN_HOUR && h < CLOSE_HOUR; }
   const gameHours = (now) => (now / 1000) * TIME_SCALE / 3600;
   function gameDay(state, now) { return Math.max(1, gameClock(now).day - gameClock(state.createdAt).day + 1); }
   function gameClock(now) { const h = gameHours(now); return { day: Math.floor(h / 24), hour: Math.floor(h % 24), minute: Math.floor((h % 1) * 60), frac: (h % 24) / 24 }; }
@@ -59,7 +65,7 @@
     { id: 'meat',  name: 'Meat',       icon: 'meat',  price: 3.5 },
   ];
   const ING = Object.fromEntries(INGS.map(i => [i.id, i]));
-  const MARKUP = 1.6;               // buying at the market costs 60% more than an ingredient's value
+  const MARKUP = 1.3;               // buying at the market costs 30% more than an ingredient's value
   const SELL_RATE = 0.6;            // selling to the market gets 60% of its value
 
   // ---------- Buildings ----------
@@ -69,15 +75,15 @@
   // slots: workers that fit at level 1 (one more every 3 levels, up to maxSlots)
   const DEFS = [
     { id: 'hall',      name: 'Market Hall',     icon: 'hall',     cat: 'hall',    w: 2, h: 2, hall: 0,  n0: 1, every: 99, cap: 1,  cost: 400,   time: 60 },
-    { id: 'cart',      name: 'Noodle Cart',     icon: 'noodle',   cat: 'stall',   w: 1, h: 1, hall: 0,  n0: 1, every: 3, cap: 4,  cost: 250,   time: 30,    price: 4,   recipe: { wheat: 1, veg: 1 }, demand: 90, rate: 60, slots: 1, maxSlots: 3 },
-    { id: 'dumpling',  name: 'Dumpling Stand',  icon: 'dumpling', cat: 'stall',   w: 1, h: 1, hall: 2,  n0: 1, every: 3, cap: 4,  cost: 1200,  time: 300,   price: 5,   recipe: { wheat: 1, meat: 1 }, demand: 100, rate: 65, slots: 1, maxSlots: 3 },
-    { id: 'tea',       name: 'Bubble Tea Bar',  icon: 'tea',      cat: 'stall',   w: 1, h: 1, hall: 3,  n0: 1, every: 3, cap: 4,  cost: 3000,  time: 600,   price: 4.5, recipe: { fruit: 1 }, demand: 130, rate: 90, slots: 1, maxSlots: 3 },
-    { id: 'taco',      name: 'Taco Truck',      icon: 'taco',     cat: 'stall',   w: 1, h: 2, hall: 4,  n0: 1, every: 3, cap: 4,  cost: 8000,  time: 1200,  price: 6,   recipe: { meat: 1, veg: 1, spice: 1 }, demand: 120, rate: 60, slots: 2, maxSlots: 4 },
-    { id: 'pizza',     name: 'Pizza Parlor',    icon: 'pizza',    cat: 'stall',   w: 2, h: 2, hall: 5,  n0: 1, every: 3, cap: 3,  cost: 12000, time: 2400,  price: 12,  recipe: { wheat: 2, veg: 1, meat: 1 }, demand: 150, rate: 45, slots: 2, maxSlots: 6 },
-    { id: 'sushi',     name: 'Sushi Bar',       icon: 'sushi',    cat: 'stall',   w: 2, h: 2, hall: 7,  n0: 1, every: 3, cap: 3,  cost: 80000, time: 4800,  price: 15,  recipe: { rice: 2, fish: 1 }, demand: 160, rate: 50, slots: 2, maxSlots: 6 },
-    { id: 'burger',    name: 'Burger Joint',    icon: 'burger',   cat: 'stall',   w: 2, h: 2, hall: 9,  n0: 1, every: 3, cap: 3,  cost: 2.5e5, time: 7200,  price: 11,  recipe: { meat: 1, wheat: 1, veg: 1 }, demand: 260, rate: 70, slots: 3, maxSlots: 8 },
-    { id: 'court',     name: 'Food Court',      icon: 'court',    cat: 'stall',   w: 3, h: 3, hall: 12, n0: 1, every: 4, cap: 2,  cost: 1.2e6, time: 14400, price: 16,  recipe: { rice: 1, meat: 1, veg: 1, spice: 1 }, demand: 450, rate: 80, slots: 4, maxSlots: 12, rep: 8 },
-    { id: 'global',    name: 'Global Kitchen',  icon: 'globe',    cat: 'stall',   w: 3, h: 3, hall: 15, n0: 1, every: 4, cap: 2,  cost: 6e6,   time: 28800, price: 32,  recipe: { fish: 1, meat: 1, spice: 1, fruit: 1 }, demand: 500, rate: 70, slots: 4, maxSlots: 12, rep: 14 },
+    { id: 'cart',      name: 'Noodle Cart',     icon: 'noodle',   cat: 'stall',   w: 1, h: 1, hall: 0,  n0: 1, every: 3, cap: 4,  cost: 250,   time: 30,    price: 6,   recipe: { wheat: 1, veg: 1 }, demand: 90, rate: 60, slots: 1, maxSlots: 3 },
+    { id: 'dumpling',  name: 'Dumpling Stand',  icon: 'dumpling', cat: 'stall',   w: 1, h: 1, hall: 2,  n0: 1, every: 3, cap: 4,  cost: 1200,  time: 300,   price: 9,   recipe: { wheat: 1, meat: 1 }, demand: 100, rate: 65, slots: 1, maxSlots: 3 },
+    { id: 'tea',       name: 'Bubble Tea Bar',  icon: 'tea',      cat: 'stall',   w: 1, h: 1, hall: 3,  n0: 1, every: 3, cap: 4,  cost: 3000,  time: 600,   price: 5, recipe: { fruit: 1 }, demand: 130, rate: 90, slots: 1, maxSlots: 3 },
+    { id: 'taco',      name: 'Taco Truck',      icon: 'taco',     cat: 'stall',   w: 1, h: 2, hall: 4,  n0: 1, every: 3, cap: 4,  cost: 8000,  time: 1200,  price: 14,   recipe: { meat: 1, veg: 1, spice: 1 }, demand: 120, rate: 60, slots: 2, maxSlots: 4 },
+    { id: 'pizza',     name: 'Pizza Parlor',    icon: 'pizza',    cat: 'stall',   w: 2, h: 2, hall: 5,  n0: 1, every: 3, cap: 3,  cost: 12000, time: 2400,  price: 16,  recipe: { wheat: 2, veg: 1, meat: 1 }, demand: 150, rate: 45, slots: 2, maxSlots: 6 },
+    { id: 'sushi',     name: 'Sushi Bar',       icon: 'sushi',    cat: 'stall',   w: 2, h: 2, hall: 7,  n0: 1, every: 3, cap: 3,  cost: 80000, time: 4800,  price: 18,  recipe: { rice: 2, fish: 1 }, demand: 160, rate: 50, slots: 2, maxSlots: 6 },
+    { id: 'burger',    name: 'Burger Joint',    icon: 'burger',   cat: 'stall',   w: 2, h: 2, hall: 9,  n0: 1, every: 3, cap: 3,  cost: 2.5e5, time: 7200,  price: 13,  recipe: { meat: 1, wheat: 1, veg: 1 }, demand: 260, rate: 70, slots: 3, maxSlots: 8 },
+    { id: 'court',     name: 'Food Court',      icon: 'court',    cat: 'stall',   w: 3, h: 3, hall: 12, n0: 1, every: 4, cap: 2,  cost: 1.2e6, time: 14400, price: 20,  recipe: { rice: 1, meat: 1, veg: 1, spice: 1 }, demand: 450, rate: 80, slots: 4, maxSlots: 12, rep: 8 },
+    { id: 'global',    name: 'Global Kitchen',  icon: 'globe',    cat: 'stall',   w: 3, h: 3, hall: 15, n0: 1, every: 4, cap: 2,  cost: 6e6,   time: 28800, price: 36,  recipe: { fish: 1, meat: 1, spice: 1, fruit: 1 }, demand: 500, rate: 70, slots: 4, maxSlots: 12, rep: 14 },
     { id: 'field',     name: 'Wheat Field',     icon: 'wheat',    cat: 'farm',    w: 2, h: 2, hall: 0,  n0: 1, every: 3, cap: 5,  cost: 300,   time: 45,    makes: { wheat: 40 }, slots: 1, maxSlots: 3 },
     { id: 'garden',    name: 'Veggie Garden',   icon: 'garden',   cat: 'farm',    w: 2, h: 2, hall: 0,  n0: 1, every: 3, cap: 5,  cost: 300,   time: 45,    makes: { veg: 40 }, slots: 1, maxSlots: 3 },
     { id: 'orchard',   name: 'Fruit Orchard',   icon: 'fruit',    cat: 'farm',    w: 2, h: 2, hall: 3,  n0: 1, every: 3, cap: 4,  cost: 2000,  time: 480,   makes: { fruit: 40 }, slots: 1, maxSlots: 3 },
@@ -170,20 +176,20 @@
     const s = {
       v: SAVE_VERSION,
       cash: 400, gems: 30, tokens: 0, rep: 0, xp: 0, level: 1,
-      inv: { wheat: 40, veg: 40, rice: 0, fruit: 0, spice: 0, fish: 0, meat: 0 },
+      inv: { wheat: 120, veg: 120, rice: 0, fruit: 0, spice: 0, fish: 0, meat: 0 },
       cards: { rush: 0, instant: 1, harvest: 0, reroll: 1 },
       park: 0, parks: PARKS.map((_, i) => newPark(i)), uid: 1, jobs: [], boughtBuilder: false,
       workers: [], wseq: 1, candidates: [], candAt: 0, cseed: (now % 100000) + 7,
       skills: {}, research: {}, achievements: {}, quests: {}, mission: 0,
       orders: [], orderSeed: (now % 99991) + 3, ordersDone: 0,
       event: null, nextEventAt: now + 20 * 60e3, weather: { kind: 'sun', until: now + 15 * 60e3 }, wseed: (now % 7919) + 11,
-      boostUntil: 0, rushUntil: 0, crateAt: 0,
+      boostUntil: 0, rushUntil: 0, crateAt: 0, grantAt: 0,
       premium: false, adsRemoved: false,
       lastSeen: now, createdAt: now,
       daily: { last: '', streak: 0 },
       ledger: [],                         // one entry per day: revenue, tax, wages, rent, market, dishes
       stats: { dishes: 0, earned: 0, landBought: 0, built: 0, upgraded: 0, hired: 0, crates: 0, golden: 0, tips: 0, playTime: 0, maxLevels: 0, bought: 0 },
-      settings: { sound: true, music: true, haptics: true, lens: true, weather: true },
+      settings: { sound: true, music: true, haptics: true, lens: true, weather: true, autoBuy: true },
       tutorialDone: false,
     };
     // You start with one stand on your little plot.
@@ -191,6 +197,9 @@
     // ...next to the Market Hall, the heart of your business.
     s.parks[0].b.push({ u: s.uid++, t: HALL, x: 13, y: 9, lv: 1 });
     s.candidates = makeCandidates(s, now);
+    // the first board always has an affordable beginner cook and farmer
+    s.candidates[0] = Object.assign(s.candidates[0], { role: 'cook', skill: 1, trait: 'none', wage: 15, name: 'Mei' });
+    s.candidates[1] = Object.assign(s.candidates[1], { role: 'farmer', skill: 1, trait: 'none', wage: 11, name: 'Diego' });
     s.orders = [makeOrder(s, now), makeOrder(s, now), makeOrder(s, now)];
     return s;
   }
@@ -203,7 +212,7 @@
     s.premium = !!raw.premium; s.adsRemoved = !!raw.adsRemoved;
     if (raw.settings) for (const k of Object.keys(s.settings)) if (typeof raw.settings[k] === 'boolean') s.settings[k] = raw.settings[k];
     if (raw.v !== SAVE_VERSION) return s;   // older versions were different games: start fresh, keep gems and purchases
-    ['cash', 'tokens', 'rep', 'xp', 'boostUntil', 'rushUntil', 'crateAt', 'uid', 'wseq', 'candAt', 'cseed', 'orderSeed', 'ordersDone', 'nextEventAt', 'wseed', 'mission']
+    ['cash', 'tokens', 'rep', 'xp', 'boostUntil', 'rushUntil', 'crateAt', 'uid', 'wseq', 'candAt', 'cseed', 'orderSeed', 'ordersDone', 'nextEventAt', 'wseed', 'mission', 'grantAt']
       .forEach(k => { s[k] = Math.max(0, num(raw[k], s[k])); });
     s.level = Math.max(1, Math.floor(num(raw.level, 1)));
     s.boughtBuilder = !!raw.boughtBuilder; s.tutorialDone = !!raw.tutorialDone;
@@ -595,7 +604,7 @@
       if (state.event && state.event.until > now) m *= EVENTS[state.event.id].demand;
       if (state.rushUntil > now) m *= 2;
       if (state.boostUntil > now) m *= 2;
-      m *= WEATHER[state.weather.kind].demand * DAY_CURVE[gameClock(now).hour];
+      m *= WEATHER[state.weather.kind].demand * dayFactor(state, now);
     }
     if (state.premium) m *= 1.5;
     return m;
@@ -605,6 +614,7 @@
   function hourly(state, pi, b, now, dm) {
     const d = DEFS[b.t], out = { staff: 0, demand: 0, capacity: 0, sold: 0, revenue: 0, wages: 0, price: 0, makes: {}, need: {} };
     if (b.lv < 1) return out;
+    if (now !== undefined && !shopOpen(state, now)) { out.closed = true; return out; }
     const ws = workersAt(state, pi, b.u);
     out.staff = ws.length;
     for (const w of ws) out.wages += w.wage * wageMult(state);
@@ -633,7 +643,8 @@
   // Storage is per ingredient: every ingredient has its own shelf space.
   function invCap(state) { let c = 200; eachB(state, b => { if (DEFS[b.t].store && b.lv > 0) c += DEFS[b.t].store * Math.pow(1.7, b.lv - 1); }); return Math.round(c); }
   function invUsed(state) { return Object.values(state.inv).reduce((a, v) => a + v, 0); }
-  function rent(state) { return parcelCount(state) * RENT_PER_PLOT; }
+  // New businesses pay no rent until the tutorial is done.
+  function rent(state) { return state.tutorialDone ? parcelCount(state) * RENT_PER_PLOT : 0; }
   function summary(state, now) {
     const dm = demandMult(state, now);
     const s = { revenue: 0, tax: 0, wages: 0, rent: rent(state), dishes: 0, customers: 0, makes: {}, need: {}, idleWorkers: 0 };
@@ -699,7 +710,20 @@
       state.inv[k] += add;
       L.harvest += add;
     }
-    // 2. stalls sell what the ingredients allow; scarce ingredients are shared fairly
+    // 2. the manager restocks from the market when stock runs short (if allowed)
+    if (state.settings.autoBuy) {
+      const want = {};
+      for (const [, , h] of all) for (const [k, v] of Object.entries(h.need)) want[k] = (want[k] || 0) + v * hrs * 1.5;
+      for (const [k, v] of Object.entries(want)) {
+        const short = Math.min(v - state.inv[k], cap - state.inv[k]);
+        if (short <= 0) continue;
+        const n = Math.min(short, Math.max(0, state.cash - 20) / buyPrice(state, k));
+        if (n <= 0) continue;
+        state.cash -= n * buyPrice(state, k); state.inv[k] += n;
+        L.market += n * buyPrice(state, k);
+      }
+    }
+    // 3. stalls sell what the ingredients allow; scarce ingredients are shared fairly
     const need = {};
     for (const [, , h] of all) for (const [k, v] of Object.entries(h.need)) need[k] = (need[k] || 0) + v * hrs;
     const share = {};
@@ -744,6 +768,20 @@
     if (n <= 0) return 0;
     state.inv[k] -= n; state.cash += n * sellPrice(k);
     return n;
+  }
+
+  // ---------- Safety net: a small-business grant when you are broke ----------
+  function grantStatus(state, now) {
+    const s = summary(state, now);
+    const broke = state.cash < 60 && (s.profit <= 0 || Object.keys(s.need).some(k => state.inv[k] < 1));
+    return { available: broke && now >= state.grantAt, cash: Math.max(500, Math.round(hallLevel(state) * 400)), wait: Math.max(0, state.grantAt - now) / 1000 };
+  }
+  function claimGrant(state, now) {
+    const g = grantStatus(state, now);
+    if (!g.available) return null;
+    state.cash += g.cash;
+    state.grantAt = now + 2 * 3600e3;
+    return g;
   }
 
   // ---------- Orders: deliver ingredients for rewards ----------
@@ -978,7 +1016,7 @@
   return {
     SAVE_VERSION, CELLS, PARCEL, PN, HALL, HALL_MAX, ID, DEFS, PARKS, INGS, ING, TRAITS, ROLE, EVENTS, WEATHER, CARDS, RESEARCH, SKILL_BRANCHES,
     MISSIONS, ACHIEVEMENTS, QUESTS, COST, FREE_FINISH_SEC, SALES_TAX, SUPPLIES, RENT_PER_PLOT, OFFLINE_CAP_SEC,
-    TIME_SCALE, DAY_CURVE, gameClock, gameDay, formatNumber, formatMoney, formatTime, dayKey,
+    TIME_SCALE, DAY_CURVE, OPEN_HOUR, CLOSE_HOUR, isOpen, shopOpen, gameClock, gameDay, grantStatus, claimGrant, formatNumber, formatMoney, formatTime, dayKey,
     newState, loadState,
     eachB, findB, hallB, hallLevel, countType, countCat, totalLevels, parcelCount, jobFor, builderCount, freeBuilders, workersAt,
     parcelOf, ownsCell, occupant, fits, parcelAdjacent, landPrice, canBuyParcel, buyParcel, maxParcels,

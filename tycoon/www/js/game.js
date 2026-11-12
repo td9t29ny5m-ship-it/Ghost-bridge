@@ -197,7 +197,8 @@
       if (E.ROLE[d.cat] && b.lv >= 1) {
         html += staffSlots(b) + '<div class="live" id="cLive"></div>';
         if (!ws.length) html += `<div class="c-info warn">${I('person', 'inl')} Nobody works here. ${d.cat === 'stall' ? 'Hire a cook to start selling!' : d.cat === 'water' ? 'Hire a fisher to start fishing!' : 'Hire a farmer to start growing!'}</div>`;
-        else if (b.starved) html += `<div class="c-info warn">${I('crate', 'inl')} Running out of ingredients! <button class="link" type="button" data-act="openMarket">Buy at the market</button> or build more farms.</div>`;
+        else if (b.starved) html += `<div class="c-info warn">${I('crate', 'inl')} Running out of ingredients! ${state.settings.autoBuy ? 'Not enough cash to restock.' : '<button class="link" type="button" data-act="openMarket">Buy at the market</button>'} Build farms to grow your own.</div>`;
+        else if (!E.shopOpen(state, now())) html += `<div class="c-info">${I('moon', 'inl')} Closed for the night. Staff are home and not paid. Opens at ${E.OPEN_HOUR}:00.</div>`;
       }
       const btns = [];
       if (!job && d.cat !== 'decor') {
@@ -724,7 +725,8 @@
   }
   function candidateCard(c) {
     const tr = E.TRAITS[c.trait], fee = E.hireCost(c);
-    return `<div class="chef worker cand"><div class="face">${face(c)}</div><div class="r-main">
+    const best = !state.tutorialDone && state.candidates.filter(x => x.role === c.role).every(x => x.wage >= c.wage);
+    return `<div class="chef worker cand ${best ? 'best' : ''}">${best ? '<span class="best-tag">Best for beginners</span>' : ''}<div class="face">${face(c)}</div><div class="r-main">
       <div class="rar">${I(ROLE_ICON[c.role], 'inl')} ${ROLE_NAME[c.role]} ${stars(c.skill)}</div><div class="r-title">${esc(c.name)}</div>
       <div class="r-sub"><b>${money(c.wage)}/h</b> wage · output ×${E.workerPower(c).toFixed(2)}${tr.name ? ` · <b>${esc(tr.name)}</b> (${esc(tr.desc)})` : ''}</div>
       <div class="acts"><button class="btn small gold two" type="button" data-act="hire" data-id="${c.id}" data-cost="${fee}"><span>Hire</span><span class="sub">${money(fee)} fee</span></button></div></div></div>`;
@@ -767,7 +769,8 @@
 
   function renderMarket() {
     const s = sum(), cap = E.invCap(state);
-    let html = `<p class="hint">Every ingredient can hold <b>${num(cap)}</b>. Build Warehouses for more room. The market sells at a mark-up, so growing your own is cheaper.</p>`;
+    let html = `<label class="toggle auto"><input type="checkbox" data-set="autoBuy" ${state.settings.autoBuy ? 'checked' : ''}> <span><b>Manager restocks automatically</b><br><small>Buys from the market when an ingredient runs low, so your stalls never stop</small></span></label>`;
+    html += `<p class="hint">Every ingredient can hold <b>${num(cap)}</b>. Build Warehouses for more room. The market sells at a mark-up, so growing your own is cheaper.</p>`;
     for (const ing of E.INGS) {
       const have = state.inv[ing.id], make = s.makes[ing.id] || 0, use = s.need[ing.id] || 0, net = make - use;
       const unlocked = have > 0 || make > 0 || use > 0 || E.DEFS.some(d => d.makes && d.makes[ing.id] && d.hall <= E.hallLevel(state));
@@ -966,9 +969,12 @@
     const free = E.freeBuilders(state), n = E.builderCount(state);
     setText($('builderText'), `${free}/${n}`);
     toggle($('builderBtn'), 'idle', free > 0);
-    const s = sum();
-    setText($('rates'), (s.profit >= 0 ? '+' : '') + money(s.profit) + '/h');
-    toggle($('profitBtn'), 'neg', s.profit < 0);
+    const L = state.ledger[state.ledger.length - 1];
+    const today = L ? L.revenue - L.tax - (L.supplies || 0) - L.wages - L.rent - L.market : 0;
+    const open = E.shopOpen(state, t);
+    setText($('rates'), open ? `Today ${today >= 0 ? '+' : ''}${money(today)}` : `Closed · opens ${E.OPEN_HOUR}:00`);
+    toggle($('profitBtn'), 'neg', open && today < 0);
+    toggle($('profitBtn'), 'closed', !open);
     const left = state.boostUntil - t;
     toggle($('boostBtn'), 'active', left > 0);
     setText($('boostLabel'), left > 0 ? '2× ' + ftime(left / 1000) : '2× Boost');
@@ -981,28 +987,101 @@
     setHTML($('statusRow'), pills);
   }
 
-  const MISSION_TARGET = ['[data-panel="staff"]', null, '[data-panel="build"]', '[data-panel="staff"]', '[data-panel="build"]', '[data-panel="build"]', '[data-panel="build"]', null,
-    '#navHall', '[data-panel="build"]', '[data-panel="build"]', '[data-panel="orders"]', '[data-panel="build"]', null, '#navHall', '[data-panel="build"]', '[data-panel="build"]', '#navHall'];
+  // ---------- The guided tutorial: an arrow and a short instruction for every tap ----------
+  const TUT_BUILD = { 2: 'field', 4: 'garden', 5: 'table', 6: 'bin', 9: 'barn', 10: 'dumpling', 12: 'warehouse' };
+  const TUT_STAFF = { 0: 'cart', 3: 'field', 4: 'garden', 10: 'dumpling' };
+  const TAB_OF = (d) => (d.cat === 'decor' ? 'decor' : d.cat === 'stall' ? 'stall' : 'farm');
+  const q = (sel2) => document.querySelector(sel2);
+  function firstOf(id, pred) { const t = E.ID[id]; return park().b.find(b => b.t === t && (!pred || pred(b))) || null; }
+  function guide() {
+    const m = E.mission(state);
+    if (!m || modalOpen) return null;
+    const i = state.mission;
+    if (m.check(state)) return { el: $('missionBar'), text: 'Mission complete! Tap the gold bar to collect your reward.' };
+    if (i >= 13) return null;
+    const bid = TUT_BUILD[i], sid = TUT_STAFF[i];
+    const need = bid && !(i === 5 ? E.countType(state, E.ID.table) >= 2 : firstOf(bid));
+    if (need) {
+      const d = def(E.ID[bid]);
+      if (placing) return { el: $('placeOk'), text: `Drag the ${d.name} where you like, then tap BUILD HERE.` };
+      if (panel === 'build') {
+        if (tabs.build !== TAB_OF(d)) return { el: q(`[data-act=tab][data-tab=${TAB_OF(d)}]`), text: `Open the ${TAB_OF(d) === 'farm' ? 'Farms' : TAB_OF(d) === 'decor' ? 'Decor' : 'Food'} tab.` };
+        const btn = q(`[data-act=pickBuild][data-t="${E.ID[bid]}"]`);
+        if (btn && btn.disabled) return { text: `You need ${money(d.cost)} for a ${d.name}. Your staff are earning it for you. Wait a moment!` };
+        return { el: btn, text: `Tap the ${d.name} (${money(d.cost)}).` };
+      }
+      if (panel) return { el: $('panelClose'), text: 'Close this window first.' };
+      return { el: q('.nav [data-panel=build]'), text: `Open Build to make a ${d.name}.` };
+    }
+    // a building of ours still under construction: finish it (free under a minute)
+    const building = bid && park().b.find(b => b.t === E.ID[bid] && E.jobFor(state, PK(), b.u));
+    if (building) {
+      if (sel && sel.kind === 'b' && sel.u === building.u) return { el: $('cSpeed'), text: 'Builds under a minute finish for free. Tap FINISH NOW!' };
+      return { u: building.u, text: `Tap the ${def(building.t).name} that's being built.` };
+    }
+    if (sid) {
+      const b = firstOf(sid, x => x.lv > 0 && !E.workersAt(state, PK(), x.u).length);
+      if (b) {
+        const d = def(b.t), role = E.ROLE[d.cat];
+        if (panel === 'staff' && panelArg && panelArg.u === b.u) {
+          const idle = q('[data-act=assign]');
+          if (idle) return { el: idle, text: `Put your ${ROLE_NAME[role].toLowerCase()} to work here.` };
+          const btn = q('.cand.best [data-act=hire]') || q('.cand [data-act=hire]');
+          return { el: btn, text: `Hire ${role === 'cook' ? 'a cook' : 'a farmer'}. Beginners are cheap. You pay a small fee now and their wage each hour they work.` };
+        }
+        if (panel) return { el: $('panelClose'), text: 'Close this window first.' };
+        if (sel && sel.kind === 'b' && sel.u === b.u) return { el: q('.slot.empty'), text: `Tap the empty slot to hire a ${ROLE_NAME[role].toLowerCase()}.` };
+        return { u: b.u, text: `Tap your ${d.name}. Nobody works there yet.` };
+      }
+    }
+    if (i === 1) return { text: 'Your cook is selling noodles all by themselves. Watch your cash go up! The manager restocks ingredients automatically.' };
+    if (i === 7) {
+      if (sel && sel.kind === 'parcel') return { el: q('[data-act=buyParcel]'), text: 'Buy this plot to make your park bigger.' };
+      const k = park().parcels.findIndex((o, j) => !o && E.parcelAdjacent(park(), j));
+      if (k >= 0) return { cell: [(k % E.PN) * E.PARCEL + 2, Math.floor(k / E.PN) * E.PARCEL + 2], text: `Tap a FOR SALE sign next to your land (${money(E.landPrice(state))}).` };
+    }
+    if (i === 8 || i === 14) {
+      const hb = E.hallB(state);
+      if (hb && sel && sel.kind === 'b' && sel.u === hb.u) return { el: $('cUp'), text: 'Upgrade the Market Hall to unlock new stalls, staff and land.' };
+      if (panel) return { el: $('panelClose'), text: 'Close this window first.' };
+      return { el: $('navHall'), text: 'Tap the Hall button.' };
+    }
+    if (i === 11) {
+      if (panel === 'orders') return { el: q('[data-act=fillOrder]:not([disabled])'), text: 'Deliver an order when you have the ingredients. Orders pay much more than the market!' };
+      if (panel) return { el: $('panelClose'), text: 'Close this window first.' };
+      return { el: q('.side [data-panel=orders]'), text: 'Open Orders.' };
+    }
+    return { text: m.hint };
+  }
   function updateMission() {
     const bar = $('missionBar'), m = E.mission(state);
-    if (!m) { bar.hidden = true; $('pointer').hidden = true; return; }
+    const ptr = $('pointer'), coach = $('coach');
+    if (!m) { bar.hidden = true; ptr.hidden = true; coach.hidden = true; return; }
     const done = m.check(state);
     bar.hidden = false;
     toggle(bar, 'done', done);
-    setHTML(bar, `<span class="m-ic">${I(done ? 'check' : 'star')}</span><span class="m-txt"><small>Mission ${state.mission + 1}</small><b>${esc(m.title)}</b></span><span class="m-go">${done ? 'CLAIM' : I('pointer', 'inl')}</span>`);
-    // the bouncing arrow points at the button that helps
-    let sel2 = done ? '#missionBar' : MISSION_TARGET[state.mission];
-    if (!done && state.mission === 0 && state.workers.some(w => w.role === 'cook')) sel2 = null;
-    const ptr = $('pointer');
-    const target = sel2 && !panel && !modalOpen && !placing ? document.querySelector(sel2) : null;
-    if (!target || state.mission >= 9) { ptr.hidden = true; return; }
-    const r = target.getBoundingClientRect(), box = $('app').getBoundingClientRect();
+    setHTML(bar, `<span class="m-ic">${I(done ? 'check' : 'star')}</span><span class="m-txt"><small>Mission ${state.mission + 1}${state.mission < 9 ? ' · Tutorial' : ''}</small><b>${esc(m.title)}</b></span><span class="m-go">${done ? 'CLAIM' : I('pointer', 'inl')}</span>`);
+    const g = guide();
+    const box = $('app').getBoundingClientRect();
+    // coach text
+    if (g && g.text && (state.mission < 13 || done)) {
+      coach.hidden = false;
+      setHTML(coach, `<span class="c-face">${face({ id: 3 })}</span><span>${esc(g.text)}</span>`);
+      const cardUp = !panel && (!$('shopCard').hidden || !$('placeBar').hidden);
+      toggle(coach, 'top', !!cardUp);
+    } else coach.hidden = true;
+    // arrow
+    let x = null, y = null, top = 0;
+    if (g && g.el && g.el.offsetParent !== null) { const r = g.el.getBoundingClientRect(); x = r.left + r.width / 2; y = r.top; top = r.bottom; }
+    else if (g && g.u && use3d) { const p = W3.buildingScreenPos(g.u); if (p && p.on) { x = p.x; y = p.y - 6; top = p.y + 20; } }
+    else if (g && g.cell && use3d) { const p = W3.cellScreenPos(g.cell[0], g.cell[1]); if (p && p.on) { x = p.x; y = p.y - 40; top = p.y; } }
+    if (x === null) { ptr.hidden = true; return; }
     ptr.hidden = false;
-    ptr.innerHTML = I('pointer');
-    ptr.style.left = (r.left - box.left + r.width / 2 - 20) + 'px';
-    ptr.style.top = (r.top - box.top - 44) + 'px';
-    toggle(ptr, 'down', r.top - box.top > 120);
-    if (r.top - box.top <= 120) ptr.style.top = (r.bottom - box.top + 4) + 'px';
+    if (ptr._html !== 'p') { ptr.innerHTML = I('pointer'); ptr._html = 'p'; }
+    const up = y - box.top < 130;   // too close to the top: point up from below
+    toggle(ptr, 'down', !up);
+    ptr.style.left = (x - box.left - 20) + 'px';
+    ptr.style.top = (up ? top - box.top + 4 : y - box.top - 44) + 'px';
   }
   function setBadge(id, txt) { const b = $('badge-' + id); if (!b) return; setText(b, txt); toggle(b, 'show', !!txt); }
   function updateBadges() {
@@ -1107,12 +1186,18 @@
     if (use3d) { W3.update(dt, state, t); W3.render(); watchPerformance(rawDt); }
     updateHud(t);
     if (sel) renderCard();
+    if (state.mission < 14) updateMission();
     if (ts - lastSlow > 500) {
       lastSlow = ts;
       for (const a of E.checkAchievements(state)) { feedback('milestone', true); toast(`${I(a.icon, 'inl')} <b>${esc(a.name)}</b> earned! +5 ${I('gem', 'inl')}`, 3200); }
       celebrateLevelUps();
       updateBadges();
       updateMission();
+      if (!modalOpen && E.grantStatus(state, t).available) {
+        const g = E.grantStatus(state, t);
+        modal({ icon: 'cash', title: 'Small business grant', body: `<p>Money is tight! The town council supports new businesses with <b>${money(g.cash)}</b>.</p><p>Tip: build farms so your stalls don't have to buy every ingredient at the market, and only hire staff you need.</p>`,
+          actions: [{ label: 'Thank you!', cls: 'gold', onClick: () => { if (E.claimGrant(state, now())) { feedback('register', true); onStateChanged(); save(); } } }] });
+      }
       if (panel) { if (['builders', 'buildings', 'market', 'report', 'orders'].includes(panel)) renderPanel(); else refreshButtons($('panelBody')); }
       if (placing && use3d) {
         const p = W3.placement();

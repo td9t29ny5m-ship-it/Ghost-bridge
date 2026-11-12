@@ -9,8 +9,8 @@ function test(name, fn) {
   catch (e) { console.error('  ✗ ' + name + '\n    ' + (e.stack || e.message).split('\n').slice(0, 3).join('\n    ')); process.exitCode = 1; }
 }
 // Noon on a June day (game clock): a busy hour, sunny, no events.
-const T0 = Date.UTC(2026, 5, 1, 12);
-const fresh = () => { const s = E.newState(T0); s.weather = { kind: 'cloud', until: T0 + 365 * 86400e3 }; s.nextEventAt = T0 + 365 * 86400e3; return s; };
+const T0 = (() => { let t = Date.UTC(2026, 5, 1, 12); while (E.gameClock(t).hour !== 12) t += 120e3; return t; })();
+const fresh = () => { const s = E.newState(T0); s.settings.autoBuy = false; s.tutorialDone = true; s.weather = { kind: 'cloud', until: T0 + 365 * 86400e3 }; s.nextEventAt = T0 + 365 * 86400e3; return s; };
 const rich = () => { const s = fresh(); s.cash = 1e30; s.tokens = 1e9; s.gems = 1e6; for (const k in s.inv) s.inv[k] = 1e5; return s; };
 const finishAll = (s, t) => { s.jobs.forEach(j => (j.end = 0)); return E.tick(s, 0.001, t || T0); };
 function hallTo(s, lv) {
@@ -64,7 +64,7 @@ test('hire a cook, assign them to the cart, and it sells on its own', () => {
   assert.ok(h.revenue > 0 && h.dishes > 0);
   E.tick(s, 120, T0 + 120e3);
   assert.ok(s.stats.dishes > 0);
-  assert.ok(s.inv.wheat < 40 && s.inv.veg < 40, 'ingredients were used');
+  assert.ok(s.inv.wheat < 120 && s.inv.veg < 120, 'ingredients were used');
 });
 
 test('only the right role can work a building, and slots are limited', () => {
@@ -163,7 +163,7 @@ test('the market sells at a mark-up and buys back at a discount', () => {
   s.cash = 100;
   const n = E.buyIng(s, 'meat', 10, T0);
   assert.equal(n, 10);
-  assert.ok(Math.abs(s.cash - (100 - 10 * 3.5 * 1.6)) < 1e-9);
+  assert.ok(Math.abs(s.cash - (100 - 10 * 3.5 * 1.3)) < 1e-9);
   const before = s.cash;
   E.sellIng(s, 'meat', 10);
   assert.ok(Math.abs(s.cash - (before + 10 * 3.5 * 0.6)) < 1e-9);
@@ -277,6 +277,7 @@ test('reputation grows with dishes and unlocks the Food Court', () => {
 test('orders: deliver ingredients for cash, tokens and reputation', () => {
   const s = fresh();
   const o = s.orders[0];
+  for (const k in s.inv) s.inv[k] = 0;
   assert.equal(E.fillOrder(s, 0, T0), null);
   for (const [k, q] of Object.entries(o.need)) s.inv[k] = q;
   const cash = s.cash;
@@ -424,4 +425,52 @@ test('a save without a Market Hall gets one placed automatically', () => {
   assert.equal(E.hallLevel(l), 1);
   assert.equal(l.parks[0].b.length, 4);
 });
+test('the manager restocks from the market so a staffed stall keeps selling', () => {
+  const s = fresh();
+  s.settings.autoBuy = true;
+  staffWith(s, cart(s), 'cook');
+  s.inv.wheat = 0; s.inv.veg = 0;
+  const cash = s.cash;
+  E.tick(s, 600, T0 + 600e3);
+  assert.ok(s.stats.dishes > 20, 'still selling: ' + s.stats.dishes);
+  assert.ok(s.cash > cash, 'and making money even when buying every ingredient');
+  assert.ok(s.ledger[s.ledger.length - 1].market > 0);
+});
+
+test('every dish still makes money when its ingredients come from the market', () => {
+  const s = fresh();
+  for (const d of E.DEFS) {
+    if (!d.recipe) continue;
+    const cost = Object.entries(d.recipe).reduce((a, [k, q]) => a + q * E.buyPrice(s, k), 0);
+    assert.ok(d.price * (1 - E.SALES_TAX - E.SUPPLIES) > cost * 1.15, d.name + ' margin');
+  }
+});
+
+test('shops close at night: no customers and no wages', () => {
+  const s = fresh();
+  staffWith(s, cart(s), 'cook');
+  const night = T0 + 14 * 120e3;   // 2:00 at night
+  assert.equal(E.isOpen(night), false);
+  const sm = E.summary(s, night);
+  assert.equal(sm.revenue, 0);
+  assert.equal(sm.wages, 0);
+  s.tutorialDone = false;
+  assert.ok(E.summary(s, night).revenue > 0, 'but new businesses stay open during the tutorial');
+});
+
+test('the first hiring board has an affordable beginner cook and farmer', () => {
+  const s = E.newState(T0);
+  assert.equal(s.candidates[0].role, 'cook');
+  assert.equal(s.candidates[1].role, 'farmer');
+  assert.ok(E.hireCost(s.candidates[0]) <= 150);
+});
+
+test('a broke business gets a small-business grant', () => {
+  const s = fresh();
+  s.cash = 5; s.inv.wheat = 0;
+  const g = E.claimGrant(s, T0);
+  assert.ok(g && s.cash >= 500);
+  assert.equal(E.claimGrant(s, T0), null, 'only every 2 hours');
+});
+
 console.log(`\n${passed} passed${process.exitCode ? ', some FAILED' : ''}`);

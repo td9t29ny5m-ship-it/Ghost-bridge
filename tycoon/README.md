@@ -11,6 +11,7 @@ You start with **one noodle cart, $400 and a few bags of wheat and vegetables**.
 | Feature | What it does |
 |---|---|
 | **A real business** | Every stall sells dishes at real prices ($4 noodles up to $32 world-kitchen platters). Each dish uses ingredients from your stock. Sales per hour are the lowest of: how many customers want to eat there, how fast the staff can cook, and how many dishes your ingredients allow. |
+| **Never broke** | Every dish is priced so it still makes money when the manager buys its ingredients at the market, and the manager restocks automatically (you can switch that off). Shops close from 23:00 to 6:00, and staff are not paid while closed. There is no rent during the tutorial, and if cash ever runs out the town council pays a small-business grant. |
 | **The books** | Sales tax (10%), supplies (8% for packaging and gas), hourly wages and land rent are paid automatically. The HUD shows profit per hour, and the **Daily Report** has the full books and a 7-day chart. |
 | **Game clock** | One real minute is half an hour in the park, so a full trading day takes 48 minutes: quiet mornings, a lunch rush, a dinner peak and a calm night. Day and night in the 3D world follow the clock. |
 | **Staff** | A hiring board of 5 candidates refreshes every 4 hours. Cooks, farmers and fishers have a skill (1–5 stars), a trait (Fast hands, Thrifty, Charming, Green thumb, Steady) and an hourly wage. Pay a signing fee, give them a building, train them to level 10. Bigger buildings hold more staff. |
@@ -23,7 +24,7 @@ You start with **one noodle cart, $400 and a few bags of wheat and vegetables**.
 | **Orders** | Cafés, hotels and the football club order ingredients for cash, tokens and reputation. |
 | **Events and weather** | Lunch rushes, food festivals, critics and tour buses. Sun, cloud, rain and winter snow change how many people come out. |
 | **Cards, skills, research** | Rush Hour, Instant Build, Bumper Harvest and Job Fair cards; 3-tier skill trees for every kind of stall; 10 research upgrades. |
-| **Missions** | An 18-step story that teaches the game, with a mission bar and a bouncing arrow. |
+| **Guided tutorial** | The first missions show an arrow on the exact button for every tap, with a short instruction: tap the cart, tap the empty slot, hire the recommended beginner, open Build, pick the field, and so on. 18 story missions in all. |
 | **Top Tycoons** | A leaderboard of eight rival tycoons who grow over time, ranked by net worth. Everything runs offline. |
 | **4 locations** | Riverside Town (Hall 8), Downtown City (Hall 13) and Neon Metropolis (Hall 17), where customers spend more. |
 
@@ -90,7 +91,7 @@ Ads are simulated in the browser (a 3-second placeholder). Purchases show "In ap
 ## Tests
 
 ```bash
-npm test               # 32 rule tests
+npm test               # 38 rule tests
 npm run simulate -- 120     # a bot runs the business for 5 days and prints Market Hall levels and the books
 npm run serve & npm run playtest   # full UI playthrough in headless Chromium
 ```

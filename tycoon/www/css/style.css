@@ -532,3 +532,17 @@ b { font-weight: 900; }
 .titems .new, .loot .new { background: rgba(69, 224, 138, .22); }
 .titems .park, .loot .park { background: rgba(168, 121, 255, .3); }
 .titems .research, .loot .research { background: rgba(85, 184, 255, .25); }
+.coach {
+  position: absolute; z-index: 29; left: 12px; right: 12px; bottom: calc(96px + var(--safe-bottom));
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px 9px 8px; border-radius: 16px; pointer-events: none;
+  background: linear-gradient(180deg, #fffaf0, #ffe9b8); color: #3a2400; font-size: 14px; font-weight: 800; line-height: 1.25;
+  box-shadow: 0 0 0 2.5px #ffb21f, 0 6px 14px rgba(0, 0, 0, .45); animation: pop .25s ease-out;
+}
+.coach.top { bottom: auto; top: calc(214px + var(--safe-top)); }
+.coach .c-face { width: 40px; height: 40px; flex: none; border-radius: 12px; background: linear-gradient(180deg, #55b8ff, #2b7fe6); display: grid; place-items: center; }
+.coach .c-face .ic { width: 36px; height: 36px; }
+.pill.profit.closed { color: #c9d3f5; background: linear-gradient(180deg, #34407a, #222b5c); }
+.chef.worker.best { box-shadow: inset 0 0 0 3px #45e08a; }
+.best-tag { position: absolute; top: -9px; right: 10px; font: 400 11px/18px var(--display); padding: 0 8px; border-radius: 9px; background: linear-gradient(180deg, #8dffb8, #1fae5f); color: #053d1d; }
+.toggle.auto { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: rgba(69, 224, 138, .14); margin-bottom: 8px; }
+.toggle.auto small { color: var(--muted); font-weight: 700; }
