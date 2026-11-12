@@ -340,7 +340,11 @@
     const r = (n) => { x = (x * 1103515245 + 12345) >>> 0; return (x >>> 8) % n; };
     return { skin: SKINS[r(SKINS.length)], hair: HAIRS[r(HAIRS.length)], scarf: SCARVES[r(SCARVES.length)], style: r(4), beard: r(5) === 0, lash: r(2) };
   }
-  function chefBody(id) {
+  const HATS = {
+    farmer: `<path d="M6 25c0-3 12-5 26-5s26 2 26 5-12 5-26 5S6 28 6 25Z" fill="#e0b062" ${S(3)}/><path d="M18 23c0-9 6-14 14-14s14 5 14 14Z" fill="#ffd27a" ${S(3)}/><path d="M18 21h28" stroke="#ff4d5e" stroke-width="3.5"/>`,
+    fisher: `<path d="M14 26c0-10 8-17 18-17s18 7 18 17Z" fill="#ffcf2e" ${S(3)}/><path d="M8 26h48l-4 5H12Z" fill="#ffcf2e" ${S(3)}/><path d="M22 15c3-3 7-4 10-4" stroke="#fff" stroke-width="2.6" stroke-linecap="round" opacity=".6"/>`,
+  };
+  function chefBody(id, role) {
     const c = chefParts(id);
     const hair = [
       `<path d="M15 33C14 22 20 20 24 21L22 34Z" fill="${c.hair}" ${S(3)}/><path d="M49 33C50 22 44 20 40 21L42 34Z" fill="${c.hair}" ${S(3)}/>`,
@@ -356,11 +360,11 @@
       ${c.lash ? `<path d="M23 31 21 29M41 31 43 29" stroke="${OL}" stroke-width="2" stroke-linecap="round"/>` : ''}
       <circle cx="22" cy="40" r="3" fill="#ff7a8a" opacity=".5"/><circle cx="42" cy="40" r="3" fill="#ff7a8a" opacity=".5"/>
       <path d="M27 41Q32 46 37 41" fill="none" ${S(2.5)}/>
-      ${blobs('<circle cx="22" cy="16" r="8"/><circle cx="32" cy="11" r="10"/><circle cx="42" cy="16" r="8"/><rect x="19" y="15" width="26" height="9" rx="2"/>', '#fff')}
-      <rect x="18" y="20" width="28" height="7" rx="2.5" fill="#e9edf6" ${S(3)}/><circle cx="27" cy="9" r="3" ${SHINE}/>`;
+      ${HATS[role] || `${blobs('<circle cx="22" cy="16" r="8"/><circle cx="32" cy="11" r="10"/><circle cx="42" cy="16" r="8"/><rect x="19" y="15" width="26" height="9" rx="2"/>', '#fff')}
+      <rect x="18" y="20" width="28" height="7" rx="2.5" fill="#e9edf6" ${S(3)}/><circle cx="27" cy="9" r="3" ${SHINE}/>`}`;
   }
   function chef(m, cls) {
-    return `<svg class="ic${cls ? ' ' + cls : ''}" viewBox="0 0 64 64" aria-hidden="true">${chefBody(m && m.id ? m.id : 7)}</svg>`;
+    return `<svg class="ic${cls ? ' ' + cls : ''}" viewBox="0 0 64 64" aria-hidden="true">${chefBody(m && (m.face || m.id) ? m.face || m.id : 7, m && m.role)}</svg>`;
   }
 
   function hydrate(root) {

@@ -44,6 +44,7 @@
     return c.map(v => v / mean);
   })();
   const gameHours = (now) => (now / 1000) * TIME_SCALE / 3600;
+  function gameDay(state, now) { return Math.max(1, gameClock(now).day - gameClock(state.createdAt).day + 1); }
   function gameClock(now) { const h = gameHours(now); return { day: Math.floor(h / 24), hour: Math.floor(h % 24), minute: Math.floor((h % 1) * 60), frac: (h % 24) / 24 }; }
   const COST = { builder: 250, reroll: 10, orderSkip: 5, boost: 25, crate: 20 };   // gem prices
 
@@ -464,9 +465,9 @@
     }
     return Math.min(2, sum);
   }
-  // Cleanliness 0.5 … 1: each bin handles 120 customers an hour; litter puts people off.
+  // Cleanliness 0.5 … 1: the street copes with 150 customers an hour, each bin with 120 more.
   function cleanliness(state, pi, customers) {
-    let cap = 60;
+    let cap = 150;
     for (const b of state.parks[pi].b) if (DEFS[b.t].clean) cap += DEFS[b.t].clean;
     return Math.max(0.5, Math.min(1, 0.5 + 0.5 * cap / Math.max(1, customers)));
   }
@@ -629,7 +630,7 @@
   // ---------- Advancing time ----------
   function dayKey(t) { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   function ledgerToday(state, now) {
-    const key = 'Day ' + (gameClock(now).day % 100000);
+    const key = 'Day ' + gameDay(state, now);
     let e = state.ledger[state.ledger.length - 1];
     if (!e || e.day !== key) { e = { day: key, revenue: 0, tax: 0, supplies: 0, wages: 0, rent: 0, market: 0, dishes: 0, harvest: 0 }; state.ledger.push(e); if (state.ledger.length > 14) state.ledger.shift(); }
     return e;
@@ -951,7 +952,7 @@
   return {
     SAVE_VERSION, CELLS, PARCEL, PN, HALL, HALL_MAX, ID, DEFS, PARKS, INGS, ING, TRAITS, ROLE, EVENTS, WEATHER, CARDS, RESEARCH, SKILL_BRANCHES,
     MISSIONS, ACHIEVEMENTS, QUESTS, COST, FREE_FINISH_SEC, SALES_TAX, SUPPLIES, RENT_PER_PLOT, OFFLINE_CAP_SEC,
-    TIME_SCALE, DAY_CURVE, gameClock, formatNumber, formatMoney, formatTime, dayKey,
+    TIME_SCALE, DAY_CURVE, gameClock, gameDay, formatNumber, formatMoney, formatTime, dayKey,
     newState, loadState,
     eachB, findB, hallB, hallLevel, countType, countCat, totalLevels, parcelCount, jobFor, builderCount, freeBuilders, workersAt,
     parcelOf, ownsCell, occupant, fits, parcelAdjacent, landPrice, canBuyParcel, buyParcel, maxParcels,

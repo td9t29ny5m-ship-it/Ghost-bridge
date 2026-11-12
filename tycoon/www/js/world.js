@@ -42,6 +42,7 @@
   const nightMats = [];
   let glowMat, skyDay, skyDusk, skyNight, glassMat, bulbMat, headMat, tailMat;
   let time = 0, dayT = 0.22, quality = 0, loadedAt = 0, nextWander = 0, nextCar = 0, introUntil = 0;
+  let fixedDay = null, clockNow = 0;
   let vip = null, selU = 0, selRing = null, place = null, landKey = '', lastState = null;
   const tmpV = new T.Vector3(), tmpV2 = new T.Vector3(), camRight = new T.Vector3(), tmpColor = new T.Color();
 
@@ -887,6 +888,217 @@
     return g;
   }
 
+  // --- v4 farms, ponds, barn and warehouse (all made in code) ---
+  const dummy = new T.Object3D();
+  // Many copies of one small mesh in a single draw call.
+  function scatter(g, geometry, material, list, shadow) {
+    const im = new T.InstancedMesh(geometry, material, list.length);
+    list.forEach((p, k) => {
+      dummy.position.set(p[0], p[1], p[2]);
+      dummy.rotation.set(p[4] || 0, p[5] || 0, p[6] || 0);
+      dummy.scale.setScalar(p[3] || 1);
+      dummy.updateMatrix();
+      im.setMatrixAt(k, dummy.matrix);
+    });
+    im.castShadow = !!shadow; im.receiveShadow = true;
+    g.add(im);
+    return im;
+  }
+  function fenceAround(g, w, d, color) {
+    const c = mat(color || 0xfff7ec), hw = w / 2, hd = d / 2;
+    const posts = [];
+    for (let x = -hw; x <= hw + 0.01; x += w / Math.round(w / 1.2)) posts.push([x, 0.4, -hd], [x, 0.4, hd]);
+    for (let z = -hd + d / Math.round(d / 1.2); z < hd - 0.01; z += d / Math.round(d / 1.2)) posts.push([-hw, 0.4, z], [hw, 0.4, z]);
+    scatter(g, geo('fpost', () => new T.BoxGeometry(0.14, 0.8, 0.14)), c, posts, true);
+    for (const z of [-hd, hd]) for (const y of [0.35, 0.65]) box(w, 0.07, 0.06, c, 0, y, z, g, true);
+    for (const x of [-hw, hw]) for (const y of [0.35, 0.65]) box(0.06, 0.07, d, c, x, y, 0, g, true);
+  }
+  function scarecrow(g, x, z) {
+    box(0.12, 2.2, 0.12, mat(0x8a5a3c), x, 1.1, z, g); box(1.4, 0.12, 0.12, mat(0x8a5a3c), x, 1.6, z, g);
+    box(0.5, 0.7, 0.3, mat(0x3a86ff), x, 1.45, z, g);
+    part(geo('scHead', () => new T.SphereGeometry(0.28, 8, 6)), mat(0xf2d06b), x, 2.2, z, g);
+    part(geo('scHat', () => new T.ConeGeometry(0.42, 0.4, 8)), mat(0x8a5a3c), x, 2.55, z, g);
+  }
+  function hayBale(g, x, z, r) {
+    const m = part(geo('hay', () => new T.CylinderGeometry(0.5, 0.5, 0.8, 14).rotateZ(Math.PI / 2)), mat(0xe8c15a), x, 0.5, z, g);
+    m.rotation.y = r || 0;
+    return m;
+  }
+  function tractor(g, x, z, ry) {
+    const t = new T.Group();
+    box(1.4, 0.6, 0.9, mat(0xe8452c), 0.2, 0.75, 0, t); box(0.7, 0.8, 0.8, mat(0xe8452c), -0.45, 1.15, 0, t);
+    box(0.62, 0.5, 0.82, glassMat, -0.45, 1.3, 0, t, true);
+    box(0.08, 0.6, 0.08, mat(0x333333), 0.6, 1.3, 0.2, t);
+    const wb = geo('twheelB', () => new T.CylinderGeometry(0.55, 0.55, 0.3, 14).rotateX(Math.PI / 2));
+    const ws = geo('twheelS', () => new T.CylinderGeometry(0.32, 0.32, 0.25, 12).rotateX(Math.PI / 2));
+    for (const s of [-1, 1]) { part(wb, mat(0x2b2118), -0.45, 0.55, s * 0.55, t); part(ws, mat(0x2b2118), 0.7, 0.32, s * 0.5, t); }
+    t.position.set(x, 0, z); t.rotation.y = ry || 0;
+    g.add(t);
+    return t;
+  }
+  function fieldModel(lv) {
+    const g = new T.Group();
+    box(7.6, 0.3, 7.6, texMat('soil', 128, DRAW.soil, 3, 3), 0, 0.15, 0, g);
+    const h = 0.55 + Math.min(1, lv / 8) * 0.55, list = [];
+    for (let r = 0; r < 6; r++) for (let k = 0; k < 10; k++) list.push([-3.2 + k * 0.71 + (r % 2) * 0.2, 0.3 + h * 0.5, -3.0 + r * 1.2, 1, 0, Math.random() * 3, (Math.random() - 0.5) * 0.25]);
+    const stalk = geo('wheat', () => { const c = new T.ConeGeometry(0.28, 1, 6); return c; });
+    const ears = scatter(g, stalk, mat(0xf2c94c), list.map(p => [p[0], p[1], p[2], 1, p[4], p[5], p[6]]), true);
+    ears.scale.y = h;
+    ears.position.y = -(h - 1) * 0.25;
+    fenceAround(g, 7.8, 7.8, 0xfff1d6);
+    hayBale(g, 3.1, 3.2, 0.3);
+    if (lv >= 3) scarecrow(g, -0.1, 0.6);
+    if (lv >= 5) tractor(g, -2.6, 3.4, 0.2);
+    g.userData.sway = ears;
+    return g;
+  }
+  function vegGardenModel(lv) {
+    const g = gardenModel(lv);
+    return g;
+  }
+  function orchardModel(lv) {
+    const g = new T.Group();
+    box(7.6, 0.3, 7.6, texMat('grass', 128, DRAW.grass('#62c24a'), 3, 3), 0, 0.15, 0, g);
+    const n = lv >= 4 ? 9 : 4, sp = n === 9 ? 2.4 : 3.2, start = n === 9 ? -2.4 : -1.6, fruit = [];
+    const trunk = geo('otrunk', () => new T.CylinderGeometry(0.16, 0.24, 1.6, 7));
+    const crown = geo('ocrown', () => new T.IcosahedronGeometry(1.05, 1));
+    for (let i = 0; i < n; i++) {
+      const x = start + (i % Math.sqrt(n)) * sp, z = start + Math.floor(i / Math.sqrt(n)) * sp;
+      part(trunk, mat(0x8a5a3c), x, 1.1, z, g);
+      const c = part(crown, mat(0x3fae4a), x, 2.3, z, g);
+      c.scale.set(1, 0.85, 1);
+      for (let k = 0; k < 7; k++) { const a = k * 0.9 + i, r = 0.95; fruit.push([x + Math.cos(a) * r * 0.9, 2.1 + Math.sin(k * 2.1) * 0.45, z + Math.sin(a) * r * 0.9, 1]); }
+    }
+    scatter(g, geo('ofruit', () => new T.SphereGeometry(0.14, 7, 5)), mat(0xff4d5e, { emissive: 0x330000 }), fruit);
+    fenceAround(g, 7.8, 7.8, 0xd9b38c);
+    for (let k = 0; k < 2; k++) { box(0.7, 0.4, 0.5, mat(0xc99b66), 2.6 - k * 0.9, 0.5, 3.3, g); scatter(g, geo('ofruit', () => new T.SphereGeometry(0.14, 7, 5)), mat(0xff4d5e), [[2.45 - k * 0.9, 0.75, 3.25], [2.7 - k * 0.9, 0.75, 3.35], [2.6 - k * 0.9, 0.82, 3.3]]); }
+    if (lv >= 3) { const l = box(0.08, 2.2, 0.5, mat(0xd9a66c), -0.4, 1.2, 0.5, g); l.rotation.z = 0.35; }
+    return g;
+  }
+  function paddyModel(lv) {
+    const g = new T.Group();
+    box(7.6, 0.2, 7.6, mat(0x8a6a3c), 0, 0.1, 0, g);
+    const water = texMat('water', 128, DRAW.water, 2, 2);
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) box(3.4, 0.1, 3.4, water, -1.8 + i * 3.6, 0.24, -1.8 + j * 3.6, g, true);
+    for (const c of [-3.7, 0, 3.7]) { box(7.6, 0.35, 0.3, mat(0x7c9a4a), 0, 0.3, c, g, true); box(0.3, 0.35, 7.6, mat(0x7c9a4a), c, 0.3, 0, g, true); }
+    const h = 0.4 + Math.min(1, lv / 8) * 0.4, list = [];
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) for (let a = 0; a < 5; a++) for (let b = 0; b < 5; b++) list.push([-3.1 + i * 3.6 + a * 0.62, 0.3 + h / 2, -3.1 + j * 3.6 + b * 0.62, 1, 0, Math.random() * 3]);
+    const shoots = scatter(g, geo('shoot', () => new T.ConeGeometry(0.16, 1, 5)), mat(0x7fdc5a), list, false);
+    shoots.scale.y = h;
+    g.userData.sway = shoots;
+    if (lv >= 3) {   // a little stilt hut
+      for (const x of [-0.5, 0.5]) for (const z of [-0.5, 0.5]) box(0.1, 1.2, 0.1, mat(0x8a5a3c), 3.0 + x, 0.6, 3.0 + z, g);
+      box(1.3, 0.1, 1.3, mat(0xc99b66), 3.0, 1.2, 3.0, g);
+      const roof = part(geo('hutroof', () => new T.ConeGeometry(1.1, 0.8, 4)), mat(0xe0b062), 3.0, 1.75, 3.0, g); roof.rotation.y = Math.PI / 4;
+    }
+    return g;
+  }
+  function spiceModel(lv) {
+    const g = new T.Group();
+    box(3.6, 0.3, 3.6, texMat('soil', 128, DRAW.soil, 1, 1), 0, 0.15, 0, g);
+    const COLS = [0xe8452c, 0xffb21f, 0x6fbf3a, 0xd9663b];
+    for (let r = 0; r < 3; r++) {
+      box(3.2, 0.3, 0.7, texMat('wood', 128, DRAW.wood, 2, 1), 0, 0.42, -1.1 + r * 1.1, g);
+      const list = [];
+      for (let k = 0; k < 6; k++) list.push([-1.3 + k * 0.52, 0.75, -1.1 + r * 1.1, 0.9 + Math.random() * 0.3]);
+      scatter(g, geo('leaf', () => new T.IcosahedronGeometry(0.3, 0)), mat(0x4caf50), list, true);
+      scatter(g, geo('chili', () => new T.ConeGeometry(0.06, 0.26, 5)), mat(COLS[r]), list.map(p => [p[0] + 0.1, p[1] + 0.25, p[2], 1, Math.PI]), false);
+    }
+    if (lv >= 2) [0xe8b45a, 0xd9663b].forEach((c, k) => { part(geo('sack', () => new T.CylinderGeometry(0.22, 0.28, 0.42, 8)), mat(0xd9c3a0), 1.4, 0.5, -1.4 + k * 0.6, g); part(geo('sackTop', () => new T.ConeGeometry(0.24, 0.2, 8)), mat(c), 1.4, 0.8, -1.4 + k * 0.6, g); });
+    return g;
+  }
+  function animal(kind) {
+    const a = new T.Group(), cow = kind === 'cow';
+    const body = box(cow ? 1.3 : 0.9, cow ? 0.7 : 0.55, cow ? 0.65 : 0.55, mat(cow ? 0xffffff : 0xffa8b8), 0, cow ? 0.85 : 0.55, 0, a);
+    body.castShadow = true;
+    box(cow ? 0.5 : 0.45, cow ? 0.5 : 0.42, cow ? 0.5 : 0.45, mat(cow ? 0xffffff : 0xffa8b8), cow ? 0.8 : 0.55, cow ? 1.05 : 0.65, 0, a);
+    box(0.18, 0.2, cow ? 0.36 : 0.26, mat(cow ? 0xffb3b3 : 0xff7f99), cow ? 1.07 : 0.8, cow ? 0.95 : 0.6, 0, a, true);
+    if (cow) { box(0.4, 0.3, 0.66, mat(0x2b2118), -0.2, 1.0, 0, a, true); box(0.3, 0.25, 0.3, mat(0x2b2118), 0.3, 0.75, 0.2, a, true); }
+    const leg = geo(cow ? 'cleg' : 'pleg', () => new T.BoxGeometry(0.14, cow ? 0.55 : 0.32, 0.14));
+    for (const x of [-0.4, 0.4]) for (const z of [-0.22, 0.22]) part(leg, mat(cow ? 0xffffff : 0xffa8b8), x * (cow ? 1 : 0.7), cow ? 0.28 : 0.16, z * (cow ? 1 : 0.8), a).castShadow = false;
+    a.userData.animal = true;
+    return a;
+  }
+  function barnModel(lv) {
+    const g = new T.Group();
+    box(7.6, 0.3, 11.6, texMat('grass', 128, DRAW.grass('#6cc04a'), 3, 4), 0, 0.15, 0, g);
+    box(7.4, 0.08, 6.6, texMat('gravel', 128, DRAW.gravel, 3, 3), 0, 0.32, 2.3, g, true);
+    // the barn
+    const red = mat(0xc8402f), white = mat(0xfff7ec);
+    box(5.2, 3.0, 4.0, red, 0, 1.8, -3.4, g);
+    const roof = part(geo('barnroof', () => new T.CylinderGeometry(2.9, 2.9, 4.4, 4, 1).rotateZ(Math.PI / 2).rotateX(Math.PI / 4)), mat(0x5a4a44), 0, 3.3, -3.4, g);
+    roof.scale.set(1, 0.62, 0.78);
+    box(2.0, 2.2, 0.12, white, 0, 1.4, -1.36, g);
+    box(1.7, 1.9, 0.08, mat(0xa83426), 0, 1.4, -1.3, g, true);
+    const x1 = box(0.12, 2.4, 0.06, white, 0, 1.4, -1.24, g, true); x1.rotation.z = 0.72;
+    const x2 = box(0.12, 2.4, 0.06, white, 0, 1.4, -1.24, g, true); x2.rotation.z = -0.72;
+    box(0.8, 0.8, 0.1, white, 0, 3.5, -1.36, g, true);
+    if (lv >= 3) { part(geo('silo', () => new T.CylinderGeometry(0.9, 0.9, 4.6, 14)), mat(0xd9dde6), 3.0, 2.6, -4.4, g); part(geo('silotop', () => new T.SphereGeometry(0.9, 14, 8, 0, 6.3, 0, 1.6)), mat(0x9aa3b5), 3.0, 4.9, -4.4, g); }
+    const fenceGroup = new T.Group();
+    fenceAround(fenceGroup, 7.2, 6.4, 0xfff7ec);
+    fenceGroup.position.z = 2.4;
+    g.add(fenceGroup);
+    box(1.2, 0.4, 0.5, mat(0x8a5a3c), -2.6, 0.5, 4.6, g);
+    box(1.1, 0.12, 0.4, mat(0x6fb6ff), -2.6, 0.72, 4.6, g, true);
+    const herd = [];
+    const n = Math.min(6, 2 + Math.floor(lv / 2));
+    for (let k = 0; k < n; k++) {
+      const a = animal(k % 3 === 2 ? 'pig' : 'cow');
+      a.position.set(-2 + (k % 3) * 2, 0.3, 1.0 + Math.floor(k / 3) * 2.4);
+      a.rotation.y = Math.random() * 6.28;
+      a.userData.home = [a.position.x, a.position.z];
+      g.add(a); herd.push(a);
+    }
+    g.userData.herd = herd;
+    hayBale(g, 2.8, 4.6, 0.4);
+    return g;
+  }
+  function pondModel(lv) {
+    const g = new T.Group();
+    box(7.6, 0.3, 7.6, texMat('grass', 128, DRAW.grass('#5fbf55'), 3, 3), 0, 0.15, 0, g);
+    part(geo('pondrim', () => new T.CylinderGeometry(3.5, 3.6, 0.2, 28)), mat(0xb9a07a), 0, 0.32, 0, g).castShadow = false;
+    const w = part(geo('pondwater', () => new T.CircleGeometry(3.25, 28).rotateX(-Math.PI / 2)), texMat('water', 128, DRAW.water, 2, 2), 0, 0.44, 0, g);
+    w.castShadow = false; w.receiveShadow = true;
+    const pads = [];
+    for (let k = 0; k < 7; k++) { const a = k * 0.9, r = 1.4 + (k % 3) * 0.6; pads.push([Math.cos(a) * r, 0.47, Math.sin(a) * r, 1]); }
+    scatter(g, geo('lily', () => new T.CylinderGeometry(0.3, 0.3, 0.03, 10)), mat(0x3fae4a), pads);
+    const reeds = [];
+    for (let k = 0; k < 18; k++) { const a = 2.2 + k * 0.12, r = 3.3; reeds.push([Math.cos(a) * r, 0.75, Math.sin(a) * r, 1, (Math.random() - 0.5) * 0.3]); }
+    scatter(g, geo('reed', () => new T.CylinderGeometry(0.03, 0.05, 0.9, 4)), mat(0x5c8a2e), reeds);
+    // a wooden dock
+    box(0.9, 0.12, 2.6, texMat('wood', 128, DRAW.wood, 1, 2), 2.3, 0.6, 2.2, g);
+    for (const z of [1.2, 2.2, 3.2]) box(0.12, 0.6, 0.12, mat(0x7a5a3c), 2.75, 0.3, z, g);
+    if (lv >= 3) { const boat = new T.Group(); box(1.4, 0.3, 0.6, mat(0xffffff), 0, 0, 0, boat); box(1.2, 0.08, 0.5, mat(0x3a86ff), 0, 0.17, 0, boat, true); boat.position.set(-1.2, 0.55, 1.2); boat.rotation.y = 0.6; g.add(boat); g.userData.boat = boat; }
+    // fish that jump out of the water now and then
+    const fish = [];
+    for (let k = 0; k < 2; k++) { const f = part(geo('jfish', () => new T.SphereGeometry(0.22, 8, 6)), mat(0xff922b), 0, -1, 0, g); f.scale.set(1.6, 0.8, 0.6); f.castShadow = false; f.userData.t = Math.random() * 4; fish.push(f); }
+    g.userData.fish = fish;
+    return g;
+  }
+  function warehouseModel(lv) {
+    const g = new T.Group();
+    box(7.6, 0.3, 7.6, texMat('asphalt', 128, DRAW.asphalt, 2, 2), 0, 0.15, 0, g);
+    box(6.0, 3.0, 5.0, mat(0x9fb3c8), 0, 1.8, -0.8, g);
+    const roof = part(geo('whroof', () => new T.CylinderGeometry(2.6, 2.6, 6.2, 16, 1, false, 0, Math.PI).rotateZ(Math.PI / 2)), mat(0x6f8299), 0, 3.3, -0.8, g);
+    roof.scale.set(1, 0.5, 1);
+    box(3.0, 2.4, 0.12, mat(0x55657a), 0, 1.5, 1.72, g, true);
+    for (let k = 0; k < 6; k++) box(2.9, 0.06, 0.04, mat(0x46546a), 0, 0.6 + k * 0.38, 1.79, g, true);
+    box(6.1, 0.2, 0.1, mat(0xffcf2e), 0, 3.2, 1.72, g, true);
+    const crate = geo('crate', () => new T.BoxGeometry(0.7, 0.7, 0.7)), wood = texMat('wood', 128, DRAW.wood, 1, 1);
+    const n = Math.min(8, 3 + lv);
+    for (let k = 0; k < n; k++) part(crate, wood, -2.6 + (k % 4) * 0.8, 0.65 + Math.floor(k / 4) * 0.7, 2.9, g);
+    box(1.2, 0.12, 1.2, mat(0xc99b66), 2.4, 0.36, 2.9, g);
+    if (lv >= 3) {   // forklift
+      const f = new T.Group();
+      box(0.9, 0.6, 1.2, mat(0xffb21f), 0, 0.6, 0, f); box(0.8, 0.9, 0.1, mat(0x333333), 0, 1.3, -0.5, f, true);
+      for (const x of [-0.25, 0.25]) box(0.1, 1.6, 0.1, mat(0x333333), x, 1.0, 0.68, f);
+      box(0.6, 0.06, 0.8, mat(0x333333), 0, 0.3, 1.1, f, true);
+      f.position.set(2.4, 0.2, 1.0); f.rotation.y = -0.4;
+      g.add(f);
+    }
+    return g;
+  }
+
   // --- Decorations ---
   function decorModel(def) {
     const g = new T.Group();
@@ -897,6 +1109,12 @@
         for (const x of [-1, 1]) { box(0.1, 0.8, 1.9, mat(0x8a5a3c), x, 0.4, 0, g); }
         part(geo('cup', () => new T.CylinderGeometry(0.12, 0.1, 0.25, 8)), mat(0xff5a4e), -0.5, 1.0, 0.1, g).castShadow = false;
         box(0.4, 0.06, 0.3, mat(0xfff7ec), 0.4, 0.9, 0, g, true);
+        break;
+      case 'bin':
+        part(geo('binBody', () => new T.CylinderGeometry(0.42, 0.36, 1.0, 12)), mat(0x2fae66), 0, 0.5, 0, g);
+        part(geo('binLid', () => new T.CylinderGeometry(0.47, 0.47, 0.12, 12)), mat(0x228a50), 0, 1.06, 0, g);
+        box(0.3, 0.08, 0.08, mat(0x228a50), 0, 1.16, 0, g, true);
+        for (let k = 0; k < 3; k++) box(0.04, 0.7, 0.02, mat(0x228a50), Math.cos(k * 1.2 - 1.2) * 0.4, 0.5, Math.sin(k * 1.2 - 1.2) * 0.4 + 0.02, g, true);
         break;
       case 'lamp':
         part(geo('lpole', () => new T.CylinderGeometry(0.08, 0.12, 3.6, 8)), mat(0x3a4058), 0, 1.8, 0, g);
@@ -1019,8 +1237,14 @@
     if (def.cat === 'hall') model = hallModel(lv);
     else if (def.cat === 'decor') model = decorModel(def);
     else if (def.id === 'garden') model = gardenModel(lv);
-    else if (def.id === 'farm') model = greenhouseModel(lv);
-    else if (def.id === 'fish') model = fishModel(def, lv);
+    else if (def.id === 'field') model = fieldModel(lv);
+    else if (def.id === 'orchard') model = orchardModel(lv);
+    else if (def.id === 'paddy') model = paddyModel(lv);
+    else if (def.id === 'spicegdn') model = spiceModel(lv);
+    else if (def.id === 'barn') model = barnModel(lv);
+    else if (def.id === 'pond') model = pondModel(lv);
+    else if (def.id === 'warehouse') model = warehouseModel(lv);
+    else if (def.id === 'greenhouse') model = greenhouseModel(lv);
     else if (def.id === 'taco') model = truckModel(def, lv);
     else if (def.w === 1) model = stallModel(def, lv);
     else model = restaurantModel(def, lv, def.w);
@@ -1037,7 +1261,7 @@
     const def = E.DEFS[b.t];
     const lvKey = def.cat === 'hall' ? (b.lv >= 15 ? 3 : b.lv >= 10 ? 2 : b.lv >= 5 ? 1 : 0)
       : def.w >= 2 && def.cat === 'stall' ? Math.min(def.w === 2 ? 3 : 5, 1 + Math.floor(Math.max(1, b.lv) / 5)) + (b.lv >= 15 ? 'f' : '')
-      : def.cat === 'decor' ? 0 : (b.lv >= 10 ? 2 : b.lv >= 5 ? 1 : 0) + (def.id === 'garden' ? ':' + Math.min(10, b.lv) : '');
+      : def.cat === 'decor' ? 0 : def.cat !== 'stall' ? Math.min(10, b.lv) : (b.lv >= 10 ? 2 : b.lv >= 5 ? 1 : 0);
     return [b.t, b.x, b.y, lvKey, building ? 'B' : ''].join(':');
   }
   function updateViewBox(v, b) {
@@ -1058,6 +1282,10 @@
     part(geo('head', () => new T.SphereGeometry(0.19, 10, 8)), mat(pick(SKINS)), 0, 1.16, 0, g).castShadow = false;
     const extra = plain ? 0.5 : Math.random();
     if (opts && opts.hat) part(geo('chefhat', () => new T.CylinderGeometry(0.2, 0.17, 0.3, 10)), mat(0xffffff), 0, 1.42, 0, g).castShadow = false;
+    else if (opts && opts.straw) {
+      part(geo('sbrim', () => new T.CylinderGeometry(0.38, 0.38, 0.04, 14)), mat(0xe0b062), 0, 1.3, 0, g).castShadow = false;
+      part(geo('scrown', () => new T.CylinderGeometry(0.17, 0.2, 0.16, 10)), mat(0xffd27a), 0, 1.39, 0, g).castShadow = false;
+    } else if (opts && opts.sou) part(geo('souw', () => new T.SphereGeometry(0.26, 10, 6, 0, 6.283, 0, 1.7)), mat(0xffcf2e), 0, 1.2, 0, g).castShadow = false;
     else if (opts && opts.hardhat) part(geo('hardhat', () => new T.SphereGeometry(0.23, 10, 6, 0, 6.283, 0, 1.6)), mat(0xffcf2e), 0, 1.2, 0, g).castShadow = false;
     else if (extra < 0.18) {
       part(geo('brim', () => new T.CylinderGeometry(0.3, 0.3, 0.04, 12)), mat(pick(SHIRTS)), 0, 1.3, 0, g).castShadow = false;
@@ -1343,7 +1571,51 @@
       n--;
     }
   };
+  // Kitchen smoke and steam
+  const puffs = [];
+  let puffTex = null;
+  function puff(x, y, z) {
+    if (!puffTex) puffTex = canvasTex(64, 64, (g) => { const gr = g.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); });
+    let p = puffs.find(q => q.t >= 1);
+    if (!p) { if (puffs.length > 40) return; const sp = sprite(puffTex, 1, 1, { depthTest: true, depthWrite: false, opacity: 0.6 }); sp.renderOrder = 4; scene.add(sp); p = { s: sp, t: 1 }; puffs.push(p); }
+    p.t = 0; p.s.position.set(x, y, z); p.s.visible = true;
+  }
+  // Rain and snow
+  let wx = null, wxKind = 'sun';
+  W.setWeather = function (kind) {
+    wxKind = kind || 'sun';
+    if (wx) { scene.remove(wx.pts); wx.pts.geometry.dispose(); wx.pts.material.dispose(); wx = null; }
+    if (!scene || (wxKind !== 'rain' && wxKind !== 'snow')) return;
+    const n = quality >= 2 ? 500 : 1300, pos = new Float32Array(n * 3);
+    for (let k = 0; k < n; k++) { pos[k * 3] = rand(-70, 70); pos[k * 3 + 1] = rand(0, 50); pos[k * 3 + 2] = rand(-70, 70); }
+    const geom = new T.BufferGeometry();
+    geom.setAttribute('position', new T.BufferAttribute(pos, 3));
+    const snow = wxKind === 'snow';
+    const m = new T.PointsMaterial({ color: snow ? 0xffffff : 0xb8d4ff, size: snow ? 0.6 : 0.32, transparent: true, opacity: snow ? 0.95 : 0.75, depthWrite: false });
+    wx = { pts: new T.Points(geom, m), speed: snow ? 5 : 40, snow };
+    wx.pts.frustumCulled = false;
+    scene.add(wx.pts);
+  };
+  function updateWeather(dt) {
+    if (!wx) return;
+    const a = wx.pts.geometry.attributes.position, arr = a.array;
+    for (let i = 0; i < arr.length; i += 3) {
+      arr[i + 1] -= wx.speed * dt * (0.8 + (i % 7) * 0.05);
+      if (wx.snow) arr[i] += Math.sin(time * 0.8 + i) * dt * 0.9;
+      if (arr[i + 1] < 0) arr[i + 1] += 50;
+    }
+    a.needsUpdate = true;
+    wx.pts.position.set(cam.tx, 0, cam.tz);
+  }
   function updateFx(dt) {
+    for (const p of puffs) {
+      if (p.t >= 1) continue;
+      p.t = Math.min(1, p.t + dt * 0.6);
+      p.s.position.y += dt * 1.6; p.s.position.x += dt * 0.3;
+      const k = 0.8 + p.t * 2.4; p.s.scale.set(k, k, 1);
+      p.s.material.opacity = 0.5 * (1 - p.t);
+      if (p.t >= 1) p.s.visible = false;
+    }
     for (const c of coins) {
       if (c.t > 0.9) continue;
       c.t += dt; c.s.position.y += dt * 2.4; c.s.material.opacity = 1 - Math.max(0, c.t - 0.5) / 0.4;
@@ -1432,28 +1704,27 @@
         drawProgress(v.prog, clamp(f, 0, 1), (b.lv === 0 ? 'Building ' : 'Upgrading ') + E.formatTime(left));
         v.progS.position.set(v.g.position.x, Math.max(v.h, 4) + 2.2, v.g.position.z);
       } else if (v.prog) { parkRoot.remove(v.progS); v.progS.material.dispose(); v.prog.t.dispose(); v.prog = null; }
-      // Collect bubble when there is something worth collecting
-      const producer = def.cat === 'stall' || def.cat === 'supply';
-      const ready = producer && b.lv >= 1 && b.st >= Math.max(1, E.storeCap(state, P, b) * 0.04);
-      if (ready && !v.bubble) {
-        v.bubble = sprite(bubbleTex(def.cat === 'stall' ? 'coin' : 'ingredients', def.cat === 'stall' ? '#ffcf2e' : '#45e08a'), 2.2, 2.2);
-        v.bubble.material.userData.shared = false;
-        parkRoot.add(v.bubble);
-      } else if (!ready && v.bubble) { parkRoot.remove(v.bubble); v.bubble.material.dispose(); v.bubble = null; }
-      if (v.bubble) {
-        const full = b.st >= E.storeCap(state, P, b) * 0.98;
-        v.bubble.position.set(v.g.position.x, Math.max(v.h, 3) + 1.6 + Math.abs(Math.sin(time * (full ? 6 : 3) + b.u)) * 0.4, v.g.position.z);
-        const sc = full ? 2.5 + Math.sin(time * 6) * 0.15 : 2.2;
-        v.bubble.scale.set(sc, sc, 1);
+      // Status bubble: nobody working here, or no ingredients
+      const role = E.ROLE[def.cat];
+      const ws = role && b.lv >= 1 ? E.workersAt(state, P, b.u) : null;
+      if (!v.hrAt || time > v.hrAt) { v.hrAt = time + 1; v.hr = ws && ws.length ? E.hourly(state, P, b, now) : null; }
+      const need = !job && ws ? (!ws.length ? 'person' : b.starved ? 'crate' : '') : '';
+      if (need !== (v.need || '')) {
+        if (v.bubble) { parkRoot.remove(v.bubble); v.bubble.material.dispose(); v.bubble = null; }
+        v.need = need;
+        if (need) { v.bubble = sprite(bubbleTex(need, need === 'person' ? '#ff5a6e' : '#ff9f1c'), 2.2, 2.2); v.bubble.material.userData.shared = false; parkRoot.add(v.bubble); }
       }
-      // Customers: a stall at level 1 sees the odd visitor; a famous one has a queue
-      if (def.cat === 'stall' && b.lv >= 1 && !job) {
-        const cap = Math.min(5, 1 + Math.floor(b.lv / 3));
-        if (v.queue.length + v.incoming < cap && time > v.nextSpawn && people.length < 70) {
+      if (v.bubble) v.bubble.position.set(v.g.position.x, Math.max(v.h, 3) + 1.6 + Math.abs(Math.sin(time * 3 + b.u)) * 0.4, v.g.position.z);
+      // Customers come as often as the stall really sells
+      const sold = v.hr ? v.hr.sold : 0;
+      if (def.cat === 'stall' && b.lv >= 1 && !job && sold > 0) {
+        const gameSec = 3600 / E.TIME_SCALE;               // real seconds in one game hour
+        const cap = Math.min(6, 1 + Math.floor(sold / 40));
+        if (v.queue.length + v.incoming < cap && time > v.nextSpawn && people.length < 80) {
           sendCustomer(v, b);
-          v.nextSpawn = time + Math.max(1.5, 7 * Math.pow(0.9, b.lv - 1)) * rand(0.8, 1.3);
+          v.nextSpawn = time + clamp(gameSec / sold * 6, 1.2, 14) * rand(0.7, 1.3);
         }
-        const every = Math.max(1.2, 5 - b.lv * 0.2);
+        const every = clamp(gameSec / Math.max(1, v.hr.capacity) * 6, 0.9, 8);
         const ready2 = v.queue.filter((p, k) => !p.moving || k === 0);
         if (ready2.length && time - v.lastServe > every) {
           serve(v, ready2[0]);
@@ -1463,10 +1734,54 @@
       }
       if (ud.chef) {
         const c = ud.chef;
+        c.visible = !!(ws && ws.length) || def.cat !== 'stall';
         c.userData.hop = Math.max(0, (c.userData.hop || 0) - dt);
         c.position.y = (def.id === 'taco' ? 0.85 : 0) + Math.sin(c.userData.hop / 0.3 * Math.PI) * 0.3;
         c.userData.arms[0].rotation.x = -0.6 + Math.sin(time * 8) * 0.4;
       }
+      // Smoke from busy kitchens
+      if (def.cat === 'stall' && sold > 0 && Math.random() < dt * Math.min(3, 0.6 + sold / 80) && quality < 2) puff(v.g.position.x + rand(-0.5, 0.5), v.h + 0.3, v.g.position.z - (def.h * CELL) * 0.2);
+      // Farm workers and animals
+      const nW = ws && (def.cat === 'farm' || def.cat === 'water') ? Math.min(3, ws.length) : 0;
+      if ((ud.farmers || []).length !== nW) {
+        (ud.farmers || []).forEach(f => v.g.remove(f));
+        ud.farmers = [];
+        for (let k = 0; k < nW; k++) {
+          const f = makePersonMesh(def.cat === 'water' ? 0x3a86ff : pick([0x5c8a2e, 0x2f5f8f, 0xc8402f]), { plain: true, straw: def.cat === 'farm', sou: def.cat === 'water' });
+          const hw = def.w * CELL / 2 - 1.2, hd = def.h * CELL / 2 - 1.2;
+          f.userData.box = [hw, hd];
+          if (def.cat === 'water') { const a = rand(0, 6.28); f.position.set(Math.cos(a) * 3.6, 0.3, Math.sin(a) * 3.6); } else f.position.set(rand(-hw, hw), 0.3, rand(-hd, hd));
+          f.userData.to = [f.position.x, f.position.z]; f.userData.wait = rand(0, 2);
+          v.g.add(f); ud.farmers.push(f);
+        }
+      }
+      for (const f of ud.farmers || []) {
+        const fd = f.userData, dx = fd.to[0] - f.position.x, dz = fd.to[1] - f.position.z, dist = Math.hypot(dx, dz);
+        if (dist > 0.1) {
+          const st = Math.min(dist, dt * 1.6);
+          f.position.x += dx / dist * st; f.position.z += dz / dist * st;
+          f.rotation.y = Math.atan2(dx, dz);
+          fd.legs && fd.legs.forEach((l, k) => (l.rotation.x = Math.sin(time * 10 + k * Math.PI) * 0.5));
+          fd.arms[0].rotation.x = fd.arms[1].rotation.x = Math.sin(time * 10) * 0.4;
+        } else {
+          fd.wait -= dt;
+          fd.arms[0].rotation.x = fd.arms[1].rotation.x = -0.9 - Math.abs(Math.sin(time * 5 + b.u)) * 0.9;   // hoeing, picking, casting
+          if (fd.wait <= 0) { if (def.cat === 'water') { const a = rand(0, 6.28); fd.to = [Math.cos(a) * 3.6, Math.sin(a) * 3.6]; } else fd.to = [rand(-fd.box[0], fd.box[0]), rand(-fd.box[1], fd.box[1])]; fd.wait = rand(2, 5); }
+        }
+      }
+      if (ud.herd) for (const a of ud.herd) {
+        a.rotation.y += Math.sin(time * 0.3 + a.userData.home[0]) * dt * 0.4;
+        a.position.x = a.userData.home[0] + Math.sin(time * 0.2 + a.userData.home[1]) * 0.6;
+        a.children[1].rotation.z = Math.sin(time * 2 + a.userData.home[0]) * 0.1;
+      }
+      if (ud.fish && ws && ws.length) for (const f of ud.fish) {
+        f.userData.t += dt;
+        const t = f.userData.t % 4;
+        if (t < 0.8) { if (!f.userData.x || t < dt * 1.5) { f.userData.x = rand(-2, 2); f.userData.z = rand(-2, 2); } f.position.set(f.userData.x + t, 0.45 + Math.sin(t / 0.8 * Math.PI) * 1.2, f.userData.z); f.rotation.z = 1 - t * 2.5; }
+        else f.position.y = -1;
+      }
+      if (ud.boat) ud.boat.rotation.z = Math.sin(time * 1.5) * 0.05;
+      if (ud.sway) ud.sway.rotation.z = Math.sin(time * 1.3 + b.u) * 0.02;
     }
   }
 
@@ -1668,14 +1983,17 @@
   //  Day, night and the tilt-shift lens
   // =====================================================================
   function updateDayNight(dt) {
-    dayT = (dayT + dt / 300) % 1;
+    if (fixedDay !== null) dayT = fixedDay;
+    else if (clockNow) { const c = E.gameClock(clockNow), hr = c.hour + c.minute / 60; dayT = (((hr - 6.5) / 24) % 1 + 1) % 1; }
     let day;
     if (dayT < 0.55) day = 1; else if (dayT < 0.65) day = 1 - (dayT - 0.55) / 0.1; else if (dayT < 0.9) day = 0; else day = (dayT - 0.9) / 0.1;
     const dusk = 1 - Math.abs(day - 0.5) * 2;
     const sky = scene.background;
     sky.copy(skyNight).lerp(skyDay, day).lerp(skyDusk, dusk * 0.55);
+    const dim = wxKind === 'rain' ? 0.6 : wxKind === 'snow' ? 0.8 : wxKind === 'cloud' ? 0.85 : 1;
+    if (dim < 1) sky.lerp(tmpColor.setHex(0x8f99ad), (1 - dim) * 0.9 * (0.3 + day * 0.7));
     fog.color.copy(sky);
-    sun.intensity = 0.35 + day * 2.9;
+    sun.intensity = (0.35 + day * 2.9) * dim;
     sun.color.setHex(0xfff1dc).lerp(tmpColor.setHex(0xff9a5c), dusk * 0.7);
     hemi.intensity = 0.7 + day * 1.0;
     const night = 1 - day;
@@ -1905,6 +2223,7 @@
     if (!W.ok || !root) return;
     time += dt;
     lastState = state;
+    clockNow = now;
     if (introUntil && time > introUntil) { introUntil = 0; cam.ease = 8; }
     else if (!introUntil && cam.ease !== 8) cam.ease += (8 - cam.ease) * Math.min(1, dt * 2);
     updateCamera(dt);
@@ -1915,6 +2234,7 @@
     updateTips();
     for (const m of movers) m(dt);
     updateFx(dt);
+    updateWeather(dt);
     if (selRing) selRing.material.opacity = 0.3 + Math.abs(Math.sin(time * 3)) * 0.3;
     if (vip && time > vip.until) { endVip(); if (hooks.onVipGone) hooks.onVipGone(); }
   };
@@ -1930,7 +2250,7 @@
 
   W.debug = {
     get stats() { return { people: people.length, cars: cars.length, views: views.size, quality, park: P }; },
-    setTime(t) { dayT = t; },
+    setTime(t) { fixedDay = t; },
     get vip() { return vip ? { x: vip.p.x, z: vip.p.z } : null; },
     dropTip(x, z) { dropTip(x, z); },
     get tips() { return tips.map(t => { t.g.getWorldPosition(tmpV); return { x: tmpV.x, y: tmpV.y, z: tmpV.z }; }); },
