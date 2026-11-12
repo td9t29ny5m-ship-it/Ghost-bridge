@@ -307,7 +307,8 @@
     let html = `<p class="hint">Building on <b>${size.name} land</b> in ${esc(E.DISTRICTS[d].name)}. Bigger land and later districts unlock grander shops.</p><div class="grid2">`;
     E.TYPES.forEach((def, t) => {
       const ok = E.canBuildOn(d, p, t), cost = E.buildCost(state, t), owned = E.countType(state, t);
-      const why = E.DISTRICTS[d].plots[p].size < def.minSize ? `Needs ${E.SIZES[def.minSize].name} land` : `Needs ${E.DISTRICTS[def.minDistrict].name}`;
+      const needLand = E.DISTRICTS[d].plots[p].size < def.minSize, needDist = d < def.minDistrict;
+      const why = 'Needs ' + (needLand ? `${E.SIZES[def.minSize].name} land` : '') + (needLand && needDist ? ' in ' : '') + (needDist ? E.DISTRICTS[def.minDistrict].name : '');
       html += `<div class="tile ${ok ? '' : 'locked'}">${owned ? `<span class="own">Owned ×${owned}</span>` : ''}<div class="em">${def.emoji}</div><div class="nm">${esc(def.name)}</div>
         <div class="st">${ok ? `${money(def.baseRevenue)} every ${E.formatTime(def.time)}` : '🔒 ' + why}</div>
         ${ok ? `<button class="btn small" type="button" data-act="buildType" data-t="${t}" data-p="${p}" data-cost="${cost}">${money(cost)}</button>` : ''}</div>`;
