@@ -1,0 +1,177 @@
+# Signs an .ipa with YOUR Apple certificate and publishes an "Install" page on GitHub Pages.
+# Run it from your phone: GitHub → Actions → "Sign IPA" → Run workflow → paste a direct .ipa link.
+#
+# One-time setup (see ipa-installer/PHONE-ONLY.md):
+#   Secrets (Settings → Secrets and variables → Actions):
+#     SIGN_P12_BASE64        your Certificate.p12, base64 (the Signing Kit page gives you this text)
+#     SIGN_P12_PASSWORD      the password you picked for the .p12
+#     SIGN_PROFILE_BASE64    your .mobileprovision, base64 (the Signing Kit page gives you this text)
+#   Pages (Settings → Pages): Source = "GitHub Actions"
+name: Sign IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      ipa_url:
+        description: Direct download link to the .ipa
+        required: true
+        default: https://github.com/claration/Feather/releases/latest/download/Feather.ipa
+      enable_files:
+        description: Let the app show its folder in the Files app
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: sign-ipa
+  cancel-in-progress: false
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Check secrets
+        env:
+          P12: ${{ secrets.SIGN_P12_BASE64 }}
+          PROF: ${{ secrets.SIGN_PROFILE_BASE64 }}
+        run: |
+          if [ -z "$P12" ] || [ -z "$PROF" ]; then
+            echo "::error::Add the SIGN_P12_BASE64, SIGN_P12_PASSWORD and SIGN_PROFILE_BASE64 secrets first (see ipa-installer/PHONE-ONLY.md)."
+            exit 1
+          fi
+
+      - name: Build zsign
+        run: |
+          sudo apt-get update -y >/dev/null
+          sudo apt-get install -y g++ pkg-config libssl-dev >/dev/null
+          git clone -q https://github.com/zhlynn/zsign.git "$RUNNER_TEMP/zsign"
+          git -C "$RUNNER_TEMP/zsign" checkout -q 9299685bab7ef99827e06e5dfda93af747386590
+          make -C "$RUNNER_TEMP/zsign/build/linux" -j"$(nproc)" >/dev/null
+          echo "ZSIGN=$RUNNER_TEMP/zsign/bin/zsign" >> "$GITHUB_ENV"
+
+      - name: Download IPA
+        env:
+          IPA_URL: ${{ inputs.ipa_url }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/work"
+          curl -fL --retry 3 -o "$RUNNER_TEMP/work/in.ipa" "$IPA_URL"
+          SIZE=$(stat -c %s "$RUNNER_TEMP/work/in.ipa")
+          echo "Downloaded $((SIZE / 1048576)) MB"
+          # GitHub release files max out at 2 GB. Bigger apps: install Feather and sign them on the phone.
+          if [ "$SIZE" -gt 2040109465 ]; then
+            echo "::error::This IPA is over 1.9 GB, which is more than GitHub can host. Install Feather with this workflow, then sign big IPAs on your phone in Feather."
+            exit 1
+          fi
+
+      - name: Sign
+        env:
+          P12: ${{ secrets.SIGN_P12_BASE64 }}
+          P12_PASS: ${{ secrets.SIGN_P12_PASSWORD }}
+          PROF: ${{ secrets.SIGN_PROFILE_BASE64 }}
+          ENABLE_FILES: ${{ inputs.enable_files }}
+        run: |
+          cd "$RUNNER_TEMP/work"
+          umask 077
+          printf '%s' "$P12" | tr -d ' \r\n' | base64 -d > cert.p12
+          printf '%s' "$PROF" | tr -d ' \r\n' | base64 -d > app.mobileprovision
+          EXTRA=""
+          if [ "$ENABLE_FILES" = "true" ]; then EXTRA="-S"; fi
+          "$ZSIGN" -k cert.p12 -p "$P12_PASS" -m app.mobileprovision -z 6 $EXTRA -o signed.ipa in.ipa
+          rm -f cert.p12 app.mobileprovision in.ipa
+
+      - name: Read app info
+        id: info
+        run: |
+          python3 -I - "$RUNNER_TEMP/work/signed.ipa" >> "$GITHUB_OUTPUT" <<'PY'
+          import plistlib, re, sys, zipfile
+          z = zipfile.ZipFile(sys.argv[1])
+          name = next(n for n in z.namelist() if re.fullmatch(r'Payload/[^/]+\.app/Info\.plist', n))
+          p = plistlib.loads(z.read(name))
+          title = p.get('CFBundleDisplayName') or p.get('CFBundleName') or 'App'
+          clean = lambda s: re.sub(r'[\r\n]', ' ', str(s))
+          print('title=' + clean(title))
+          print('bundle_id=' + clean(p['CFBundleIdentifier']))
+          print('version=' + clean(p.get('CFBundleShortVersionString') or p.get('CFBundleVersion') or '1.0'))
+          print('slug=' + (re.sub(r'[^A-Za-z0-9]+', '-', str(title)).strip('-') or 'app'))
+          PY
+
+      - name: Publish signed IPA as a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ steps.info.outputs.title }}
+          BUNDLE_ID: ${{ steps.info.outputs.bundle_id }}
+          VERSION: ${{ steps.info.outputs.version }}
+          SLUG: ${{ steps.info.outputs.slug }}
+        run: |
+          TAG="signed-${GITHUB_RUN_ID}"
+          FILE="$RUNNER_TEMP/work/${SLUG}.ipa"
+          mv "$RUNNER_TEMP/work/signed.ipa" "$FILE"
+          META=$(python3 -I -c 'import json,os;print(json.dumps({k:os.environ[k] for k in ("TITLE","BUNDLE_ID","VERSION","SLUG")}))')
+          gh release create "$TAG" "$FILE" -R "$GITHUB_REPOSITORY" --title "Signed: $TITLE $VERSION" \
+            --notes "<!--ipa-meta $META -->
+          Signed copy of $TITLE ($BUNDLE_ID) version $VERSION. Install it from this repository's GitHub Pages site."
+
+      - name: Build install site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" > "$RUNNER_TEMP/releases.json"
+          OWNER="${GITHUB_REPOSITORY%%/*}"; REPO="${GITHUB_REPOSITORY#*/}"
+          BASE="https://${OWNER,,}.github.io/${REPO}"
+          python3 -I - "$RUNNER_TEMP/releases.json" "$BASE" "$RUNNER_TEMP/site" <<'PY'
+          import json, os, re, sys, html
+          from urllib.parse import quote
+          rels, base, out = json.load(open(sys.argv[1])), sys.argv[2], sys.argv[3]
+          os.makedirs(out, exist_ok=True)
+          x = lambda s: html.escape(str(s), quote=True)
+          apps = []
+          for r in rels:
+              m = re.search(r'<!--ipa-meta (\{.*?\}) -->', r.get('body') or '')
+              ipa = next((a for a in r.get('assets', []) if a['name'].endswith('.ipa')), None)
+              if not (r['tag_name'].startswith('signed-') and m and ipa): continue
+              meta = json.loads(m.group(1))
+              tag = r['tag_name']
+              with open(f'{out}/{tag}.plist', 'w') as f:
+                  f.write(f'''<?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict><key>items</key><array><dict>
+          <key>assets</key><array><dict><key>kind</key><string>software-package</string><key>url</key><string>{x(ipa['browser_download_url'])}</string></dict></array>
+          <key>metadata</key><dict><key>bundle-identifier</key><string>{x(meta['BUNDLE_ID'])}</string><key>bundle-version</key><string>{x(meta['VERSION'])}</string><key>kind</key><string>software</string><key>title</key><string>{x(meta['TITLE'])}</string></dict>
+          </dict></array></dict></plist>
+          ''')
+              link = 'itms-services://?action=download-manifest&url=' + quote(f'{base}/{tag}.plist', safe='')
+              apps.append(f'''<li><div><b>{x(meta['TITLE'])}</b><span>{x(meta['VERSION'])} · {ipa['size']/1048576:.0f} MB · {x(r['published_at'][:10])}</span></div><a href="{x(link)}">Install</a></li>''')
+          items = ''.join(apps) or '<li><div>No signed apps yet. Run the Sign IPA workflow.</div></li>'
+          open(f'{out}/index.html', 'w').write(f'''<!doctype html><html lang="en"><head><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1"><title>My Signed Apps</title>
+          <style>
+          :root{{--bg:#f2f2f7;--card:#fff;--fg:#111;--muted:#6e6e73;--accent:#007aff;--line:#e5e5ea}}
+          @media(prefers-color-scheme:dark){{:root{{--bg:#000;--card:#1c1c1e;--fg:#f2f2f7;--muted:#98989f;--accent:#0a84ff;--line:#2c2c2e}}}}
+          body{{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 -apple-system,system-ui,sans-serif;padding:24px 16px}}
+          main{{max-width:560px;margin:0 auto}} h1{{font-size:28px;margin:0 0 4px}} p{{color:var(--muted);margin:0 0 20px}}
+          ul{{list-style:none;margin:0;padding:0;background:var(--card);border-radius:14px}}
+          li{{display:flex;align-items:center;gap:12px;padding:14px 16px;border-top:1px solid var(--line)}} li:first-child{{border-top:0}}
+          li div{{flex:1;min-width:0}} li b{{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}} li span{{color:var(--muted);font-size:13px}}
+          a{{background:var(--accent);color:#fff;text-decoration:none;font-weight:600;padding:8px 16px;border-radius:999px}}
+          </style></head><body><main><h1>My Signed Apps</h1>
+          <p>Open in Safari on your iPhone and tap Install, then check your Home Screen.</p>
+          <ul>{items}</ul></main></body></html>''')
+          PY
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+      - name: Done
+        run: |
+          echo "### Open this on your iPhone in Safari: ${{ steps.deploy.outputs.page_url }}" >> "$GITHUB_STEP_SUMMARY"

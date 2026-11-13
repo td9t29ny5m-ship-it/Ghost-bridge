@@ -1,0 +1,349 @@
+<title>iPhone Signing Kit</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
+<style>
+/* Layout: one narrow column of four numbered steps (the order is real); each step is a sheet with its own status chip. */
+:root{
+  --bg:#eef0f3; --sheet:#ffffff; --ink:#15181d; --muted:#5d6470; --line:#d9dde3;
+  --accent:#2457d6; --accent-ink:#ffffff; --code:#f4f6f9;
+  --ok:#17803d; --ok-bg:#e3f4e8; --bad:#c62b2b; --bad-bg:#fbe7e7; --wait:#8a6100; --wait-bg:#fbf1d9;
+  --display:"Bricolage Grotesque", "IBM Plex Sans", system-ui, sans-serif;
+  --body:"IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d0f12; --sheet:#171a1f; --ink:#eceef2; --muted:#9aa1ad; --line:#2a2f37;
+  --accent:#6f97ff; --accent-ink:#0d0f12; --code:#1f232a;
+  --ok:#5ed38a; --ok-bg:#16301f; --bad:#ff7b7b; --bad-bg:#3a1c1c; --wait:#f0c45c; --wait-bg:#33290f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d0f12; --sheet:#171a1f; --ink:#eceef2; --muted:#9aa1ad; --line:#2a2f37;
+  --accent:#6f97ff; --accent-ink:#0d0f12; --code:#1f232a;
+  --ok:#5ed38a; --ok-bg:#16301f; --bad:#ff7b7b; --bad-bg:#3a1c1c; --wait:#f0c45c; --wait-bg:#33290f; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 56px}
+main{max-width:620px;margin:0 auto;display:grid;gap:18px}
+header{display:grid;gap:8px;padding:4px 2px 6px}
+h1{font:800 clamp(30px,8vw,42px)/1.02 var(--display);letter-spacing:-.02em;margin:0;text-wrap:balance}
+.lede{color:var(--muted);margin:0;max-width:60ch}
+.chain{display:flex;flex-wrap:wrap;gap:6px;font:500 12px/1 var(--mono);color:var(--muted)}
+.chain span{border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--sheet)}
+.sheet{background:var(--sheet);border:1px solid var(--line);border-radius:16px;padding:18px;display:grid;gap:14px}
+.head{display:flex;align-items:center;gap:12px}
+.num{flex:0 0 34px;height:34px;border-radius:10px;background:var(--ink);color:var(--sheet);display:grid;place-items:center;font:800 17px var(--display)}
+h2{font:600 19px/1.2 var(--display);margin:0;flex:1;min-width:0;text-wrap:balance}
+.chip{font:500 11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:6px 8px;border-radius:999px;white-space:nowrap;background:var(--wait-bg);color:var(--wait)}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}
+p{margin:0}
+.muted{color:var(--muted)}
+label{display:grid;gap:6px;font-weight:500}
+label small{font-weight:400;color:var(--muted)}
+input[type=text],input[type=email],input[type=password]{width:100%;font:16px var(--body);color:var(--ink);background:var(--code);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+input:focus-visible,button:focus-visible,a:focus-visible,.pick:focus-within{outline:3px solid var(--accent);outline-offset:2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:480px){.grid2{grid-template-columns:1fr}}
+button{font:600 16px var(--body);border:0;border-radius:12px;padding:13px 16px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+button.ghost{background:transparent;color:var(--accent);border:1px solid var(--line);font-size:14px;padding:9px 12px}
+button:disabled{opacity:.5;cursor:default}
+.pick{display:flex;align-items:center;gap:10px;border:1px dashed var(--line);border-radius:12px;padding:12px;cursor:pointer;background:var(--code)}
+.pick input{position:absolute;opacity:0;width:1px;height:1px}
+.pick b{font-weight:600}
+.pick .st{margin-left:auto;font:500 12px var(--mono);color:var(--muted);text-align:right;min-width:0;overflow-wrap:anywhere}
+.pick.done{border-style:solid;border-color:var(--ok)}
+.pick.done .st{color:var(--ok)}
+.pick.err{border-style:solid;border-color:var(--bad)}
+.pick.err .st{color:var(--bad)}
+.msg{font-size:14px;border-radius:10px;padding:10px 12px;background:var(--ok-bg);color:var(--ok)}
+.msg.bad{background:var(--bad-bg);color:var(--bad)}
+ol.todo{margin:0;padding-left:22px;display:grid;gap:10px}
+ol.todo li{padding-left:4px}
+ol.todo b{font-weight:600}
+a{color:var(--accent)}
+code,.kbd{font:500 13px var(--mono);background:var(--code);border:1px solid var(--line);border-radius:6px;padding:1px 6px;overflow-wrap:anywhere}
+.secret{display:grid;gap:6px}
+.secret .row{display:flex;align-items:center;gap:8px}
+.secret .row code{flex:1;min-width:0}
+textarea{width:100%;height:64px;resize:vertical;font:12px/1.4 var(--mono);color:var(--muted);background:var(--code);border:1px solid var(--line);border-radius:10px;padding:8px}
+.facts{display:flex;flex-wrap:wrap;gap:6px}
+.facts span{font:500 12px var(--mono);border:1px solid var(--line);border-radius:6px;padding:4px 7px}
+.facts span.bad{border-color:var(--bad);color:var(--bad)}
+.facts span.ok{border-color:var(--ok);color:var(--ok)}
+.note{font-size:13px;color:var(--muted);border-left:3px solid var(--line);padding-left:10px}
+@media (prefers-reduced-motion:no-preference){button{transition:transform .08s}button:active{transform:scale(.98)}}
+</style>
+
+<main>
+  <header>
+    <h1>iPhone Signing Kit</h1>
+    <p class="lede">Make the certificate files that let your iPhone run your own IPAs. Everything happens in this page on your phone. Your private key never leaves the device.</p>
+    <div class="chain" aria-label="What you end up with"><span>request</span><span>→ Apple</span><span>→ .cer</span><span>→ .p12 + profile</span><span>→ Feather</span></div>
+  </header>
+
+  <section class="sheet" id="s1">
+    <div class="head"><div class="num">1</div><h2>Make a certificate request</h2><span class="chip" id="chip1">to do</span></div>
+    <p class="muted">Apple needs a request file to issue your certificate. This creates one, plus your private key.</p>
+    <div class="grid2">
+      <label for="email">Email <small>your Apple ID email</small><input id="email" type="email" autocomplete="email" placeholder="you@example.com"></label>
+      <label for="cn">Name <small>any name for the certificate</small><input id="cn" type="text" placeholder="My iPhone signing"></label>
+    </div>
+    <button id="gen">Create request</button>
+    <div id="msg1" class="msg" hidden></div>
+    <p class="note">You get <code>SigningRequest.zip</code>. Open it in the Files app to unzip it. Keep <code>private-key.pem</code> safe: it is your backup if this page forgets the key.</p>
+  </section>
+
+  <section class="sheet" id="s2">
+    <div class="head"><div class="num">2</div><h2>Get your certificate and profile from Apple</h2><span class="chip">on apple.com</span></div>
+    <p class="muted">This needs a paid <a href="https://developer.apple.com/programs/enroll/" target="_blank" rel="noopener">Apple Developer account</a> ($99/year). Sign in at <a href="https://developer.apple.com/account/resources/certificates/list" target="_blank" rel="noopener">developer.apple.com</a>. If a page looks cramped, tap <span class="kbd">aA</span> → Request Desktop Website.</p>
+    <ol class="todo">
+      <li><b>Certificate.</b> Certificates → <b>+</b> → <b>Apple Distribution</b> → upload <code>CertificateSigningRequest.certSigningRequest</code> → Download. You get a <code>.cer</code> file.</li>
+      <li><b>Your iPhone.</b> Devices → <b>+</b> → paste your iPhone's UDID. To find the UDID with only a phone, open a UDID finder site such as <a href="https://udid.tech" target="_blank" rel="noopener">udid.tech</a> in Safari and install its profile, then copy the number it shows.</li>
+      <li><b>App ID.</b> Identifiers → <b>+</b> → App IDs → App → <b>Wildcard</b>, Bundle ID <code>*</code>. One wildcard covers any app.</li>
+      <li><b>Profile.</b> Profiles → <b>+</b> → <b>Ad Hoc</b> → pick the wildcard App ID, your certificate and your iPhone → Download. You get a <code>.mobileprovision</code> file.</li>
+    </ol>
+  </section>
+
+  <section class="sheet" id="s3">
+    <div class="head"><div class="num">3</div><h2>Build your signing files</h2><span class="chip" id="chip3">to do</span></div>
+    <label class="pick" id="pickKey"><input id="keyFile" type="file"><b>Private key</b><span class="st" id="keySt">none yet</span></label>
+    <label class="pick" id="pickCer"><input id="cerFile" type="file"><b>Certificate (.cer)</b><span class="st" id="cerSt">choose file</span></label>
+    <label class="pick" id="pickProf"><input id="profFile" type="file"><b>Profile (.mobileprovision)</b><span class="st" id="profSt">choose file</span></label>
+    <div class="facts" id="facts" hidden></div>
+    <label for="pw">Password for the .p12 <small>you will type this into Feather</small><input id="pw" type="password" autocomplete="new-password" placeholder="Pick a password"></label>
+    <button id="build" disabled>Build and save Signing-Files.zip</button>
+    <div id="msg3" class="msg" hidden></div>
+    <div id="secrets" class="secret" hidden>
+      <p class="muted">Optional: to sign apps with the GitHub workflow, add these as repository secrets.</p>
+      <div class="row"><code>SIGN_P12_BASE64</code><button class="ghost" data-copy="b64p12">Copy</button></div>
+      <textarea id="b64p12" readonly></textarea>
+      <div class="row"><code>SIGN_PROFILE_BASE64</code><button class="ghost" data-copy="b64prof">Copy</button></div>
+      <textarea id="b64prof" readonly></textarea>
+      <div class="row"><code>SIGN_P12_PASSWORD</code><span class="muted">the password above</span></div>
+    </div>
+  </section>
+
+  <section class="sheet" id="s4">
+    <div class="head"><div class="num">4</div><h2>Install Feather and your IPAs</h2><span class="chip">on your iPhone</span></div>
+    <ol class="todo">
+      <li><b>Get Feather on the phone once.</b> In your GitHub repo, go to Actions → <b>Sign IPA</b> → Run workflow. The link box is already filled with Feather. When it finishes, open the GitHub Pages link from the run in Safari and tap <b>Install</b>.</li>
+      <li><b>Trust it.</b> Settings → Privacy &amp; Security → <b>Developer Mode</b> on (iPhone restarts), if iOS asks for it.</li>
+      <li><b>Add your certificate to Feather.</b> Certificates → <b>+</b> → pick <code>Certificate.p12</code> and the <code>.mobileprovision</code> from <code>Signing-Files.zip</code>, enter your password.</li>
+      <li><b>Install any IPA.</b> In Files, long-press an IPA → Share → Feather (or import it in Feather) → Sign → Install. Big files are fine: they never leave your phone.</li>
+    </ol>
+    <p class="note">Some IPAs still won't open: copies of App Store apps stay locked to the account that bought them, and re-signing doesn't change that. Your certificate and profile last one year.</p>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/node-forge@1.3.1/dist/forge.min.js"></script>
+<script id="core">
+// ---- pure helpers (no DOM) ----
+const KIT = (() => {
+  const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0 } return t })()
+  const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0 }
+  const enc = s => new TextEncoder().encode(s)
+  // Store-only ZIP (the only download type that can carry .p12 and .pem files).
+  function zip (files) {
+    const parts = []; const central = []; let off = 0
+    for (const f of files) {
+      const name = enc(f.name); const data = f.data; const crc = crc32(data)
+      const lh = new DataView(new ArrayBuffer(30))
+      lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(8, 0, true)
+      lh.setUint32(14, crc, true); lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true); lh.setUint16(26, name.length, true)
+      parts.push(new Uint8Array(lh.buffer), name, data)
+      const ch = new DataView(new ArrayBuffer(46))
+      ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true)
+      ch.setUint32(16, crc, true); ch.setUint32(20, data.length, true); ch.setUint32(24, data.length, true); ch.setUint16(28, name.length, true)
+      ch.setUint32(42, off, true)
+      central.push(new Uint8Array(ch.buffer), name)
+      off += 30 + name.length + data.length
+    }
+    const cdSize = central.reduce((n, p) => n + p.length, 0)
+    const end = new DataView(new ArrayBuffer(22))
+    end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true)
+    end.setUint32(12, cdSize, true); end.setUint32(16, off, true)
+    const all = [...parts, ...central, new Uint8Array(end.buffer)]
+    const out = new Uint8Array(all.reduce((n, p) => n + p.length, 0)); let p = 0
+    for (const a of all) { out.set(a, p); p += a.length }
+    return out
+  }
+  const bytesToBin = b => { let s = ''; for (let i = 0; i < b.length; i += 8192) s += String.fromCharCode.apply(null, b.subarray(i, i + 8192)); return s }
+  const binToBytes = s => { const b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i) & 255; return b }
+
+  function makeCsr (keys, email, cn) {
+    const csr = forge.pki.createCertificationRequest()
+    csr.publicKey = keys.publicKey
+    csr.setSubject([{ name: 'emailAddress', value: email }, { name: 'commonName', value: cn }, { name: 'countryName', value: 'US' }])
+    csr.sign(keys.privateKey, forge.md.sha256.create())
+    return forge.pki.certificationRequestToPem(csr)
+  }
+  function readCert (bytes) {
+    const text = new TextDecoder().decode(bytes)
+    if (text.includes('-----BEGIN CERTIFICATE-----')) return forge.pki.certificateFromPem(text)
+    return forge.pki.certificateFromAsn1(forge.asn1.fromDer(bytesToBin(bytes)))
+  }
+  function readKey (text) {
+    const k = forge.pki.privateKeyFromPem(text)
+    if (!k || !k.n) throw new Error('bad key')
+    return k
+  }
+  const keyMatches = (key, cert) => cert.publicKey.n.compareTo(key.n) === 0
+  function readProfile (bytes) {
+    const s = bytesToBin(bytes); const a = s.indexOf('<?xml'); const b = s.indexOf('</plist>')
+    if (a < 0 || b < a) throw new Error('not a profile')
+    const xml = new TextDecoder().decode(binToBytes(s.slice(a, b + 8)))
+    const get = (key, tag) => { const m = new RegExp('<key>' + key + '</key>\\s*<' + tag + '>([\\s\\S]*?)</' + tag + '>').exec(xml); return m ? m[1].trim() : null }
+    const arr = key => { const m = new RegExp('<key>' + key + '</key>\\s*<array>([\\s\\S]*?)</array>').exec(xml); return m ? [...m[1].matchAll(/<(?:string|data)>([\s\S]*?)<\/(?:string|data)>/g)].map(x => x[1].replace(/\s+/g, '')) : [] }
+    return {
+      name: get('Name', 'string'), team: get('TeamName', 'string'),
+      expires: get('ExpirationDate', 'date'), devices: arr('ProvisionedDevices'),
+      allDevices: /<key>ProvisionsAllDevices<\/key>\s*<true\/>/.test(xml),
+      certs: arr('DeveloperCertificates'), appId: get('application-identifier', 'string')
+    }
+  }
+  function makeP12 (key, cert, password) {
+    const cn = (cert.subject.getField('CN') || {}).value || 'Certificate'
+    const asn1 = forge.pkcs12.toPkcs12Asn1(key, [cert], password, { algorithm: '3des', friendlyName: cn })
+    return binToBytes(forge.asn1.toDer(asn1).getBytes())
+  }
+  const certDerB64 = cert => forge.util.encode64(forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes())
+  const b64 = bytes => forge.util.encode64(bytesToBin(bytes))
+  return { zip, crc32, enc, makeCsr, readCert, readKey, keyMatches, readProfile, makeP12, certDerB64, b64 }
+})()
+</script>
+<script>
+const $ = id => document.getElementById(id)
+const store = {
+  get (k) { try { return localStorage.getItem(k) } catch { return null } },
+  set (k, v) { try { localStorage.setItem(k, v) } catch {} }
+}
+const state = { key: null, cert: null, profBytes: null, prof: null }
+let downloads = null
+;(async () => { try { downloads = await window.claude?.use?.('downloads') } catch {} })()
+
+function show (el, text, bad) { el.hidden = false; el.textContent = text; el.classList.toggle('bad', !!bad) }
+function pickState (id, text, kind) { const p = $(id); p.classList.toggle('done', kind === 'ok'); p.classList.toggle('err', kind === 'err'); p.querySelector('.st').textContent = text }
+async function save (filename, bytes) {
+  if (!downloads) throw new Error('Saving files is not available in this view. Open this page in the Claude app or claude.ai.')
+  try { await downloads.save({ filename, data: new Blob([bytes]) }) } catch (e) {
+    if (e && e.code === 'declined') throw new Error('Save was cancelled. Tap the button again to save.')
+    throw new Error((e && e.message) || 'The file could not be saved.')
+  }
+}
+const readFile = f => f.arrayBuffer().then(b => new Uint8Array(b))
+
+function waitForForge () {
+  return new Promise((res, rej) => { let n = 0; const t = setInterval(() => { if (window.forge) { clearInterval(t); res() } else if (++n > 100) { clearInterval(t); rej(new Error('The crypto library did not load. Check your connection and reload.')) } }, 100) })
+}
+
+function loadStoredKey () {
+  const pem = store.get('signingkit.key')
+  if (!pem || !window.forge) return
+  try { state.key = KIT.readKey(pem); pickState('pickKey', 'saved on this phone', 'ok'); $('chip1').textContent = 'done'; $('chip1').classList.add('ok') } catch {}
+}
+waitForForge().then(loadStoredKey).catch(() => {})
+
+$('gen').addEventListener('click', async () => {
+  const email = $('email').value.trim(); const cn = $('cn').value.trim() || 'iPhone Signing'
+  if (!/^\S+@\S+\.\S+$/.test(email)) return show($('msg1'), 'Enter the email address of your Apple ID.', true)
+  if (state.key && !$('gen').dataset.confirm) {
+    $('gen').dataset.confirm = '1'; $('gen').textContent = 'Replace saved key and create new request'
+    return show($('msg1'), 'This phone already has a key. Only make a new one if you are starting over: certificates made from the old key will stop working here.', true)
+  }
+  const btn = $('gen'); btn.disabled = true; btn.textContent = 'Creating key…'
+  try {
+    await waitForForge()
+    const keys = await new Promise((res, rej) => forge.pki.rsa.generateKeyPair({ bits: 2048, e: 0x10001 }, (err, k) => err ? rej(err) : res(k)))
+    const keyPem = forge.pki.privateKeyToPem(keys.privateKey)
+    const csrPem = KIT.makeCsr(keys, email, cn)
+    store.set('signingkit.key', keyPem)
+    state.key = keys.privateKey
+    pickState('pickKey', 'saved on this phone', 'ok')
+    $('chip1').textContent = 'done'; $('chip1').classList.add('ok')
+    btn.textContent = 'Saving…'
+    await save('SigningRequest.zip', KIT.zip([
+      { name: 'CertificateSigningRequest.certSigningRequest', data: KIT.enc(csrPem) },
+      { name: 'private-key.pem', data: KIT.enc(keyPem) }
+    ]))
+    show($('msg1'), 'Saved SigningRequest.zip. Next: upload the .certSigningRequest file to Apple (step 2).')
+  } catch (e) { show($('msg1'), e.message || String(e), true) }
+  btn.disabled = false; btn.textContent = 'Create request'; delete btn.dataset.confirm
+  refresh()
+})
+
+$('keyFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return
+  try {
+    await waitForForge()
+    const pem = new TextDecoder().decode(await readFile(f))
+    state.key = KIT.readKey(pem); store.set('signingkit.key', pem)
+    pickState('pickKey', 'loaded ' + f.name, 'ok')
+  } catch { state.key = null; pickState('pickKey', 'not a private key (.pem)', 'err') }
+  refresh()
+})
+$('cerFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return
+  try { await waitForForge(); state.cert = KIT.readCert(await readFile(f)); pickState('pickCer', (state.cert.subject.getField('CN') || {}).value || f.name, 'ok') } catch { state.cert = null; pickState('pickCer', 'not a certificate (.cer)', 'err') }
+  refresh()
+})
+$('profFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return
+  try { const b = await readFile(f); state.prof = KIT.readProfile(b); state.profBytes = b; pickState('pickProf', state.prof.name || f.name, 'ok') } catch { state.prof = null; state.profBytes = null; pickState('pickProf', 'not a .mobileprovision', 'err') }
+  refresh()
+})
+
+function refresh () {
+  const facts = []; let blocker = null
+  const { key, cert, prof } = state
+  if (key && cert) {
+    if (KIT.keyMatches(key, cert)) facts.push(['ok', 'key matches certificate'])
+    else { facts.push(['bad', 'key does not match certificate']); blocker = 'This certificate was made from a different request. Load the private-key.pem that came with its request, or redo steps 1 and 2.' }
+  }
+  if (cert) {
+    const exp = cert.validity.notAfter
+    facts.push([exp < new Date() ? 'bad' : '', 'cert expires ' + exp.toLocaleDateString()])
+  }
+  if (prof) {
+    const exp = prof.expires ? new Date(prof.expires) : null
+    if (exp) facts.push([exp < new Date() ? 'bad' : '', 'profile expires ' + exp.toLocaleDateString()])
+    if (prof.allDevices) facts.push(['ok', 'enterprise: all devices'])
+    else facts.push([prof.devices.length ? '' : 'bad', prof.devices.length + ' device' + (prof.devices.length === 1 ? '' : 's')])
+    if (prof.appId) facts.push([/\.\*$/.test(prof.appId) ? 'ok' : '', /\.\*$/.test(prof.appId) ? 'wildcard App ID' : 'App ID ' + prof.appId.replace(/^[A-Z0-9]+\./, '')])
+    if (cert) {
+      const inProf = prof.certs.includes(KIT.certDerB64(cert))
+      facts.push([inProf ? 'ok' : 'bad', inProf ? 'profile includes this cert' : 'profile is for a different cert'])
+      if (!inProf && !blocker) blocker = 'This profile was made with a different certificate. In step 2, edit the profile, tick this certificate, and download it again.'
+    }
+  }
+  $('facts').hidden = !facts.length
+  $('facts').replaceChildren(...facts.map(([k, t]) => { const s = document.createElement('span'); if (k) s.className = k; s.textContent = t; return s }))
+  $('build').disabled = !(key && cert && prof && !blocker)
+  if (blocker) show($('msg3'), blocker, true)
+  else if (!$('msg3').dataset.keep) $('msg3').hidden = true
+}
+
+$('build').addEventListener('click', async () => {
+  const pw = $('pw').value
+  if (pw.length < 4) return show($('msg3'), 'Pick a password of at least 4 characters. Feather asks for it.', true)
+  const btn = $('build'); btn.disabled = true; btn.textContent = 'Building…'
+  try {
+    const p12 = KIT.makeP12(state.key, state.cert, pw)
+    $('b64p12').value = KIT.b64(p12); $('b64prof').value = KIT.b64(state.profBytes); $('secrets').hidden = false
+    btn.textContent = 'Saving…'
+    await save('Signing-Files.zip', KIT.zip([
+      { name: 'Certificate.p12', data: p12 },
+      { name: (state.prof.name || 'profile').replace(/[^\w.\- ]+/g, '_') + '.mobileprovision', data: state.profBytes }
+    ]))
+    $('msg3').dataset.keep = '1'
+    show($('msg3'), 'Saved Signing-Files.zip. Unzip it in Files, then add both files to Feather (step 4).')
+    $('chip3').textContent = 'done'; $('chip3').classList.add('ok')
+  } catch (e) { show($('msg3'), e.message || String(e), true) }
+  btn.textContent = 'Build and save Signing-Files.zip'; refresh()
+})
+
+document.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', async () => {
+  const ta = $(b.dataset.copy)
+  try { await navigator.clipboard.writeText(ta.value); b.textContent = 'Copied' } catch { ta.focus(); ta.select(); b.textContent = 'Selected' }
+  setTimeout(() => { b.textContent = 'Copy' }, 1500)
+}))
+</script>
