@@ -112,7 +112,7 @@ async function boot () {
   $('#httpsWarn').classList.toggle('hidden', session.https)
   $('#login').classList.toggle('hidden', session.authed)
   $('#app').classList.toggle('hidden', !session.authed)
-  $('#limit').textContent = 'or drop it here · up to ' + session.maxMB + ' MB'
+  $('#limit').textContent = 'or drop it here' + (session.maxMB ? ' · up to ' + session.maxMB + ' MB' : ' · no size limit')
   if (session.authed) load()
 }
 

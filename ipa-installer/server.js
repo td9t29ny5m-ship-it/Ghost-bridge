@@ -14,7 +14,7 @@ const plist = require('./lib/plist')
 
 const PORT = +process.env.PORT || 3080
 const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/+$/, '')
-const MAX_BYTES = (+process.env.MAX_MB || 4096) * 1024 * 1024
+const MAX_BYTES = (+process.env.MAX_MB || 0) * 1024 * 1024 || Infinity // 0 / unset = no limit
 const DATA = process.env.DATA_DIR || path.join(__dirname, 'data')
 const APPS_DIR = path.join(DATA, 'apps')
 const DB_FILE = path.join(DATA, 'apps.json')
@@ -261,7 +261,7 @@ const server = http.createServer(async (req, res) => {
       res.setHeader('Set-Cookie', 'ipa_session=; Path=/; Max-Age=0')
       return send(res, 200, { ok: true })
     }
-    if (p === '/api/session') return send(res, 200, { authed: authed(req), https: base.startsWith('https://'), base, maxMB: MAX_BYTES / 1048576 })
+    if (p === '/api/session') return send(res, 200, { authed: authed(req), https: base.startsWith('https://'), base, maxMB: Number.isFinite(MAX_BYTES) ? MAX_BYTES / 1048576 : null })
 
     if (p.startsWith('/api/')) {
       if (!authed(req)) return send(res, 401, { error: 'Please sign in.' })

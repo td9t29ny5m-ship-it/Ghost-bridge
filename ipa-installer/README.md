@@ -5,7 +5,7 @@ A small self-hosted website for putting `.ipa` files on your iPhone or iPad. Upl
 No npm packages are needed. It runs on Node.js 20 or newer.
 
 ## What it does
-- Upload `.ipa` files from any browser, with a progress bar (up to 4 GB by default)
+- Upload `.ipa` files from any browser, with a progress bar (no size limit by default; only your disk space)
 - Import an `.ipa` from a direct download link
 - Reads the app's name, version, bundle ID and minimum iOS version
 - Checks signing: unsigned, App Store–encrypted, ad-hoc (number of devices), development, enterprise, and expiry date
@@ -24,7 +24,7 @@ ADMIN_PASSWORD='choose-a-strong-password' npm start
 | `ADMIN_PASSWORD` | random (printed at start) | Password for the upload page |
 | `PORT` | `3080` | Web port |
 | `PUBLIC_URL` | taken from the request | Your public HTTPS address, e.g. `https://ipa.example.com` |
-| `MAX_MB` | `4096` | Largest upload in MB |
+| `MAX_MB` | no limit | Optional cap on upload size in MB |
 | `DATA_DIR` | `./data` | Where IPAs and `apps.json` are stored |
 
 ## HTTPS is required
