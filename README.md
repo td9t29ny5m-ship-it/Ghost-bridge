@@ -20,3 +20,6 @@ This app needs a persistent Node.js host that supports inbound UDP on port 19134
 
 ## Run
 Use Node.js 20 or newer. Run npm install, set a strong ADMIN_PASSWORD, then npm start. Keep the password private. Microsoft/Xbox authentication data is stored in data/host-auth, so use a private trusted host.
+
+## IPA Installer
+The `ipa-installer/` folder is a separate, dependency-free app for installing signed `.ipa` files on iPhone/iPad over the air. See `ipa-installer/README.md`.

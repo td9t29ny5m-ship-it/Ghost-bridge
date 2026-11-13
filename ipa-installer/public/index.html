@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>IPA Installer</title>
+<style>
+:root{--bg:#f2f2f7;--card:#fff;--text:#111;--muted:#6e6e73;--line:#e5e5ea;--accent:#007aff;--danger:#ff3b30;--warn-bg:#fff4e5;--warn:#8a5300;--ok:#248a3d}
+@media (prefers-color-scheme:dark){:root{--bg:#000;--card:#1c1c1e;--text:#f2f2f7;--muted:#98989f;--line:#2c2c2e;--accent:#0a84ff;--danger:#ff453a;--warn-bg:#3a2a10;--warn:#ffcc66;--ok:#30d158}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:max(16px,env(safe-area-inset-top)) 16px 40px}
+main{max-width:640px;margin:0 auto}
+h1{font-size:28px;margin:8px 0 4px}
+.sub{color:var(--muted);margin:0 0 20px}
+.card{background:var(--card);border-radius:14px;padding:16px;margin-bottom:16px}
+.card h2{font-size:17px;margin:0 0 12px}
+input[type=password],input[type=url]{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font-size:16px}
+button,.btn{appearance:none;border:0;border-radius:10px;padding:11px 16px;font-size:16px;font-weight:600;background:var(--accent);color:#fff;cursor:pointer;text-decoration:none;display:inline-block;text-align:center}
+button.secondary,.btn.secondary{background:var(--line);color:var(--text)}
+button.danger{background:transparent;color:var(--danger);padding:11px 8px}
+button:disabled{opacity:.5}
+.row{display:flex;gap:8px;margin-top:10px}
+.row>input{flex:1}
+.drop{display:block;border:2px dashed var(--line);border-radius:12px;padding:24px;text-align:center;color:var(--muted);cursor:pointer}
+.drop.over{border-color:var(--accent);color:var(--accent)}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:12px;display:none}
+.bar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.msg{margin-top:10px;font-size:14px}
+.msg.err{color:var(--danger)}
+.warn{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:12px 14px;font-size:14px;margin-bottom:16px}
+.app{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line)}
+.app:first-child{border-top:0;padding-top:0}
+.icon{flex:0 0 56px;height:56px;border-radius:13px;background:linear-gradient(135deg,var(--accent),#5e5ce6);color:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700}
+.info{flex:1;min-width:0}
+.name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta{color:var(--muted);font-size:13px;word-break:break-all}
+.tag{display:inline-block;font-size:12px;padding:2px 7px;border-radius:6px;background:var(--line);margin:4px 4px 0 0}
+.tag.bad{background:var(--danger);color:#fff}
+.tag.good{background:var(--ok);color:#fff}
+.actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.actions .btn,.actions button{padding:8px 12px;font-size:14px}
+.empty{color:var(--muted);text-align:center;padding:12px}
+.hidden{display:none!important}
+details{font-size:14px;color:var(--muted)}
+details p{margin:8px 0}
+</style>
+</head>
+<body>
+<main>
+  <h1>IPA Installer</h1>
+  <p class="sub">Upload an .ipa, then tap Install on your iPhone or iPad.</p>
+
+  <div id="httpsWarn" class="warn hidden">This page is not on HTTPS. iOS only installs apps from HTTPS links with a valid certificate. See the README for the free HTTPS tunnel setup.</div>
+
+  <section id="login" class="card hidden">
+    <h2>Sign in</h2>
+    <form id="loginForm">
+      <input id="pw" type="password" placeholder="Admin password" autocomplete="current-password">
+      <div class="row"><button type="submit">Sign in</button></div>
+      <div id="loginMsg" class="msg err"></div>
+    </form>
+  </section>
+
+  <div id="app" class="hidden">
+    <section class="card">
+      <h2>Add an app</h2>
+      <label class="drop" id="drop">
+        <input id="file" type="file" accept=".ipa,application/octet-stream" hidden>
+        <div><strong>Tap to choose an .ipa</strong><br><span id="limit">or drop it here</span></div>
+      </label>
+      <form id="importForm" class="row">
+        <input id="link" type="url" placeholder="…or paste a direct link to an .ipa">
+        <button type="submit">Import</button>
+      </form>
+      <div class="bar" id="bar"><i></i></div>
+      <div id="addMsg" class="msg"></div>
+    </section>
+
+    <section class="card">
+      <h2>Your apps</h2>
+      <div id="list"><div class="empty">No apps yet.</div></div>
+    </section>
+
+    <section class="card">
+      <details>
+        <summary>Install fails or says "Unable to install"?</summary>
+        <p>iOS only installs IPAs that are <b>signed</b> for your device: an ad-hoc or development build that includes your device's UDID, or an enterprise build. The tags under each app show what was detected.</p>
+        <p><b>"App Store encrypted"</b> IPAs (copied from a purchase) can't be installed this way.</p>
+        <p><b>Unsigned IPA?</b> Re-sign it with your own Apple ID using a sideloading tool such as AltStore or Sideloadly, or with your Apple Developer account, then upload the signed copy here.</p>
+        <p>After installing a development or ad-hoc app, you may need to trust the developer under Settings → General → VPN &amp; Device Management, and turn on Developer Mode (Settings → Privacy &amp; Security).</p>
+      </details>
+      <div class="row"><button class="secondary" id="logout">Sign out</button></div>
+    </section>
+  </div>
+</main>
+<script>
+const $ = s => document.querySelector(s)
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+const mb = n => (n / 1048576).toFixed(1) + ' MB'
+let session = {}
+
+async function api (path, opts = {}) {
+  const r = await fetch(path, { credentials: 'same-origin', ...opts })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(j.error || 'Request failed (' + r.status + ')')
+  return j
+}
+
+async function boot () {
+  session = await api('/api/session')
+  $('#httpsWarn').classList.toggle('hidden', session.https)
+  $('#login').classList.toggle('hidden', session.authed)
+  $('#app').classList.toggle('hidden', !session.authed)
+  $('#limit').textContent = 'or drop it here · up to ' + session.maxMB + ' MB'
+  if (session.authed) load()
+}
+
+function signingTags (s) {
+  const t = []
+  if (s.appStoreEncrypted) t.push('<span class="tag bad">App Store encrypted</span>')
+  if (!s.signed) t.push('<span class="tag bad">Unsigned</span>')
+  if (s.profile) {
+    const exp = s.profile.expires ? new Date(s.profile.expires) : null
+    const expired = exp && exp < new Date()
+    t.push(`<span class="tag ${s.profile.type === 'app-store' ? 'bad' : 'good'}">${esc(s.profile.type)}</span>`)
+    if (s.profile.type === 'ad-hoc' || s.profile.type === 'development') t.push(`<span class="tag">${s.profile.devices.length} device(s)</span>`)
+    if (exp) t.push(`<span class="tag ${expired ? 'bad' : ''}">${expired ? 'expired' : 'expires'} ${exp.toLocaleDateString()}</span>`)
+    if (s.profile.team) t.push(`<span class="tag">${esc(s.profile.team)}</span>`)
+  } else if (s.signed) t.push('<span class="tag">no provisioning profile</span>')
+  return t.join('')
+}
+
+async function load () {
+  const apps = await api('/api/apps')
+  $('#list').innerHTML = apps.length ? apps.map(a => `
+    <div class="app">
+      <div class="icon">${esc((a.name[0] || '?').toUpperCase())}</div>
+      <div class="info">
+        <div class="name">${esc(a.name)}</div>
+        <div class="meta">v${esc(a.version)}${a.build && a.build !== a.version ? ' (' + esc(a.build) + ')' : ''} · ${mb(a.size)}${a.minOS ? ' · iOS ' + esc(a.minOS) + '+' : ''}</div>
+        <div class="meta">${esc(a.bundleId)}</div>
+        <div>${signingTags(a.signing || {})}</div>
+        <div class="actions">
+          <a class="btn" href="${esc(a.installUrl)}">Install</a>
+          <a class="btn secondary" href="${esc(a.downloadUrl)}">Download .ipa</a>
+          <button class="secondary" data-copy="${esc(a.shareUrl)}">Copy link</button>
+          <button class="danger" data-del="${esc(a.id)}">Delete</button>
+        </div>
+      </div>
+    </div>`).join('') : '<div class="empty">No apps yet.</div>'
+}
+
+$('#list').addEventListener('click', async e => {
+  const c = e.target.closest('[data-copy]'); const d = e.target.closest('[data-del]')
+  if (c) { try { await navigator.clipboard.writeText(c.dataset.copy); c.textContent = 'Copied' } catch { prompt('Copy this link:', c.dataset.copy) } }
+  if (d && confirm('Delete this app from the server?')) { await api('/api/apps/' + d.dataset.del, { method: 'DELETE' }); load() }
+})
+
+$('#loginForm').addEventListener('submit', async e => {
+  e.preventDefault(); $('#loginMsg').textContent = ''
+  try { await api('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('#pw').value }) }); boot() } catch (err) { $('#loginMsg').textContent = err.message }
+})
+$('#logout').addEventListener('click', async () => { await api('/api/logout', { method: 'POST' }); boot() })
+
+function setMsg (t, err) { $('#addMsg').textContent = t; $('#addMsg').className = 'msg' + (err ? ' err' : '') }
+function setBar (pct) { $('#bar').style.display = pct == null ? 'none' : 'block'; $('#bar i').style.width = (pct || 0) + '%' }
+
+function upload (file) {
+  if (!file) return
+  if (!/\.ipa$/i.test(file.name)) return setMsg('Please choose an .ipa file.', true)
+  setMsg('Uploading ' + file.name + '…'); setBar(0)
+  const x = new XMLHttpRequest()
+  x.open('PUT', '/api/upload?name=' + encodeURIComponent(file.name))
+  x.upload.onprogress = e => { if (e.lengthComputable) { setBar(e.loaded / e.total * 100); if (e.loaded === e.total) setMsg('Reading app info…') } }
+  x.onload = () => {
+    setBar(null)
+    let j = {}; try { j = JSON.parse(x.responseText) } catch {}
+    if (x.status === 200) { setMsg('Added ' + j.name + '.'); load() } else setMsg(j.error || 'Upload failed.', true)
+    $('#file').value = ''
+  }
+  x.onerror = () => { setBar(null); setMsg('Upload failed (connection lost).', true) }
+  x.send(file)
+}
+$('#file').addEventListener('change', e => upload(e.target.files[0]))
+const drop = $('#drop')
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over') })
+drop.addEventListener('dragleave', () => drop.classList.remove('over'))
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); upload(e.dataTransfer.files[0]) })
+
+$('#importForm').addEventListener('submit', async e => {
+  e.preventDefault()
+  const link = $('#link').value.trim(); if (!link) return
+  const btn = e.submitter; btn.disabled = true
+  setMsg('Downloading from link… (large apps can take a while)'); setBar(null)
+  try { const a = await api('/api/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: link }) }); setMsg('Added ' + a.name + '.'); $('#link').value = ''; load() } catch (err) { setMsg(err.message, true) }
+  btn.disabled = false
+})
+
+boot().catch(e => setMsg(e.message, true))
+</script>
+</body>
+</html>
