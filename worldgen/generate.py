@@ -12,7 +12,13 @@ What's in the world:
   * Vista Marina Intl- airport with runway, taxiway, terminal, tower, jets
   * The Sawgrass     - mangrove swamp crossed by an elevated highway
   * Sunset Keys      - island chain linked by a long overseas bridge + lighthouse
-  * Gulf Harbor      - small west-coast town with a fishing pier
+  * Port Isla        - second, smaller city on the gulf coast
+  * Towns            - Citrus Grove, Okee Junction, Palmetto, Mangrove Point
+  * Spaceport        - rocket launch pads and a giant assembly building
+  * Millionaire Isles- lagoon islands with modern mansions
+  * Highways lined with gas stations, motels, strip malls and billboards;
+    golf courses, trailer parks, cargo ships, yachts, a Ferris wheel pier,
+    and cars parked along the streets
   * Lake Solano, northern farmland, orange groves, suburbs with backyard pools
 
 Usage:  python3 generate.py --size 2048 --out ./out
@@ -102,6 +108,11 @@ LIGHTNING_ROD = B('lightning_rod')
 QUARTZ = B('smooth_quartz')
 DARK_OAK = B('dark_oak_planks')
 HAY = B('hay_block')
+B_SANDSTONE_SMOOTH = B('smooth_sandstone')
+B_WHITE_TERRACOTTA = B('white_terracotta')
+B_YELLOW_TERRACOTTA = B('yellow_terracotta')
+MOSS = B('moss_block')
+CAR_COLORS = ['red', 'blue', 'black', 'white', 'light_gray', 'gray', 'yellow', 'cyan', 'magenta', 'orange', 'green']
 IRON_BARS = B('iron_bars')
 CUT_SANDSTONE = B('cut_sandstone')
 RED_TERRACOTTA = B('red_terracotta')
@@ -127,7 +138,7 @@ R_NONE, R_ASPH, R_WHITE, R_YEL, R_SIDE, R_MED, R_RUN = range(7)
 ROAD_MAT = np.array([AIR, ASPHALT, WHITE, YELLOW, SIDEWALK, GRASS, RUNWAY], np.uint8)
 
 # zones
-Z_OCEAN, Z_WILD, Z_FARM, Z_CITY, Z_SUB, Z_SWAMP, Z_BEACH, Z_KEYS, Z_AIR, Z_PORT, Z_LAKE, Z_TOWN, Z_RESORT = range(13)
+Z_OCEAN, Z_WILD, Z_FARM, Z_CITY, Z_SUB, Z_SWAMP, Z_BEACH, Z_KEYS, Z_AIR, Z_PORT, Z_LAKE, Z_TOWN, Z_RESORT, Z_SPACE, Z_ISLE, Z_GOLF = range(16)
 
 BIOMES = ['minecraft:warm_ocean', 'minecraft:beach', 'minecraft:sparse_jungle', 'minecraft:plains',
           'minecraft:mangrove_swamp', 'minecraft:river']
@@ -617,6 +628,337 @@ BUILDERS = {
 }
 
 
+def _cyl(d, w):
+    Z, X = np.mgrid[0:d, 0:w]
+    return np.hypot(X - (w - 1) / 2, Z - (d - 1) / 2), X, Z
+
+
+def build_round_tower(seed, w, d, h):
+    r = random.Random(seed)
+    glass, frame = r.choice(GLASSES), r.choice(FRAMES)
+    rad = min(w, d) / 2 - 0.5
+    rr, X, Z = _cyl(d, w)
+    a = np.full((h + 10, d, w), KEEP, np.uint8)
+    shell = (rr <= rad) & (rr > rad - 1.2)
+    inside = rr <= rad - 1.2
+    for y in range(h):
+        a[y][inside] = AIR
+        a[y][shell] = frame if y % 4 == 0 else glass
+        if y % 4 == 0:
+            a[y][inside] = CONCRETE['white']
+            if y:
+                a[y][inside & (X % 6 == 3) & (Z % 6 == 3)] = GLOW
+    a[h][rr <= rad] = frame
+    a[h + 1][shell] = frame
+    a[h + 1:h + 9, d // 2, w // 2] = LIGHTNING_ROD
+    a[1:3, 0:3, w // 2] = AIR
+    return a, None
+
+
+def build_deco_tower(seed, w, d, h):
+    """Stepped pastel art-deco skyscraper with neon crown bands."""
+    r = random.Random(seed)
+    wall = r.choice(PASTELS)
+    trim = CONCRETE['white'] if wall != CONCRETE['white'] else CONCRETE['pink']
+    neon = r.choice(NEONS)
+    a = np.full((h + 14, d, w), KEEP, np.uint8)
+    tiers = [(0, 0, int(h * 0.55)), (int(h * 0.55), 2, int(h * 0.25)), (int(h * 0.8), 4, h - int(h * 0.8))]
+    top = 0
+    for y0, ins, th in tiers:
+        tw, td = w - 2 * ins, d - 2 * ins
+        if tw < 5 or td < 5 or th < 3:
+            break
+        t = tower_block(tw, td, th, wall, r.choice([GLASS, GLASSES[0]]), OAK_PLANKS, trim, 'punched', 4,
+                        trim=trim, parapet=neon, door=(y0 == 0))
+        a[y0:y0 + th + 2, ins:ins + td, ins:ins + tw] = t
+        a[y0 + th - 1, ins:ins + td, ins] = neon
+        a[y0 + th - 1, ins:ins + td, ins + tw - 1] = neon
+        a[y0 + th - 1, ins, ins:ins + tw] = neon
+        a[y0 + th - 1, ins + td - 1, ins:ins + tw] = neon
+        top = y0 + th
+    a[top + 1:top + 6, d // 2, w // 2] = trim
+    a[top + 6:top + 12, d // 2, w // 2] = LIGHTNING_ROD
+    a[2:top - 2, 0, w // 2] = neon
+    return a, None
+
+
+def build_garage(seed, w, d, h):
+    """Open parking garage with parked cars on each deck."""
+    r = random.Random(seed)
+    a = np.full((h + 2, d, w), KEEP, np.uint8)
+    a[1:h + 1] = AIR
+    Z, X = np.mgrid[0:d, 0:w]
+    per = (Z == 0) | (Z == d - 1) | (X == 0) | (X == w - 1)
+    cols = ((X % 7 == 0) | (X == w - 1)) & ((Z % 7 == 0) | (Z == d - 1))
+    for y in range(0, h + 1, 3):
+        a[y] = CONCRETE['light_gray']
+        if y < h:
+            a[y + 1][per] = CONCRETE['white']
+        for cz in range(2, d - 3, 6):
+            for cx in range(2, w - 5, 3):
+                if r.random() < 0.45 and y < h:
+                    col = CONCRETE[r.choice(CAR_COLORS)]
+                    a[y + 1, cz:cz + 4, cx:cx + 2] = col
+                    a[y + 2, cz + 1:cz + 3, cx:cx + 2] = GLASSES[3]
+    for y in range(h):
+        a[y][cols] = CONCRETE['gray']
+    a[1:3, 0, w // 2 - 2:w // 2 + 2] = AIR
+    return a, None
+
+
+def build_gas_station(seed, w, d, h):
+    """w=26, d=22. Canopy + pumps in front (low z), store at the back, tall neon pole sign."""
+    r = random.Random(seed)
+    brand = CONCRETE[r.choice(['red', 'blue', 'green', 'orange', 'yellow', 'magenta'])]
+    a = np.full((22, d, w), KEEP, np.uint8)
+    a[0, :, :] = CONCRETE['light_gray']
+    a[1:22, :, :] = AIR
+    for px in (3, 10, 15, 22):
+        for pz in (3, 9):
+            a[1:6, pz, px] = WHITE
+    a[6, 1:12, 1:w - 1] = WHITE
+    a[7, 1:12, 1:w - 1] = brand
+    a[6, 1:12, 1][::2] = SEA_LANTERN
+    for px in (6, 12, 18):
+        a[1, 5:8, px] = IRON
+        a[2, 6, px] = brand
+    st = tower_block(w - 4, 7, 5, CONCRETE['white'], GLASS, SIDEWALK, CONCRETE['light_gray'], 'punched', 6, lights=True)
+    a[0:7, d - 8:d - 1, 2:w - 2] = st
+    a[1:4, d - 8, 4:w - 4] = GLASS
+    a[1:3, d - 8, w // 2] = AIR
+    a[5, d - 8, 2:w - 2] = brand
+    a[1:16, 0, 0] = POST
+    a[16:21, 0, 0] = brand
+    a[17:20, 0, 0] = r.choice(NEONS)
+    return a, None
+
+
+def build_motel(seed, w, d, h):
+    """Two-story L-shaped motel around a pool courtyard, neon sign. w=40, d=30."""
+    r = random.Random(seed)
+    wall = r.choice(PASTELS)
+    door = CONCRETE[r.choice(['cyan', 'magenta', 'red', 'blue', 'orange'])]
+    neon = r.choice(NEONS)
+    a = np.full((20, d, w), KEEP, np.uint8)
+    a[0, :, :] = SIDEWALK
+    a[1:20, :, :] = AIR
+    a[0:10, d - 8:d, :] = tower_block(w, 8, 8, wall, GLASS, OAK_PLANKS, CONCRETE['white'], 'punched', 4)
+    a[0:10, :, 0:8] = tower_block(8, d, 8, wall, GLASS, OAK_PLANKS, CONCRETE['white'], 'punched', 4).transpose(0, 1, 2)
+    for x in range(10, w - 2, 5):
+        a[1:3, d - 8, x] = door
+        a[5:7, d - 8, x] = door
+    a[4, d - 11:d - 8, 8:w] = SIDEWALK
+    a[5, d - 11, 8:w] = OAK_FENCE
+    for x in range(8, w, 6):
+        a[1:4, d - 11, x] = POST
+    a[0, 6:14, 14:28] = QUARTZ
+    a[0, 7:13, 15:27] = WATER
+    a[1:14, 1, w - 2] = POST
+    a[14:19, 1, w - 2] = neon
+    a[14:19, 1, w - 3] = wall
+    return a, None
+
+
+def build_strip_mall(seed, w, d, h):
+    """Row of shops along the back, parking lot with lines in front. d>=30."""
+    r = random.Random(seed)
+    a = np.full((10, d, w), KEEP, np.uint8)
+    a[0, :, :] = ASPHALT
+    a[1:10, :, :] = AIR
+    for x in range(2, w - 2, 4):
+        a[0, 3:9, x] = WHITE
+        a[0, 12:18, x] = WHITE
+    for cz in (4, 13):
+        for cx in range(3, w - 4, 4):
+            if r.random() < 0.5:
+                col = CONCRETE[r.choice(CAR_COLORS)]
+                a[1, cz:cz + 4, cx:cx + 2] = col
+                a[2, cz + 1:cz + 3, cx:cx + 2] = GLASSES[3]
+    sd = 14
+    z0 = d - sd
+    x = 0
+    while x < w - 6:
+        sw = min(r.randint(8, 14), w - x)
+        wall = r.choice(PASTELS + HOUSE_WALLS)
+        t = tower_block(sw, sd, 6, wall, GLASS, SIDEWALK, CONCRETE['light_gray'], 'punched', 7)
+        a[0:8, z0:z0 + sd, x:x + sw] = t
+        a[1:4, z0, x + 1:x + sw - 1] = GLASS
+        a[1:3, z0, x + sw // 2] = AIR
+        a[5, z0, x + 1:x + sw - 1] = r.choice(NEONS + [CONCRETE['red'], CONCRETE['blue'], CONCRETE['yellow']])
+        a[4, z0 - 1, x:x + sw] = WOOL[r.choice(DYES)]
+        x += sw
+    return a, None
+
+
+def build_billboard(seed, w, d, h):
+    """w=12 d=1 h=16 billboard on two posts."""
+    r = random.Random(seed)
+    a = np.full((h, d, w), KEEP, np.uint8)
+    a[1:9, 0, 2] = IRON
+    a[1:9, 0, w - 3] = IRON
+    c1, c2, c3 = (WOOL[c] for c in r.sample(DYES, 3))
+    a[9:15, 0, :] = c1
+    a[11:13, 0, 1:w - 1] = c2
+    a[10, 0, 2:r.randint(4, w - 2)] = c3
+    a[15, 0, :] = SEA_LANTERN
+    return a, None
+
+
+def build_mansion(seed, w, d, h):
+    """Modern waterfront mansion with glass walls and pool. Lot starts one block below ground."""
+    r = random.Random(seed)
+    a = np.full((14, d, w), KEEP, np.uint8)
+    g = 1
+    hw, hd = w - 8, max(9, d // 2 - 2)
+    x0, z0 = 4, 2
+    wall = r.choice([CONCRETE['white'], QUARTZ, B_SANDSTONE_SMOOTH])
+    t1 = tower_block(hw, hd, 5, wall, GLASSES[0], QUARTZ, wall, 'band', 5, lights=True)
+    a[g:g + 7, z0:z0 + hd, x0:x0 + hw] = t1
+    t2 = tower_block(hw - 6, hd + 2, 4, wall, GLASSES[0], QUARTZ, wall, 'band', 4, lights=True, door=False)
+    a[g + 5:g + 11, z0:z0 + hd + 2, x0 + 3:x0 + hw - 3] = t2
+    pz0 = z0 + hd + 3
+    if d - pz0 > 6:
+        a[g, pz0:d - 2, 3:w - 3] = QUARTZ
+        a[g - 1:g + 1, pz0 + 1:d - 3, 4:w - 4] = WATER
+    a[g, 1:z0, x0 + hw // 2 - 1:x0 + hw // 2 + 2] = SIDEWALK
+    return a, -1
+
+
+def build_trailer(seed, w, d, h):
+    r = random.Random(seed)
+    col = r.choice([CONCRETE['white'], B_WHITE_TERRACOTTA, CONCRETE['light_blue'], B_YELLOW_TERRACOTTA])
+    a = np.full((5, d, w), KEEP, np.uint8)
+    a[1:4, 1:d - 1, 1:w - 1] = col
+    a[2:4, 2:d - 2, 2:w - 2] = AIR
+    a[2, 1, 2:w - 2] = GLASS
+    a[2, d - 2, 2:w - 2] = GLASS
+    a[2, 3:d - 3:3, 1] = GLASS
+    a[1:3, d // 2, w - 2] = AIR
+    a[4, 1:d - 1, 1:w - 1] = IRON
+    return a, None
+
+
+def build_rocket_pad(seed, w, d, h):
+    """Launch pad: w=d=40, h=90. Rocket + lattice tower."""
+    a = np.full((h, d, w), KEEP, np.uint8)
+    a[0] = CONCRETE['light_gray']
+    a[1:h] = AIR
+    rr, X, Z = _cyl(d, w)
+    a[0][rr < 10] = CONCRETE['gray']
+    c = w // 2
+    rad = 3.6
+    rocket_h = 62
+    rrr = np.hypot(X - c, Z - c)
+    for y in range(4, 4 + rocket_h):
+        rad_y = rad if y < 4 + rocket_h - 8 else rad * (4 + rocket_h - y) / 8
+        m = rrr <= rad_y
+        a[y][m] = WHITE if (y // 12) % 3 else CONCRETE['black']
+    for fx, fz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        for k in range(4, 7):
+            for y in range(1, 9 - (k - 4) * 2):
+                a[y, c + fz * k, c + fx * k] = CONCRETE['black']
+    a[1:4][np.broadcast_to((rrr <= 2)[None], (3, d, w))] = CONCRETE['gray']
+    tx = c + 7
+    for y in range(1, rocket_h + 12):
+        for dx in (0, 4):
+            for dz in (-2, 2):
+                a[y, c + dz, tx + dx] = CONCRETE['red']
+        if y % 4 == 0:
+            a[y, c - 2:c + 3, tx:tx + 5] = CONCRETE['red']
+            if y % 12 == 0:
+                a[y, c, c + 4:tx] = CONCRETE['gray']
+    a[rocket_h + 12, c - 2:c + 3, tx:tx + 5] = CONCRETE['red']
+    a[rocket_h + 13:rocket_h + 18, c, tx + 2] = LIGHTNING_ROD
+    return a, None
+
+
+def build_ferris(seed, w, d, h):
+    """Ferris wheel on a pier, wheel in the x-y plane. w=44, d=9, h=56. Array base at SEA-7."""
+    r = random.Random(seed)
+    a = np.full((h, d, w), KEEP, np.uint8)
+    deck = 8
+    a[deck, :, :] = SPRUCE_PLANKS
+    for x in range(0, w, 5):
+        a[0:deck, 0, x] = SPRUCE_LOG
+        a[0:deck, d - 1, x] = SPRUCE_LOG
+    cx, cy, R = w // 2, deck + 22, 19
+    zc = d // 2
+    for t in np.linspace(0, 2 * np.pi, 360):
+        x, y = int(round(cx + R * np.cos(t))), int(round(cy + R * np.sin(t)))
+        if 0 <= y < h:
+            a[y, zc, x] = WHITE
+    for k in range(16):
+        t = k * np.pi / 8
+        for s in np.linspace(0, R, 40):
+            x, y = int(round(cx + s * np.cos(t))), int(round(cy + s * np.sin(t)))
+            a[y, zc, x] = IRON
+        x, y = int(round(cx + (R + 1) * np.cos(t))), int(round(cy + (R + 1) * np.sin(t)))
+        if 1 <= y < h - 1 and y - 1 > deck:
+            a[y - 1:y + 1, zc - 1:zc + 2, max(0, x - 1):x + 1] = WOOL[r.choice(DYES)]
+    for s in np.linspace(0, 1, 60):
+        for sx in (-10, 10):
+            x, y = int(round(cx + sx * (1 - s))), int(round(deck + 1 + (cy - deck - 1) * s))
+            a[y, zc - 2, x] = IRON
+            a[y, zc + 2, x] = IRON
+    a[cy, zc - 2:zc + 3, cx] = SEA_LANTERN
+    return a, None
+
+
+def build_ship(seed, w, d, h):
+    """Cargo ship along x: w=130 d=24 h=40, base 6 below the waterline."""
+    r = random.Random(seed)
+    hull_c = CONCRETE[r.choice(['red', 'blue', 'black', 'green'])]
+    a = np.full((h, d, w), KEEP, np.uint8)
+    zc = d // 2
+    for x in range(w):
+        half = d // 2 - 1 if 10 < x < w - 4 else max(2, int((d // 2 - 1) * min(x / 10, (w - x) / 4)))
+        a[0:12, zc - half:zc + half + 1, x] = hull_c
+        a[0:4, zc - half:zc + half + 1, x] = CONCRETE['red']
+        a[12, zc - half:zc + half + 1, x] = CONCRETE['gray']
+        a[13:16, zc - half - 0:zc + half + 1, x] = KEEP
+    a[1:12, zc - 9:zc + 10, 12:w - 6] = hull_c
+    for cx in range(18, w - 30, 8):
+        for cz in range(zc - 9, zc + 8, 3):
+            n = r.randint(1, 4)
+            for k in range(n):
+                col = CONCRETE[r.choice(['red', 'blue', 'orange', 'green', 'white', 'cyan', 'yellow', 'gray'])]
+                a[13 + 3 * k:16 + 3 * k, cz:cz + 3, cx:cx + 7] = col
+    bx = w - 26
+    a[13:31, zc - 8:zc + 9, bx:bx + 12] = tower_block(12, 17, 16, WHITE, GLASSES[3], WHITE, WHITE, 'band', 4)
+    a[29:35, zc - 1:zc + 2, bx + 4:bx + 7] = CONCRETE['black']
+    return a, None
+
+
+def build_yacht(seed, w, d, h):
+    """w=22, d=7, h=10, base 2 below waterline."""
+    a = np.full((h, d, w), KEEP, np.uint8)
+    for x in range(w):
+        half = 3 if x > 5 else max(0, x // 2)
+        a[0:4, 3 - half:3 + half + 1, x] = WHITE
+        a[1, 3 - half:3 + half + 1, x] = CONCRETE['blue'] if x > 2 else WHITE
+    a[4, 1:6, 4:w - 2] = SPRUCE_PLANKS
+    a[4:8, 1:6, 7:w - 5] = WHITE
+    a[5:7, 1:6, 8:w - 6] = GLASSES[3]
+    a[8, 2:5, 9:w - 7] = WHITE
+    a[4, 3, 2:4] = WHITE
+    return a, None
+
+
+def build_flag(seed, w, d, h):
+    a = np.full((h, d, w), KEEP, np.uint8)
+    a[1:5, 0, 0] = OAK_FENCE
+    a[4:6, 0, 1] = WOOL['red']
+    return a, None
+
+
+BUILDERS.update({
+    'round': build_round_tower, 'decotower': build_deco_tower, 'garage': build_garage,
+    'gas': build_gas_station, 'motel': build_motel, 'mall': build_strip_mall, 'billboard': build_billboard,
+    'mansion': build_mansion, 'trailer': build_trailer, 'rocket': build_rocket_pad, 'ferris': build_ferris,
+    'ship': build_ship, 'yacht': build_yacht, 'flag': build_flag,
+})
+
+
 # --------------------------------------------------------------------------- the plan
 class Plan:
     pass
@@ -629,7 +971,8 @@ def plan_world(S, seed):
     rng = np.random.default_rng(seed)
     R = random.Random(seed)
     X = lambda u: int(round(u * S))
-    v, u = np.mgrid[0:S, 0:S].astype(np.float32) / S
+    v = (np.arange(S, dtype=np.float32) / S)[:, None]
+    u = (np.arange(S, dtype=np.float32) / S)[None, :]
 
     n1 = fbm(S, rng, max(64, S // 6))
     n2 = fbm(S, rng, max(32, S // 16))
@@ -640,6 +983,8 @@ def plan_world(S, seed):
     land |= ((u - 0.50) / 0.10) ** 2 + ((v - 0.78) / 0.10) ** 2 < 1 + 0.5 * n1
     metro = (u > 0.48) & (u < 0.82) & (v > 0.17 + 0.02 * n2) & (v < 0.745 + 0.015 * n2)
     land |= metro
+    cape = ((u - 0.68) / 0.09) ** 2 + ((v - 0.12) / 0.05) ** 2 < 1 + 0.3 * n2
+    land |= cape
     land &= u < 0.795 + 0.004 * n3
     airport = (u > 0.575) & (u < 0.715) & (v > 0.205) & (v < 0.295)
     land |= airport
@@ -648,6 +993,11 @@ def plan_world(S, seed):
     ends |= ((v - 0.74) / 0.02) ** 2 + ((u - 0.851) / 0.021) ** 2 < 1
     barrier |= ends
     land |= barrier
+    isles = np.zeros((S, S), bool)
+    isle_centers = [(0.8125, 0.47), (0.8125, 0.62), (0.8125, 0.395)]
+    for iu, iv in isle_centers:
+        isles |= ((u - iu) / 0.0068) ** 2 + ((v - iv) / 0.0085) ** 2 < 1
+    land |= isles
     # keys along the overseas highway
     keys = np.zeros((S, S), bool)
     pts = [(0.555, v_) for v_ in np.linspace(0.86, 0.92, 3)] + [(u_, 0.92) for u_ in np.linspace(0.53, 0.14, 13)]
@@ -666,7 +1016,7 @@ def plan_world(S, seed):
     lake = (((u - 0.32) / 0.065) ** 2 + ((v - 0.27) / 0.05) ** 2 < 1 + 0.35 * n2) & land & ~metro
     land &= ~lake
     # clean small specks
-    land = ndimage.binary_opening(land, iterations=2) | airport | barrier
+    land = ndimage.binary_opening(land, iterations=2) | airport | barrier | isles
 
     # ---- zones
     zone = np.full((S, S), Z_OCEAN, np.uint8)
@@ -675,11 +1025,21 @@ def plan_world(S, seed):
     zone[farm] = Z_FARM
     swamp = land & (((u - 0.33) / 0.15) ** 2 + ((v - 0.62) / 0.13) ** 2 < 1 + 0.4 * n2)
     zone[swamp] = Z_SWAMP
-    town = land & (((u - 0.215) / 0.055) ** 2 + ((v - 0.385) / 0.045) ** 2 < 1)
-    zone[town] = Z_TOWN
+    town_centers = [(0.40, 0.165), (0.44, 0.50), (0.29, 0.715), (0.36, 0.375)]
+    for tu, tv in town_centers:
+        town = land & (((u - tu) / 0.028) ** 2 + ((v - tv) / 0.024) ** 2 < 1)
+        zone[town] = Z_TOWN
     sub = land & (u > 0.48) & (u < 0.80) & (v > 0.15) & (v < 0.75) & ~swamp
     zone[sub] = Z_SUB
+    zone[land & cape & (v < 0.17)] = Z_SPACE
+    golf_rects = []
+    for gu, gv in ((0.505, 0.235), (0.52, 0.67), (0.63, 0.705), (0.75, 0.30)):
+        gx0, gz0, gw, gd = X(gu), X(gv), max(120, S // 24), max(90, S // 34)
+        if (zone[gz0:gz0 + gd, gx0:gx0 + gw] == Z_SUB).mean() > 0.97:
+            zone[gz0:gz0 + gd, gx0:gx0 + gw] = Z_GOLF
+            golf_rects.append((gx0, gz0, gw, gd))
     city = land & (u > 0.575) & (u < 0.80) & (v > 0.32) & (v < 0.665)
+    city |= land & (u > 0.158) & (u < 0.275) & (v > 0.33) & (v < 0.45)
     zone[city] = Z_CITY
     zone[airport] = Z_AIR
     port = land & (u > 0.675) & (u < 0.80) & (v > 0.665)
@@ -687,6 +1047,7 @@ def plan_world(S, seed):
     zone[keys] = Z_KEYS
     zone[barrier] = Z_RESORT
     zone[lake] = Z_LAKE
+    zone[isles] = Z_ISLE
 
     water = ~land
     dw = ndimage.distance_transform_edt(land)          # land: distance to water
@@ -698,7 +1059,7 @@ def plan_world(S, seed):
     H = np.zeros((S, S), np.int16)
     hill = np.clip((n2 + 0.15) * 9, 0, 5) * np.clip(dw / 40, 0, 1)
     H[land] = (63 + (dw >= 4) + hill)[land].astype(np.int16)
-    flat = np.isin(zone, [Z_CITY, Z_SUB, Z_AIR, Z_PORT, Z_TOWN])
+    flat = np.isin(zone, [Z_CITY, Z_SUB, Z_AIR, Z_PORT, Z_TOWN, Z_SPACE, Z_GOLF, Z_ISLE])
     H[flat] = 64
     H[flat & (dw < 3) & ~np.isin(zone, [Z_CITY, Z_PORT, Z_AIR])] = 63
     sw = zone == Z_SWAMP
@@ -713,7 +1074,7 @@ def plan_world(S, seed):
 
     TOP = np.full((S, S), GRASS, np.uint8)
     SUB = np.full((S, S), DIRT, np.uint8)
-    beachy = land & (ocean_d <= 7 + 3 * (n3 + 0.3)) & np.isin(zone, [Z_WILD, Z_FARM, Z_SUB, Z_TOWN, Z_KEYS, Z_RESORT])
+    beachy = land & (ocean_d <= 7 + 3 * (n3 + 0.3)) & np.isin(zone, [Z_WILD, Z_FARM, Z_SUB, Z_TOWN, Z_KEYS, Z_RESORT, Z_ISLE, Z_SPACE])
     beachy |= res & (dw < 14)
     beachy |= kz & (dw < 9)
     TOP[beachy] = SAND
@@ -749,6 +1110,7 @@ def plan_world(S, seed):
     P.edge = np.zeros((S, S), np.uint8)
     P.pillar = np.zeros((S, S), bool)
     P.lamp = np.zeros((S, S), bool)
+    P.rdir = np.zeros((S, S), np.uint8)
     P.deco = np.zeros((S, S), np.uint8)
     P.occ = np.zeros((S, S), bool)
     P.structs = []
@@ -762,6 +1124,7 @@ def plan_world(S, seed):
     SB = 'SAAAyAAAS'                                # suburban street
     FR = 'AAAyAAA'                                  # farm road
     hw_rows = []
+    hw_spans = []
 
     def road(axis, c, a0, a1, spec, mask=None, lamps=False, dash=4):
         n = len(spec)
@@ -796,6 +1159,7 @@ def plan_world(S, seed):
             m = np.ones(len(along), bool) if mask is None else mask[sl].copy()
             P.cov[sl] += m
             P.road[sl][m] = codes[m]
+            P.rdir[sl][m] = 1 if axis == 'x' else 2
             if k in (0, n - 1):
                 P.edge[sl][m] = 1 if axis == 'x' else 2
             if n // 3 <= k < n - n // 3:
@@ -807,10 +1171,16 @@ def plan_world(S, seed):
                     P.trees.append((a, row) if axis == 'x' else (row, a))
         if spec == HW:
             hw_rows.append((axis, c))
+            hw_spans.append((axis, c, a0, a1))
 
     hw_x = X(0.555)
     road('z', hw_x, X(0.12), X(0.92) + 6, HW)                       # coastal highway north-south
-    road('x', X(0.40), X(0.19), X(0.797), HW)                       # route across to Gulf Harbor
+    road('x', X(0.40), X(0.16), X(0.797), HW)                       # cross-state route to Port Isla
+    road('z', X(0.25), X(0.13), X(0.60) + 9, HW)                    # western highway
+    road('x', X(0.13), X(0.25), X(0.70), HW)                        # northern highway to the spaceport
+    road('z', X(0.70), X(0.10), X(0.13), SB, mask=land)
+    road('x', X(0.115), X(0.63), X(0.75), SB, mask=land)
+    road('x', X(0.395), X(0.79), X(0.8125), ST, lamps=True)            # bridge to the north isle
     road('x', X(0.60), X(0.19), hw_x, HW)                           # Sawgrass Alley
     road('x', X(0.92), X(0.12), hw_x + 9, BR, dash=6)               # overseas highway (keys)
     road('z', hw_x, X(0.86), X(0.92), BR)
@@ -836,12 +1206,16 @@ def plan_world(S, seed):
     cxs, czs = grid(city_m, X(0.585), X(0.80), X(0.325), X(0.67), 64, ST, True)
     sub_m = land & (zone == Z_SUB)
     sxs, szs = grid(sub_m, X(0.48), X(0.80), X(0.15), X(0.75), 48, SB, False)
+    pxs, pzs = grid(city_m, X(0.165), X(0.275), X(0.335), X(0.45), 64, ST, True)
     town_m = land & (zone == Z_TOWN)
-    txs, tzs = grid(town_m, X(0.15), X(0.28), X(0.33), X(0.44), 40, SB, True)
+    town_grids = []
+    for tu, tv in town_centers:
+        town_grids.append(grid(town_m, X(tu - 0.03), X(tu + 0.03), X(tv - 0.026), X(tv + 0.026), 40, SB, True))
+    isle_m = land & (zone == Z_ISLE)
     farm_m = land & np.isin(zone, [Z_FARM, Z_WILD])
-    for fz in (0.13, 0.20):
+    for fz in (0.19, 0.225):
         road('x', X(fz), X(0.12), hw_x, FR, mask=farm_m)
-    for fx in (0.24, 0.42):
+    for fx in (0.35, 0.47):
         road('z', X(fx), X(0.08), X(0.40), FR, mask=farm_m)
     # airport
     ax0, ax1, az0 = X(0.575), X(0.715), X(0.205)
@@ -854,12 +1228,21 @@ def plan_world(S, seed):
     term_z0 = tx_z + 34
     acc_z = term_z0 + 34
     road('x', acc_z, hw_x, ax1 - 10, SB, lamps=True)
+    rw2_z = acc_z + 110
+    if rw2_z + 20 < X(0.295):
+        road('x', rw2_z, ax0 + 60, ax1 - 60, 'RWRRRRRRRRRrRRRRRRRRRWR')
+        road('x', rw2_z - 40, ax0 + 70, ax1 - 70, 'AAAAAYAAAAA')
+        for tx in (ax0 + 76, ax1 - 76):
+            road('z', tx, rw2_z - 40, rw2_z, 'AAAAAYAAAAA')
+    else:
+        rw2_z = None
     inter = (P.cov >= 2) & (P.road > 0)
     P.road[inter & (P.road != R_RUN)] = R_ASPH
     # runway threshold stripes
-    for xx in (ax0 + 15, ax1 - 27):
-        for k in range(-10, 11, 3):
-            P.road[rw_z + k:rw_z + k + 2, xx:xx + 12] = R_WHITE
+    for rz_, xa, xb in ((rw_z, ax0 + 15, ax1 - 27),) + (((rw2_z, ax0 + 61, ax1 - 73),) if rw2_z else ()):
+        for xx in (xa, xb):
+            for k in range(-10, 11, 3):
+                P.road[rz_ + k:rz_ + k + 2, xx:xx + 12] = R_WHITE
     rdm = P.road > 0
     landroad = rdm & (H >= SEA)
     H[landroad] = np.maximum(H[landroad], 64)
@@ -902,57 +1285,74 @@ def plan_world(S, seed):
         add('stadium', st_x, st_z, 104, 80, 26, oy=64)
         H[st_z:st_z + 80, st_x:st_x + 104] = 64
     # airport buildings
-    add('office', ax0 + 40, term_z0, 150, 24, 14, oy=64, style='terminal')
+    term_w = max(150, min(600, ax1 - ax0 - 300))
+    add('office', ax0 + 40, term_z0, term_w, 24, 14, oy=64, style='terminal')
     add('glass', ax1 - 60, term_z0 - 2, 9, 9, 44, oy=64)
-    for i, hx in enumerate(range(ax0 + 200, ax1 - 70, 42)):
+    for i, hx in enumerate(range(ax0 + term_w + 60, ax1 - 70, 42)):
         if free(hx, term_z0, 36, 26, need_land=False):
             add('warehouse', hx, term_z0, 36, 26, 14, oy=64)
-    for px in range(ax0 + 45, ax0 + 170, 40):
+    for px in range(ax0 + 45, ax0 + term_w + 20, 40):
         add('plane', px, tx_z + 7, 29, 27, 11, oy=64, mark=False)
     add('plane', ax0 + 60, rw_z - 13, 29, 27, 11, oy=64, mark=False)
 
     # city blocks
-    dcx, dcz = 0.705, 0.47
-    for bx0, bz0, bx1, bz1 in blocks_between(cxs + [X(0.797)], czs, 9):
-        bw, bd = bx1 - bx0 + 1, bz1 - bz0 + 1
-        if bw < 12 or bd < 12:
-            continue
-        split = R.random()
-        lots = []
-        if split < 0.45 and bw >= 40 and bd >= 40:
-            hw_, hd_ = bw // 2, bd // 2
-            lots = [(bx0, bz0, hw_, hd_), (bx0 + hw_, bz0, bw - hw_, hd_),
-                    (bx0, bz0 + hd_, hw_, bd - hd_), (bx0 + hw_, bz0 + hd_, bw - hw_, bd - hd_)]
-        elif split < 0.75 and bw >= 40:
-            hw_ = bw // 2
-            lots = [(bx0, bz0, hw_, bd), (bx0 + hw_, bz0, bw - hw_, bd)]
-        else:
-            lots = [(bx0, bz0, bw, bd)]
-        for lx, lz, lw, ld in lots:
-            sb = R.randint(1, 3)
-            fx, fz, fw, fd = lx + sb, lz + sb, lw - 2 * sb, ld - 2 * sb
-            if fw < 8 or fd < 8 or not free(fx, fz, fw, fd):
+    def place_city(xs, zs, dcx, dcz, scale):
+        for bx0, bz0, bx1, bz1 in blocks_between(xs, zs, 9):
+            bw, bd = bx1 - bx0 + 1, bz1 - bz0 + 1
+            if bw < 12 or bd < 12:
                 continue
-            uu, vv = (fx + fw / 2) / S, (fz + fd / 2) / S
-            dd = math.hypot(uu - dcx, (vv - dcz) * 0.8)
-            waterfront = uu > 0.765
-            if R.random() < 0.08:
-                add('park', fx, fz, fw, fd, 6)
-                for _ in range(max(2, fw * fd // 120)):
-                    P.trees.append((R.randrange(fx + 1, fx + fw - 1), R.randrange(fz + 1, fz + fd - 1)))
-                continue
-            if dd < 0.1:
-                TOP[lz:lz + ld, lx:lx + lw][~P.occ[lz:lz + ld, lx:lx + lw]] = SIDEWALK
-            if waterfront:
-                add('condo', fx, fz, min(fw, 22), min(fd, 26), R.randint(40, 115))
-            elif dd < 0.035:
-                add('glass', fx, fz, fw, fd, R.randint(90, 185))
-            elif dd < 0.07:
-                add(R.choice(['glass', 'glass', 'office', 'condo']), fx, fz, fw, fd, R.randint(45, 110))
-            elif dd < 0.11:
-                add(R.choice(['office', 'condo', 'deco', 'glass']), fx, fz, fw, fd, R.randint(20, 60))
+            split = R.random()
+            if split < 0.45 and bw >= 40 and bd >= 40:
+                hw_, hd_ = bw // 2, bd // 2
+                lots = [(bx0, bz0, hw_, hd_), (bx0 + hw_, bz0, bw - hw_, hd_),
+                        (bx0, bz0 + hd_, hw_, bd - hd_), (bx0 + hw_, bz0 + hd_, bw - hw_, bd - hd_)]
+            elif split < 0.75 and bw >= 40:
+                hw_ = bw // 2
+                lots = [(bx0, bz0, hw_, bd), (bx0 + hw_, bz0, bw - hw_, bd)]
             else:
-                add(R.choice(['office', 'deco', 'deco', 'shop']), fx, fz, fw, fd, R.randint(9, 28))
+                lots = [(bx0, bz0, bw, bd)]
+            for lx, lz, lw, ld in lots:
+                sb = R.randint(1, 3)
+                fx, fz, fw, fd = lx + sb, lz + sb, lw - 2 * sb, ld - 2 * sb
+                if fw < 8 or fd < 8 or not free(fx, fz, fw, fd):
+                    continue
+                uu, vv = (fx + fw / 2) / S, (fz + fd / 2) / S
+                dd = math.hypot(uu - dcx, (vv - dcz) * 0.8) / scale
+                waterfront = dw[fz + fd // 2, fx + fw // 2] < 70
+                k = R.random()
+                if k < 0.07:
+                    add('park', fx, fz, fw, fd, 6)
+                    for _ in range(max(2, fw * fd // 120)):
+                        P.trees.append((R.randrange(fx + 1, fx + fw - 1), R.randrange(fz + 1, fz + fd - 1)))
+                    continue
+                if dd < 0.1:
+                    sub_ = P.occ[lz:lz + ld, lx:lx + lw]
+                    TOP[lz:lz + ld, lx:lx + lw][~sub_] = SIDEWALK
+                hs = scale ** 0.5
+                round_ok = min(fw, fd) >= 12
+                if waterfront and dd > 0.02:
+                    kind = R.choice(['condo', 'condo', 'decotower', 'round' if round_ok else 'condo'])
+                    add(kind, fx, fz, min(fw, 24), min(fd, 28), int(R.randint(45, 130) * hs))
+                elif dd < 0.018:
+                    kind = R.choice(['glass', 'glass', 'glass', 'decotower', 'round' if round_ok else 'glass'])
+                    add(kind, fx, fz, fw, fd, int(R.randint(130, 235) * hs))
+                elif dd < 0.04:
+                    kind = R.choice(['glass', 'glass', 'decotower', 'office', 'round' if round_ok else 'glass'])
+                    add(kind, fx, fz, fw, fd, int(R.randint(80, 170) * hs))
+                elif dd < 0.075:
+                    kind = R.choice(['glass', 'office', 'condo', 'decotower', 'garage', 'round' if round_ok else 'office'])
+                    h = R.randint(10, 22) if kind == 'garage' else int(R.randint(40, 110) * hs)
+                    add(kind, fx, fz, fw, fd, h)
+                elif dd < 0.12:
+                    kind = R.choice(['office', 'condo', 'deco', 'deco', 'garage', 'glass'])
+                    h = R.randint(10, 16) if kind == 'garage' else R.randint(18, 60)
+                    add(kind, fx, fz, fw, fd, h)
+                else:
+                    kind = R.choice(['office', 'deco', 'deco', 'shop', 'shop'])
+                    add(kind, fx, fz, fw, fd, R.randint(8, 26))
+
+    place_city(cxs + [X(0.797)], czs, 0.705, 0.47, 1.0)
+    place_city(pxs, pzs, 0.215, 0.39, 0.55)
     print(f'  city            {time.time() - t0:5.1f}s', flush=True)
 
     # port
@@ -1022,19 +1422,98 @@ def plan_world(S, seed):
                 add('house', lx, lz, 12, ld, 12)
                 if R.random() < 0.5:
                     P.trees.append((lx + R.choice([1, 10]), lz + R.choice([1, ld - 2])))
-    # Gulf Harbor town
-    for bx0, bz0, bx1, bz1 in blocks_between(txs, tzs, 9):
-        for lx in range(bx0, bx1 - 9, 12):
-            for lz in (bz0, bz1 - 11):
-                if free(lx, lz, 11, 11) and (zone[lz:lz + 11, lx:lx + 11] == Z_TOWN).all():
-                    if R.random() < 0.5:
-                        add('shop', lx, lz, 11, 11, R.choice([5, 9]))
-                    else:
-                        add('house', lx, lz, 11, 11, 12)
-    # town fishing pier into the gulf
-    tz_ = X(0.385)
+    # towns
+    for txs, tzs in town_grids:
+        for bx0, bz0, bx1, bz1 in blocks_between(txs, tzs, 9):
+            for lx in range(bx0, bx1 - 9, 12):
+                for lz in (bz0, bz1 - 11):
+                    if free(lx, lz, 11, 11) and (zone[lz:lz + 11, lx:lx + 11] == Z_TOWN).all():
+                        if R.random() < 0.5:
+                            add('shop', lx, lz, 11, 11, R.choice([5, 9]))
+                        else:
+                            add('house', lx, lz, 11, 11, 12)
+    # Port Isla fishing pier into the gulf
+    tz_ = X(0.42)
     tx_ = np.nonzero(land[tz_])[0].min() if land[tz_].any() else 0
-    add('pier', max(0, tx_ - 70), tz_, 72, 5, 10, oy=SEA - 7, axis='x')
+    add('pier', max(0, tx_ - 90), tz_, 92, 5, 10, oy=SEA - 7, axis='x')
+
+    # millionaire isles: waterfront mansions
+    for iu, iv in isle_centers:
+        cx_, cz_ = X(iu), X(iv)
+        for mx in range(cx_ - 60, cx_ + 60, 42):
+            for mz in range(cz_ - 75, cz_ + 75, 42):
+                if free(mx, mz, 38, 38) and (zone[mz:mz + 38, mx:mx + 38] == Z_ISLE).all():
+                    add('mansion', mx, mz, 38, 38, 14)
+                    P.trees.append((mx + 1, mz + 1))
+                    P.trees.append((mx + 36, mz + 1))
+    # yachts in the lagoon
+    for _ in range(S // 160):
+        yx, yz = R.randrange(X(0.80), X(0.828)), R.randrange(X(0.22), X(0.72))
+        if (H[yz:yz + 7, yx:yx + 22] < SEA - 1).all() and not P.occ[yz:yz + 7, yx:yx + 22].any():
+            add('yacht', yx, yz, 22, 7, 10, oy=SEA - 2)
+    # cargo ships: off the port and out at sea
+    ships = [(X(0.70), X(0.765)), (X(0.73), X(0.79)), (X(0.90), X(0.35)), (X(0.93), X(0.60)), (X(0.62), X(0.83))]
+    for sx_, sz_ in ships:
+        if sx_ + 130 < S and sz_ + 24 < S and (H[sz_:sz_ + 24, sx_:sx_ + 130] < SEA - 2).all():
+            add('ship', sx_, sz_, 130, 24, 40, oy=SEA - 6)
+    # Ferris wheel pier off Coral Strand
+    fz_ = X(0.40)
+    cols_ = np.nonzero(zone[fz_] == Z_RESORT)[0]
+    if len(cols_):
+        fx_ = int(cols_.max()) + 1
+        add('pier', fx_, fz_ + 2, 60, 5, 10, oy=SEA - 7, axis='x')
+        add('ferris', fx_ + 60, fz_, 44, 9, 56, oy=SEA - 7)
+    # spaceport
+    sp_pads = [(X(0.645), X(0.095)), (X(0.715), X(0.10))]
+    for px_, pz_ in sp_pads:
+        H[pz_ - 5:pz_ + 45, px_ - 5:px_ + 45] = 64
+        TOP[pz_ - 5:pz_ + 45, px_ - 5:px_ + 45] = APRON
+        if free(px_, pz_, 40, 40, need_land=False):
+            add('rocket', px_, pz_, 40, 40, 90, oy=64)
+    vx_, vz_ = X(0.675), X(0.125)
+    if free(vx_, vz_, 90, 70, need_land=False):
+        H[vz_:vz_ + 70, vx_:vx_ + 90] = 64
+        add('warehouse', vx_, vz_, 90, 70, 95, oy=64)
+
+    # golf courses
+    for gx0, gz0, gw, gd in golf_rects:
+        sl_ = (slice(gz0, gz0 + gd), slice(gx0, gx0 + gw))
+        gf = P.road[sl_] == 0
+        TOP[sl_][gf] = GRASS
+        H[sl_][gf] = 64
+        TOP[sl_][gf & (n3[sl_] > 0.33)] = WATER
+        TOP[sl_][gf & (np.abs(n2[sl_] - 0.1) < 0.012)] = SAND
+        for _ in range(6):
+            gx_, gz_ = R.randrange(gx0 + 10, gx0 + gw - 10), R.randrange(gz0 + 10, gz0 + gd - 10)
+            zz_, xx_ = np.ogrid[-6:7, -6:7]
+            disk = zz_ ** 2 + xx_ ** 2 <= 36
+            TOP[gz_ - 6:gz_ + 7, gx_ - 6:gx_ + 7][disk & (P.road[gz_ - 6:gz_ + 7, gx_ - 6:gx_ + 7] == 0)] = MOSS
+            add('flag', gx_, gz_, 2, 1, 6, oy=64, mark=False)
+        P.occ[sl_] = True
+        for _ in range(gw * gd // 400):
+            P.trees.append((R.randrange(gx0, gx0 + gw), R.randrange(gz0, gz0 + gd), R.choice([T_PALM, T_OAK])))
+
+    # roadside businesses along the highways
+    kinds = [('gas', 26, 22, 22), ('motel', 40, 30, 20), ('mall', 60, 34, 10), ('billboard', 12, 1, 16)]
+    for axis, c, a0, a1 in hw_spans:
+        for a_ in range(a0 + 100, a1 - 100, 170):
+            kind, w_, d_, h_ = R.choice(kinds)
+            if axis == 'x':
+                bx_, bz_ = a_, c + 12
+            else:
+                bx_, bz_ = c + 12, a_
+            if free(bx_, bz_, w_, d_) and np.isin(zone[bz_:bz_ + d_, bx_:bx_ + w_], [Z_WILD, Z_FARM, Z_SUB, Z_TOWN]).all():
+                Hm = int(H[bz_:bz_ + d_, bx_:bx_ + w_].max())
+                H[bz_:bz_ + d_, bx_:bx_ + w_] = Hm
+                add(kind, bx_, bz_, w_, d_, h_, oy=Hm)
+
+    # trailer parks near the towns
+    for tu, tv in town_centers:
+        x0_, z0_ = X(tu + 0.035), X(tv - 0.01)
+        for tx2 in range(x0_, x0_ + 110, 10):
+            for tz2 in range(z0_, z0_ + 70, 16):
+                if free(tx2, tz2, 6, 12) and zone[tz2, tx2] in (Z_WILD, Z_FARM, Z_SWAMP):
+                    add('trailer', tx2, tz2, 6, 12, 5)
 
     # keys: stilt houses + lighthouse
     for ku, kv in key_centers:
@@ -1110,6 +1589,12 @@ def plan_world(S, seed):
     P.deco[P.road > 0] = 0
     print(f'  vegetation      {time.time() - t0:5.1f}s ({len(P.trees)} trees)', flush=True)
 
+    # parked / stopped cars on the streets
+    carz = np.isin(zone, [Z_CITY, Z_SUB, Z_TOWN, Z_RESORT, Z_ISLE]) & (P.road == R_ASPH) & (P.cov == 1) & (H >= SEA)
+    idx = np.flatnonzero(carz & (rng.random((S, S)) < 1 / 220))
+    cz_, cx_ = np.divmod(idx, S)
+    P.cars = np.stack([cx_, cz_, P.rdir[cz_, cx_], rng.integers(0, len(CAR_COLORS), len(idx))], 1).astype(np.int32)
+    print(f'  cars            {len(P.cars)}', flush=True)
     tr = np.array([(t[0], t[1], t[2] if len(t) > 2 else T_PALM) for t in P.trees], np.int32).reshape(-1, 3)
     P.trees = tr
     P.tree_seed = rng.integers(0, 1 << 30, len(tr))
@@ -1120,6 +1605,7 @@ def plan_world(S, seed):
     sx_ = int(row.max()) - 12 if len(row) else X(0.86)
     P.spawn = (sx_, int(H[sz_, sx_]) + 1, sz_)
     P.key_centers = key_centers
+    P.sbox = np.array([s_[:4] for s_ in P.structs], np.int64).reshape(-1, 4)
     return P
 
 
@@ -1277,9 +1763,10 @@ def render_region(P, rx, rz):
     a[dy - YMIN, dz_, dx_] = d
 
     # buildings
-    for (bx, bz, w, dd, h, oy, kind, seed, kw) in P.structs:
-        if bx + w <= x0 or bx >= x0 + RS or bz + dd <= z0 or bz >= z0 + RS:
-            continue
+    sb = P.sbox
+    hit = np.nonzero((sb[:, 0] + sb[:, 2] > x0) & (sb[:, 0] < x0 + RS) & (sb[:, 1] + sb[:, 3] > z0) & (sb[:, 1] < z0 + RS))[0]
+    for i in hit:
+        (bx, bz, w, dd, h, oy, kind, seed, kw) = P.structs[i]
         if kind == 'house':
             arr, off = build_house_lot(seed, w, dd, kw.get('stilts', 0))
         elif kind == 'pier':
@@ -1292,6 +1779,18 @@ def render_region(P, rx, rz):
         y0 = oy + (off or 0)
         c.blit(bx, y0, bz, arr)
 
+    # cars
+    cr = P.cars
+    m = (cr[:, 0] >= x0 - 4) & (cr[:, 0] < x0 + RS + 4) & (cr[:, 1] >= z0 - 4) & (cr[:, 1] < z0 + RS + 4)
+    for cx_, cz_, dr, colr in cr[m]:
+        y = int(P.H[cz_, cx_]) + 1
+        col = CONCRETE[CAR_COLORS[colr]]
+        L = [(k, j) for k in range(4) for j in range(2)]
+        for k, j in L:
+            dx, dz = (k, j) if dr == 1 else (j, k)
+            c.set(cx_ + dx, y, cz_ + dz, col)
+            if 1 <= k <= 2:
+                c.set(cx_ + dx, y + 1, cz_ + dz, GLASSES[3])
     # trees
     tr = P.trees
     m = (tr[:, 0] >= x0 - 6) & (tr[:, 0] < x0 + RS + 6) & (tr[:, 1] >= z0 - 6) & (tr[:, 1] < z0 + RS + 6)
@@ -1488,6 +1987,8 @@ def block_rgb(i):
 def make_preview(S, tops, heights, outdir):
     from PIL import Image, ImageDraw
     lut = np.array([block_rgb(i) for i in range(len(BLOCKS))] + [(0, 0, 0)] * (256 - len(BLOCKS)), np.float32)
+    st = max(1, S // 2048)
+    tops, heights = tops[::st, ::st], heights[::st, ::st]
     img = lut[tops]
     shade = np.clip(1 + (heights.astype(np.float32) - 64) / 260, 0.85, 1.45)
     dzh = np.diff(heights.astype(np.float32), axis=0, prepend=heights[:1].astype(np.float32))
@@ -1498,9 +1999,11 @@ def make_preview(S, tops, heights, outdir):
     small = im.resize((1024, 1024), Image.LANCZOS)
     dr = ImageDraw.Draw(small)
     f = 1024 / 1
-    labels = [(0.69, 0.43, 'VISTA MARINA'), (0.85, 0.18, 'CORAL STRAND'), (0.74, 0.76, 'PORT SOLANO'),
-              (0.60, 0.17, 'AIRPORT'), (0.30, 0.66, 'THE SAWGRASS'), (0.30, 0.95, 'SUNSET KEYS'),
-              (0.17, 0.33, 'GULF HARBOR'), (0.30, 0.25, 'LAKE SOLANO'), (0.35, 0.12, 'FARMLAND')]
+    labels = [(0.69, 0.43, 'VISTA MARINA'), (0.85, 0.18, 'CORAL STRAND'), (0.74, 0.77, 'PORT SOLANO'),
+              (0.645, 0.19, 'INTL AIRPORT'), (0.34, 0.60, 'THE SAWGRASS'), (0.30, 0.95, 'SUNSET KEYS'),
+              (0.215, 0.31, 'PORT ISLA'), (0.32, 0.27, 'LAKE SOLANO'), (0.40, 0.20, 'CITRUS GROVE'),
+              (0.68, 0.06, 'SPACEPORT'), (0.44, 0.535, 'OKEE JUNCTION'), (0.29, 0.75, 'MANGROVE POINT'),
+              (0.36, 0.41, 'PALMETTO'), (0.905, 0.47, 'MILLIONAIRE ISLES')]
     try:
         from PIL import ImageFont
         font = ImageFont.load_default(size=18)
@@ -1518,7 +2021,7 @@ def make_preview(S, tops, heights, outdir):
 def main():
     global PLAN, PALETTE_RAW
     ap = argparse.ArgumentParser()
-    ap.add_argument('--size', type=int, default=2048, help='map size in blocks (multiple of 512)')
+    ap.add_argument('--size', type=int, default=8192, help='map size in blocks (multiple of 512)')
     ap.add_argument('--seed', type=int, default=20261121)
     ap.add_argument('--out', default='out')
     ap.add_argument('--jobs', type=int, default=os.cpu_count() or 2)
