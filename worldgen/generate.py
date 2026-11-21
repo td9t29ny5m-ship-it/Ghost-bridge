@@ -696,7 +696,7 @@ def build_garage(seed, w, d, h):
             a[y + 1][per] = CONCRETE['white']
         for cz in range(2, d - 3, 6):
             for cx in range(2, w - 5, 3):
-                if r.random() < 0.45 and y < h:
+                if False:
                     col = CONCRETE[r.choice(CAR_COLORS)]
                     a[y + 1, cz:cz + 4, cx:cx + 2] = col
                     a[y + 2, cz + 1:cz + 3, cx:cx + 2] = GLASSES[3]
@@ -770,10 +770,7 @@ def build_strip_mall(seed, w, d, h):
         a[0, 12:18, x] = WHITE
     for cz in (4, 13):
         for cx in range(3, w - 4, 4):
-            if r.random() < 0.5:
-                col = CONCRETE[r.choice(CAR_COLORS)]
-                a[1, cz:cz + 4, cx:cx + 2] = col
-                a[2, cz + 1:cz + 3, cx:cx + 2] = GLASSES[3]
+            pass
     sd = 14
     z0 = d - sd
     x = 0
@@ -1089,10 +1086,7 @@ def build_business(seed, w, d, h, btype='mart'):
     elif kind == 'dealer':
         a[1:4, 1, 1:w - 1] = GLASS
         a[1:3, 1, w // 2] = AIR
-        for x in range(ix0 + 1, ix1 - 3, 5):
-            col = CONCRETE[r.choice(['red', 'blue', 'black', 'white', 'yellow'])]
-            a[1, iz0 + 2:iz0 + 6, x:x + 2] = col
-            a[2, iz0 + 3:iz0 + 5, x:x + 2] = GLASSES[3]
+        a[0, iz0 + 1:iz1 - 1, ix0:ix1] = QUARTZ
     # ceiling lights on ground floor
     a[hh // (2 if floors == 2 else 1) - (1 if floors == 1 else 0), 3:d - 2:4, 2:w - 2:4] = GLOW
     return a, None, signs
@@ -1313,6 +1307,24 @@ BUILDERS.update({'business': build_business, 'traffic': build_traffic_light, 'bu
                  'themepark': build_theme_park, 'speedway': build_speedway, 'prison': build_prison})
 
 
+
+STANDING_SIGN = B('oak_sign', rotation=8)
+COMPOSTER = B('composter')
+STREETS_NS = ['OCEAN AVE', 'PALM AVE', 'CORAL AVE', 'FLAMINGO AVE', 'HIBISCUS AVE', 'MANGO AVE', 'SUNSET AVE',
+              'MARINA AVE', 'BANYAN AVE', 'PELICAN AVE', 'MANATEE AVE', 'SEAGRAPE AVE', 'TARPON AVE', 'ORCHID AVE']
+ORDINALS = ['%d%s ST' % (i, 'TH' if 10 <= i % 100 <= 20 else {1: 'ST', 2: 'ND', 3: 'RD'}.get(i % 10, 'TH')) for i in range(1, 60)]
+
+
+def build_street_sign(seed, w, d, h, text=''):
+    a = np.full((4, 1, 1), KEEP, np.uint8)
+    a[1:3, 0, 0] = OAK_FENCE
+    a[3, 0, 0] = STANDING_SIGN
+    return a, None, [(0, 3, 0, 'standing', text)]
+
+
+BUILDERS['streetsign'] = build_street_sign
+
+
 # --------------------------------------------------------------------------- the plan
 class Plan:
     pass
@@ -1529,6 +1541,7 @@ def plan_world(S, seed):
     FR = 'AAAyAAA'                                  # farm road
     hw_rows = []
     hw_spans = []
+    P.street_props = []
 
     def road(axis, c, a0, a1, spec, mask=None, lamps=False, dash=4):
         n = len(spec)
@@ -1573,6 +1586,12 @@ def plan_world(S, seed):
                 if spec == 'SSAAAAYAAAASS':
                     for a in along[m & (along % 24 == 0)]:
                         P.trees.append((a, row) if axis == 'x' else (row, a))
+                    orow = row - 1 if k == 0 else row + 1
+                    if 0 <= orow < S:
+                        for a in along[m & (along % 24 == 6)]:
+                            P.street_props.append((a, orow, 0) if axis == 'x' else (orow, a, 0))
+                        for a in along[m & (along % 24 == 18)]:
+                            P.street_props.append((a, orow, 1) if axis == 'x' else (orow, a, 1))
             if ch == 'M' and spec[k - 1] == 'M' and k + 2 < n and spec[k + 2] != 'M':
                 for a in along[m & (along % 14 == 7)]:
                     P.trees.append((a, row) if axis == 'x' else (row, a))
@@ -1711,6 +1730,12 @@ def plan_world(S, seed):
             add('busstop', x + 14, z + 8, 5, 3, 5)
         if H[z + 7, x - 7] >= SEA and not P.occ[z + 7, x - 7]:
             P.deco[z + 7, x - 7] = HYDRANT
+        if not P.occ[z + 9, x - 9] and H[z + 9, x - 9] >= SEA:
+            add('streetsign', x - 9, z + 9, 1, 1, 4, oy=int(H[z + 9, x - 9]), mark=True,
+                text=STREETS_NS[(x // 64) % len(STREETS_NS)] + '\n' + ORDINALS[(z // 64) % len(ORDINALS)])
+    for (px_, pz_, kind_) in P.street_props:
+        if 0 <= px_ < S and 0 <= pz_ < S and not P.occ[pz_, px_] and P.road[pz_, px_] == 0 and H[pz_, px_] >= SEA:
+            P.deco[pz_, px_] = OAK_SLAB if kind_ == 0 else COMPOSTER
     # landmarks
     P.places = {}
     for kname, (rx0, rz0, rw, rd) in park_rects.items():
@@ -2081,6 +2106,18 @@ def plan_world(S, seed):
     P.spawn = (sx_, int(H[sz_, sx_]) + 1, sz_)
     P.key_centers = key_centers
     P.sbox = np.array([s_[:4] for s_ in P.structs], np.int64).reshape(-1, 4)
+    # coarse minimap for the add-on: one char per 16x16 cell
+    C = 16
+    n_ = S // C
+    def frac(m):
+        return m.reshape(n_, C, n_, C).mean(axis=(1, 3))
+    mm = np.zeros((n_, n_), np.uint8)                                   # 0 grass
+    mm[frac(zone == Z_SWAMP) > 0.5] = 5
+    mm[frac(TOP == SAND) > 0.5] = 4
+    mm[frac(P.occ & (P.road == 0)) > 0.4] = 3
+    mm[frac(H < SEA) > 0.5] = 1
+    mm[frac(P.road > 0) > 0.22] = 2
+    P.minimap = mm
     return P
 
 
@@ -2252,7 +2289,7 @@ def render_region(P, rx, rz):
             arr = tower_block(w, dd, h, CONCRETE['white'], GLASSES[0], CONCRETE['white'], CONCRETE['light_gray'], 'band', 7)
             off = None
         else:
-            res = BUILDERS[kind](seed, w, dd, h, **kw) if kind in ('business', 'traffic') else BUILDERS[kind](seed, w, dd, h)
+            res = BUILDERS[kind](seed, w, dd, h, **kw) if kind in ('business', 'traffic', 'streetsign') else BUILDERS[kind](seed, w, dd, h)
             arr, off = res[0], res[1]
             if len(res) > 2:
                 signs_l = res[2]
@@ -2264,7 +2301,7 @@ def render_region(P, rx, rz):
     # cars
     cr = P.cars
     m = (cr[:, 0] >= x0 - 4) & (cr[:, 0] < x0 + RS + 4) & (cr[:, 1] >= z0 - 4) & (cr[:, 1] < z0 + RS + 4)
-    for cx_, cz_, dr, colr in cr[m]:
+    for cx_, cz_, dr, colr in cr[m][:0]:      # parked cars are real entities now (spawned by the add-on)
         y = int(P.H[cz_, cx_]) + 1
         col = CONCRETE[CAR_COLORS[colr]]
         L = [(k, j) for k in range(4) for j in range(2)]

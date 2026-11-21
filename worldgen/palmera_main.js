@@ -8,6 +8,11 @@ const WALKABLE = new Set(["minecraft:smooth_stone", "minecraft:sand", "minecraft
 const ROAD = new Set(["minecraft:gray_concrete", "minecraft:yellow_concrete", "minecraft:white_concrete", "minecraft:black_concrete"]);
 const SKIP = new Set(["minecraft:item", "minecraft:xp_orb", "minecraft:arrow", "minecraft:snowball", "palmera:bullet"]);
 const POLICE = new Set(["palmera:cop", "palmera:swat", "palmera:police_car", "palmera:police_heli"]);
+const CARS = new Set(["palmera:car", "palmera:sports_car"]);
+const G = c => String.fromCharCode(0xE100 + c);
+const I = { cash: G(0x20), star: G(0x21), off: G(0x22), ammo: G(0x23), heart: G(0x24), speed: G(0x25), phone: G(0x26), hit: G(0x27), skull: G(0x28) };
+const TILE = [G(0), G(1), G(2), G(3), G(4), G(5)], ARROW = [0, 1, 2, 3, 4, 5, 6, 7].map(k => G(8 + k));
+const COPDOT = G(0x10), TARGET = G(0x11), GANGDOT = G(0x13), VOID = G(0x14);
 
 // ---------------------------------------------------------------- helpers
 const add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
@@ -93,7 +98,21 @@ world.afterEvents.playerSpawn.subscribe(ev => {
 });
 
 // ---------------------------------------------------------------- weapons
-const lastShot = new Map();
+const lastShot = new Map(), mags = new Map(), reloading = new Map(), trigger = new Map();
+function magOf(p, id) { const m = mags.get(p.id) ?? {}; mags.set(p.id, m); if (m[id] === undefined) m[id] = GUNS[id].mag; return m; }
+function startReload(p, id) {
+  const g = GUNS[id];
+  if (reloading.has(p.id) || ammo(p) <= 0) return;
+  reloading.set(p.id, { id, until: system.currentTick + g.reload });
+  sound(p.dimension, "random.click", p.location, 0.8);
+  system.runTimeout(() => {
+    const r = reloading.get(p.id); if (!r || r.id !== id) return;
+    reloading.delete(p.id);
+    const m = magOf(p, id), need = g.mag - m[id], take = Math.min(need, ammo(p));
+    m[id] += take; addAmmo(p, -take);
+    sound(p.dimension, "random.click", p.location, 1.4);
+  }, g.reload);
+}
 function rayEntity(p, dim, origin, dir, max) {
   let hits = [];
   try { hits = dim.getEntitiesFromRay(origin, dir, { maxDistance: max }); } catch { }
@@ -104,6 +123,7 @@ function rayEntity(p, dim, origin, dir, max) {
     return h;
   }
 }
+const HUMAN = new Set(["minecraft:player", "palmera:civilian", "palmera:cop", "palmera:swat", "palmera:gangster"]);
 function shoot(p, dim, origin, dir, g) {
   let bh, bd = g.range;
   try { bh = dim.getBlockFromRay(origin, dir, { maxDistance: g.range, includeLiquidBlocks: false, includePassableBlocks: false }); } catch { }
@@ -114,27 +134,39 @@ function shoot(p, dim, origin, dir, g) {
   const endLoc = add(origin, mul(dir, end));
   if (g.explode) { boom(dim, endLoc, g.explode, p); return; }
   if (eh) {
-    try { eh.entity.applyDamage(g.dmg, { cause: EntityDamageCause.entityAttack, damagingEntity: p }); } catch { }
+    const e = eh.entity;
+    const head = HUMAN.has(e.typeId) && endLoc.y > e.location.y + 1.45;
+    try { e.applyDamage(head ? g.dmg * 2 : g.dmg, { cause: EntityDamageCause.entityAttack, damagingEntity: p }); } catch { }
     particle(dim, "minecraft:critical_hit_emitter", endLoc);
+    try { p.onScreenDisplay.setTitle(head ? "§c" + I.skull : "§f" + I.hit, { fadeInDuration: 0, stayDuration: 3, fadeOutDuration: 2, subtitle: head ? "§cHEADSHOT" : "" }); } catch { }
   } else if (bh) {
     const b = bh.block;
     if (b.typeId.includes("glass")) { try { b.setType("minecraft:air"); } catch { } sound(dim, "random.glass", endLoc); }
     else particle(dim, "minecraft:basic_smoke_particle", endLoc);
   }
 }
-function fire(p, g) {
+function fire(p, g, id) {
   const now = system.currentTick;
-  if ((lastShot.get(p.id) ?? -999) + g.cd > now) return;
+  if ((lastShot.get(p.id) ?? -999) + Math.max(1, g.cd) > now) return;
+  if (reloading.has(p.id)) return;
+  const m = magOf(p, id);
+  if (m[id] <= 0) {
+    if (ammo(p) > 0) startReload(p, id);
+    else { p.onScreenDisplay.setActionBar("§cOut of ammo! Buy more at Sunshine Arms (Phone)."); sound(p.dimension, "random.click", p.location, 1.8); }
+    return;
+  }
   lastShot.set(p.id, now);
-  if (ammo(p) < g.ammo) { p.onScreenDisplay.setActionBar("§cOut of ammo! Buy more at Sunshine Arms (Phone)."); sound(p.dimension, "random.click", p.location, 1.8); return; }
-  addAmmo(p, -g.ammo);
+  m[id] -= 1;
   const dim = p.dimension, head = p.getHeadLocation(), d0 = p.getViewDirection();
   sound(dim, g.sound, head, g.pitch, 2);
+  particle(dim, "minecraft:basic_flame_particle", add(head, mul(d0, 1.2)));
+  cmd(p, `camerashake add @s ${g.recoil} 0.1 positional`);
   heat(p);
   for (let i = 0; i < g.pellets; i++) {
     const s = i === 0 ? g.spread * 0.3 : g.spread;
     shoot(p, dim, head, norm(add(d0, { x: rnd(-s, s), y: rnd(-s, s), z: rnd(-s, s) })), g);
   }
+  if (m[id] <= 0 && ammo(p) > 0) startReload(p, id);
 }
 function boom(dim, loc, r, src) {
   try { dim.createExplosion(loc, r, { breaksBlocks: false, causesFire: false, source: src }); }
@@ -157,9 +189,29 @@ world.afterEvents.itemUse.subscribe(ev => {
   if (!p || !id) return;
   if (id === "palmera:phone") { system.run(() => phone(p)); return; }
   if (id === "palmera:grenade") { throwGrenade(p); return; }
-  const g = GUNS[id];
-  if (g) fire(p, g);
+  if (GUNS[id]) fire(p, GUNS[id], id);
 });
+try {
+  world.afterEvents.itemStartUse.subscribe(ev => {
+    const p = ev.source, id = ev.itemStack?.typeId, g = GUNS[id];
+    if (!p || !g) return;
+    fire(p, g, id);
+    if (g.auto) trigger.set(p.id, id);
+    if (g.zoom) cmd(p, "camera @s fov_set 25 0.15");
+  });
+  const stop = ev => { const p = ev.source; if (!p) return; trigger.delete(p.id); if (GUNS[ev.itemStack?.typeId]?.zoom) cmd(p, "camera @s fov_clear 0.15"); };
+  world.afterEvents.itemStopUse.subscribe(stop);
+  world.afterEvents.itemReleaseUse.subscribe(stop);
+} catch { }
+system.runInterval(() => {                      // full-auto fire while the use button is held
+  for (const p of world.getAllPlayers()) {
+    const id = trigger.get(p.id);
+    if (!id) continue;
+    const it = held(p);
+    if (!it || it.typeId !== id) { trigger.delete(p.id); continue; }
+    fire(p, GUNS[id], id);
+  }
+}, 1);
 const isGun = it => !!(it && GUNS[it.typeId]);
 
 // ---------------------------------------------------------------- crime & police
@@ -196,6 +248,7 @@ world.afterEvents.entityDie.subscribe(ev => {
   }
   let tags = [];
   try { tags = d.getTags(); } catch { }
+  if (CARS.has(type) || type === "palmera:traffic_car" || type === "palmera:police_car") { boom(dim, loc, 2.5, k); return; }
   if (type === "palmera:gangster") dim.spawnItem(new ItemStack("palmera:cash", tags.includes("boss") ? 12 : 2), loc);
   if (type === "palmera:civilian" && Math.random() < 0.5) dim.spawnItem(new ItemStack("palmera:cash", 1), loc);
   if (POLICE.has(type) && Math.random() < 0.5) dim.spawnItem(new ItemStack("palmera:cash", 1), loc);
@@ -370,6 +423,7 @@ function despawnFar() {
     for (const e of OW().getEntities({ type: "palmera:traffic_car" })) if (far(e, 120)) e.remove();
     for (const e of OW().getEntities({ type: "palmera:gangster", tags: ["gang"] })) if (far(e, 110)) e.remove();
     for (const t of ["palmera:gator", "palmera:flamingo"]) for (const e of OW().getEntities({ type: t })) if (far(e, 120)) e.remove();
+    for (const e of OW().getEntities({ tags: ["parked"] })) if (far(e, 130)) { const t = e.getTags().find(x => x.startsWith("spot:")); if (t) usedSpots.delete(t.slice(5)); e.remove(); }
     for (const e of OW().getEntities({ tags: ["jacked"] })) {
       let ridden = false; try { ridden = e.getComponent("minecraft:rideable").getRiders().length > 0; } catch { }
       if (!ridden && far(e, 160)) e.remove();
@@ -509,18 +563,18 @@ function raceMission(p, r) {
 // ---------------------------------------------------------------- phone
 async function phone(p) {
   const story = D.story[prop(p, "story", 0)];
-  const f = new ActionFormData().title("§dPalmera Phone")
+  const f = new ActionFormData().title(`§d${I.phone} Palmera Phone`)
     .body(`§aCash ${money(cash(p))}   §bBank ${money(bank(p))}   §fAmmo ${ammo(p)}   §eWanted ${"★".repeat(wanted(p)) || "-"}`)
-    .button(`§dStory\n§8${story ? story.title : "Complete"}`, "textures/items/palmera_phone")
-    .button("§cJobs & Races\n§8Make money", "textures/items/palmera_cash")
-    .button("§6Sunshine Arms\n§8Guns, ammo, armor", "textures/items/palmera_pistol")
-    .button("§bCoastline Motors\n§8Buy a car", "textures/items/palmera_rifle")
-    .button("§2Real Estate\n§8Safehouses", "textures/items/palmera_cash")
-    .button("§3Palm Bank\n§8Deposit / withdraw", "textures/items/palmera_cash")
-    .button("§fGPS\n§8Set a waypoint", "textures/items/palmera_phone")
-    .button(`§9Call Lawyer\n§8Clear wanted level`, "textures/items/palmera_phone")
-    .button("§5Feed\n§8What's happening", "textures/items/palmera_phone")
-    .button(active.has(p.id) ? "§8Cancel current mission" : "§7Stats");
+    .button(`§dStory\n§8${story ? story.title : "Complete"}`, "textures/ui/palmera_app_story")
+    .button("§cJobs & Races\n§8Make money", "textures/ui/palmera_app_jobs")
+    .button("§6Sunshine Arms\n§8Guns, ammo, armor", "textures/ui/palmera_app_arms")
+    .button("§bCoastline Motors\n§8Buy a car", "textures/ui/palmera_app_cars")
+    .button("§2Real Estate\n§8Safehouses", "textures/ui/palmera_app_estate")
+    .button("§3Palm Bank\n§8Deposit / withdraw", "textures/ui/palmera_app_bank")
+    .button("§fGPS\n§8Set a waypoint", "textures/ui/palmera_app_gps")
+    .button(`§9Call Lawyer\n§8Clear wanted level`, "textures/ui/palmera_app_lawyer")
+    .button("§5Feed\n§8What's happening", "textures/ui/palmera_app_feed")
+    .button(active.has(p.id) ? "§8Cancel current mission" : "§7Stats", "textures/ui/palmera_app_stats");
   const r = await f.show(p);
   if (r.canceled) return;
   [() => storyMission(p), () => jobsForm(p), () => shopForm(p, "arms", "§6Sunshine Arms"), () => shopForm(p, "cars", "§bCoastline Motors"),
@@ -623,6 +677,141 @@ function stats(p) {
   msg(p, `§aCash ${money(cash(p))} §bBank ${money(bank(p))} §7| Story ${prop(p, "story", 0)}/${D.story.length} | Missions ${prop(p, "missions", 0)} | Crimes ${prop(p, "crimes", 0)} | Homes ${JSON.parse(prop(p, "homes", "[]")).length}`);
 }
 
+// ---------------------------------------------------------------- HUD + minimap
+const MMR = 3, MMC = 6;
+function cellAt(cx, cz) {
+  const row = D.mm[cz];
+  if (!row || cx < 0 || cx >= row.length) return VOID;
+  return TILE[row.charCodeAt(cx) - 48] ?? VOID;
+}
+function minimap(p, o) {
+  const C = D.mmcell, pcx = Math.floor(p.location.x / C), pcz = Math.floor(p.location.z / C);
+  const marks = new Map();
+  try {
+    for (const e of p.dimension.getEntities({ location: p.location, maxDistance: C * 7, families: ["palmera_police"] }))
+      marks.set(`${Math.floor(e.location.x / C) - pcx},${Math.floor(e.location.z / C) - pcz}`, COPDOT);
+    for (const e of p.dimension.getEntities({ location: p.location, maxDistance: C * 7, tags: ["mission"] }))
+      marks.set(`${Math.floor(e.location.x / C) - pcx},${Math.floor(e.location.z / C) - pcz}`, GANGDOT);
+  } catch { }
+  if (o && o.pos) {
+    let dx = Math.floor(o.pos.x / C) - pcx, dz = Math.floor(o.pos.z / C) - pcz;
+    const k = Math.max(Math.abs(dx) / MMC, Math.abs(dz) / MMR, 1);
+    marks.set(`${Math.round(dx / k)},${Math.round(dz / k)}`, TARGET);
+  }
+  const yaw = ((p.getRotation().y % 360) + 360) % 360;
+  marks.set("0,0", ARROW[Math.round(yaw / 45) % 8]);
+  const rows = [];
+  for (let dz = -MMR; dz <= MMR; dz++) {
+    let line = "";
+    for (let dx = -MMC; dx <= MMC; dx++) line += marks.get(`${dx},${dz}`) ?? cellAt(pcx + dx, pcz + dz);
+    rows.push(line);
+  }
+  return rows.join("\n");
+}
+function hud(p) {
+  const w = wanted(p), o = objective(p), it = held(p), g = it && GUNS[it.typeId];
+  let line = `${I.cash}§a${money(cash(p))}  ` + `${I.star.repeat(w)}${I.off.repeat(5 - w)}`;
+  if (g) {
+    const r = reloading.get(p.id);
+    line += `  ${I.ammo}§f` + (r ? "§eRELOADING" : `${magOf(p, it.typeId)[it.typeId]}§7/${ammo(p)}`);
+  }
+  const car = ridingCar(p);
+  if (car) {
+    let v = { x: 0, z: 0 }; try { v = car.getVelocity(); } catch { }
+    line += `  ${I.speed}§b${Math.round(Math.hypot(v.x, v.z) * 72)} km/h`;
+    try { const h = car.getComponent("minecraft:health"); line += `  ${I.heart}§c${Math.round(h.currentValue / h.effectiveMax * 100)}%`; } catch { }
+  }
+  let obj = "";
+  if (o) obj = `§d${o.label}` + (o.pos ? ` §f${Math.round(flat(p.location, o.pos))}m ${arrow(p, o.pos)}` : "");
+  const a = arrestState.get(p.id);
+  if (a) obj = `§9§lPOLICE: STOP! §r§f${"█".repeat(Math.floor(a / 6))}`;
+  return minimap(p, o) + "\n" + line + robHud(p) + (obj ? "\n" + obj : "");
+}
+
+// ---------------------------------------------------------------- cars: parked cars, physics, crashes
+const parkedIdx = new Map();
+for (const c of D.parked) { const k = `${Math.floor(c[0] / 128)},${Math.floor(c[2] / 128)}`; (parkedIdx.get(k) ?? parkedIdx.set(k, []).get(k)).push(c); }
+const usedSpots = new Set();
+function parkedTick(p) {
+  if (system.currentTick % 40 !== 0) return;
+  const dim = p.dimension, loc = p.location;
+  if (count(dim, loc, 80, { tags: ["parked"] }) >= 10) return;
+  const bx = Math.floor(loc.x / 128), bz = Math.floor(loc.z / 128);
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (const c of parkedIdx.get(`${bx + i},${bz + j}`) ?? []) {
+    const key = c.join(","), d = flat(loc, V(c));
+    if (usedSpots.has(key) || d < 24 || d > 70 || Math.random() > 0.25) continue;
+    const pos = { x: c[0] + (c[3] === 1 ? 2 : 1), y: c[1], z: c[2] + (c[3] === 1 ? 1 : 2) };
+    const car = spawn(dim, "palmera:car", pos, undefined, ["parked"], "palmera:c" + Math.floor(Math.random() * 10));
+    if (car) { usedSpots.add(key); car.addTag("spot:" + key); try { car.setRotation({ x: 0, y: c[3] === 1 ? 90 : 0 }); } catch { } }
+    if (count(dim, loc, 80, { tags: ["parked"] }) >= 10) return;
+  }
+}
+function carPhysics() {
+  for (const p of world.getAllPlayers()) {
+    const car = ridingCar(p);
+    if (!car || !CARS.has(car.typeId)) continue;
+    if (car.hasTag("parked")) {
+      car.removeTag("parked");
+      if (count(p.dimension, p.location, 20, { families: ["civilian"] }) || count(p.dimension, p.location, 30, { families: ["palmera_police"] })) {
+        msg(p, "§cCar alarm! Someone saw you take it."); addStars(p, 1);
+      }
+    }
+    let v; try { v = car.getVelocity(); } catch { continue; }
+    const sp = Math.hypot(v.x, v.z), top = car.typeId === "palmera:sports_car" ? 1.25 : 0.85;
+    if (sp > 0.08 && sp < top) { try { car.applyImpulse({ x: v.x / sp * 0.045, y: 0, z: v.z / sp * 0.045 }); } catch { } }
+    if (system.currentTick % 6 === 0) sound(car.dimension, "minecart.base", car.location, 0.6 + sp * 0.8, 0.5);
+    if (sp > 0.35) {
+      try {
+        for (const e of car.dimension.getEntities({ location: car.location, maxDistance: 2.4, excludeFamilies: ["palmera_vehicle", "inanimate"] })) {
+          if (e.id === p.id || e.typeId === "minecraft:item") continue;
+          e.applyDamage(Math.round(sp * 22), { cause: EntityDamageCause.entityAttack, damagingEntity: p });
+          try { e.applyKnockback(v.x / sp, v.z / sp, sp * 2.5, 0.4); } catch { }
+          sound(car.dimension, "random.hurt", e.location, 0.8);
+        }
+      } catch { }
+    }
+    try {
+      const h = car.getComponent("minecraft:health");
+      if (h && h.currentValue < h.effectiveMax * 0.35 && system.currentTick % 4 === 0) particle(car.dimension, "minecraft:basic_smoke_particle", add(car.location, { x: 0, y: 1.2, z: 0 }));
+    } catch { }
+  }
+}
+system.runInterval(carPhysics, 2);
+
+// ---------------------------------------------------------------- smarter police: deploy from cars, arrests
+const arrestState = new Map();
+function arrestTick(p) {
+  const w = wanted(p);
+  if (w < 1 || w > 2 || isGun(held(p)) || ridingCar(p)) { arrestState.delete(p.id); return; }
+  let close = 0;
+  try { close = p.dimension.getEntities({ location: p.location, maxDistance: 2.6, type: "palmera:cop" }).length; } catch { }
+  if (!close) { arrestState.delete(p.id); return; }
+  const t = (arrestState.get(p.id) ?? 0) + 10;
+  arrestState.set(p.id, t);
+  if (t >= 60) {
+    arrestState.delete(p.id);
+    const fine = Math.max(300, Math.floor(cash(p) * 0.15));
+    addCash(p, -fine); setWanted(p, 0);
+    if (active.has(p.id)) finishMission(p, false);
+    const [st] = nearest(D.police, p.location);
+    if (st) { try { p.teleport(V(st)); } catch { } }
+    title(p, "§9§lARRESTED", "§7Fine: " + money(fine) + " - released from the station");
+    if (!world.getAllPlayers().some(x => wanted(x) > 0)) clearPolice();
+  }
+}
+system.runInterval(() => {
+  try {
+    for (const c of OW().getEntities({ type: "palmera:police_car" })) {
+      if (c.hasTag("deployed")) continue;
+      const t = world.getAllPlayers().find(p => wanted(p) > 0 && flat(p.location, c.location) < 12);
+      if (!t) continue;
+      c.addTag("deployed");
+      for (let i = 0; i < 2; i++) spawn(c.dimension, wanted(t) >= 3 ? "palmera:swat" : "palmera:cop", add(c.location, { x: rnd(-2, 2), y: 0.5, z: rnd(-2, 2) }), wanted(t) >= 3 ? "§8§lSWAT" : "§9Police", ["cop"]);
+      sound(c.dimension, "random.door_close", c.location);
+    }
+  } catch { }
+}, 20);
+
 // ---------------------------------------------------------------- main loops
 system.runInterval(() => {                       // every 10 ticks: HUD, cash pickup, robberies, carjacking, missions
   for (const p of world.getAllPlayers()) {
@@ -635,11 +824,9 @@ system.runInterval(() => {                       // every 10 ticks: HUD, cash pi
       robberyTick(p);
       carjackTick(p);
       missionTick(p);
-      const w = wanted(p), o = objective(p);
-      let line = `§a${money(cash(p))} §7| Ammo §f${ammo(p)} §7| §e${"★".repeat(w)}§8${"☆".repeat(5 - w)}`;
-      if (o) line += `  §d${o.label}` + (o.pos ? ` §f${Math.round(flat(p.location, o.pos))}m ${arrow(p, o.pos)}` : "");
-      line += robHud(p);
-      p.onScreenDisplay.setActionBar(line);
+      p.onScreenDisplay.setActionBar(hud(p));
+      arrestTick(p);
+      parkedTick(p);
     } catch { }
   }
   heliTick();

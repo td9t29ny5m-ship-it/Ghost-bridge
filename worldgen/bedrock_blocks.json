@@ -832,6 +832,24 @@
 "minecraft:gold_block": {
 "name": "minecraft:gold_block",
 "states": {}
+},
+"minecraft:oak_sign[rotation=8]": {
+"name": "minecraft:standing_sign",
+"states": {
+"ground_sign_direction": [
+"int",
+8
+]
+}
+},
+"minecraft:composter": {
+"name": "minecraft:composter",
+"states": {
+"composter_fill_level": [
+"int",
+0
+]
+}
 }
 }
 }

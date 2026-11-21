@@ -65,6 +65,10 @@ GUNS = {
     'minigun': (3, 1, 50, 2, 1, 0.07, 'firework.blast', 2.2, 0),
     'rocket': (0, 30, 90, 1, 5, 0.0, 'firework.launch', 0.6, 4),
 }
+#            mag  reload  auto   recoil
+GUN_EXTRA = {'pistol': (12, 25, False, 0.08), 'smg': (30, 35, True, 0.05), 'shotgun': (6, 45, False, 0.25),
+             'rifle': (30, 40, True, 0.08), 'sniper': (5, 50, False, 0.3), 'minigun': (200, 80, True, 0.04),
+             'rocket': (1, 60, False, 0.4)}
 SHOP = [
     ('pistol', 'Pistol', 500, 'arms'), ('smg', 'SMG', 2500, 'arms'), ('shotgun', 'Pump Shotgun', 3500, 'arms'),
     ('rifle', 'Assault Rifle', 7500, 'arms'), ('sniper', 'Sniper Rifle', 12000, 'arms'),
@@ -73,6 +77,95 @@ SHOP = [
     ('armor', 'Body Armor', 1500, 'arms'), ('medkit', 'Medkits x3', 300, 'arms'), ('bat', 'Baseball Bat', 100, 'arms'),
     ('car_sedan', 'Sedan', 4000, 'cars'), ('car_sports', 'Sports Car', 15000, 'cars'),
 ]
+
+
+# --------------------------------------------------------------------------- HUD glyphs + app icons
+def glyph_sheet():
+    """font/glyph_E1.png: 16x16 cells. 00-05 map tiles, 08-0F player arrows, 10 cop, 11 target, 13 gang, 14 void,
+    20 cash, 21 star, 22 star-off, 23 ammo, 24 heart, 25 speed, 26 phone, 27 hitmarker, 28 skull."""
+    from PIL import ImageDraw
+    im = Image.new('RGBA', (256, 256), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    def cell(i):
+        return (i % 16) * 16, (i // 16) * 16
+    tiles = [(76, 140, 60), (40, 110, 200), (70, 70, 78), (200, 200, 205), (225, 210, 150), (70, 80, 55)]
+    for i, c in enumerate(tiles):
+        x, y = cell(i)
+        d.rectangle([x, y, x + 15, y + 15], fill=c + (230,))
+        if i == 2:
+            d.line([x, y + 8, x + 15, y + 8], fill=(240, 220, 80, 255))
+        if i == 3:
+            for k in range(2, 14, 4):
+                d.rectangle([x + k, y + 3, x + k + 1, y + 12], fill=(150, 190, 220, 255))
+    import math as _m
+    for k in range(8):
+        x, y = cell(8 + k)
+        d.rectangle([x, y, x + 15, y + 15], fill=(20, 20, 25, 230))
+        ang = _m.radians(90 + 45 * k)             # 0 = down (south)
+        cx, cy = x + 7.5, y + 7.5
+        tip = (cx + 7 * _m.cos(ang), cy + 7 * _m.sin(ang))
+        l = (cx + 6 * _m.cos(ang + 2.5), cy + 6 * _m.sin(ang + 2.5))
+        r = (cx + 6 * _m.cos(ang - 2.5), cy + 6 * _m.sin(ang - 2.5))
+        d.polygon([tip, l, (cx, cy), r], fill=(255, 255, 255, 255))
+    for i, c in ((0x10, (255, 40, 40)), (0x13, (190, 60, 220))):
+        x, y = cell(i)
+        d.rectangle([x, y, x + 15, y + 15], fill=(20, 20, 25, 200))
+        d.ellipse([x + 3, y + 3, x + 12, y + 12], fill=c + (255,))
+        if i == 0x10:
+            d.ellipse([x + 7, y + 3, x + 12, y + 12], fill=(40, 90, 255, 255))
+    x, y = cell(0x11)
+    d.rectangle([x, y, x + 15, y + 15], fill=(20, 20, 25, 200))
+    d.polygon([(x + 8, y + 1), (x + 10, y + 6), (x + 15, y + 6), (x + 11, y + 9), (x + 13, y + 15), (x + 8, y + 11),
+               (x + 3, y + 15), (x + 5, y + 9), (x + 1, y + 6), (x + 6, y + 6)], fill=(255, 220, 40, 255))
+    x, y = cell(0x14)
+    d.rectangle([x, y, x + 15, y + 15], fill=(15, 30, 60, 220))
+    def star(i, col):
+        x, y = cell(i)
+        d.polygon([(x + 8, y + 1), (x + 10, y + 6), (x + 15, y + 6), (x + 11, y + 9), (x + 13, y + 15), (x + 8, y + 11),
+                   (x + 3, y + 15), (x + 5, y + 9), (x + 1, y + 6), (x + 6, y + 6)], fill=col)
+    star(0x21, (255, 215, 40, 255))
+    star(0x22, (90, 90, 90, 200))
+    x, y = cell(0x20)
+    d.rectangle([x + 1, y + 4, x + 14, y + 11], fill=(60, 160, 60, 255), outline=(30, 90, 30, 255))
+    d.ellipse([x + 5, y + 5, x + 10, y + 10], fill=(200, 240, 200, 255))
+    x, y = cell(0x23)
+    for k in range(3):
+        d.rectangle([x + 2 + k * 4, y + 5, x + 4 + k * 4, y + 14], fill=(220, 180, 60, 255))
+        d.rectangle([x + 2 + k * 4, y + 3, x + 4 + k * 4, y + 5], fill=(180, 120, 50, 255))
+    x, y = cell(0x24)
+    d.polygon([(x + 8, y + 14), (x + 1, y + 6), (x + 4, y + 2), (x + 8, y + 5), (x + 12, y + 2), (x + 15, y + 6)], fill=(230, 40, 60, 255))
+    x, y = cell(0x25)
+    d.arc([x + 1, y + 2, x + 15, y + 16], 180, 360, fill=(255, 255, 255, 255), width=2)
+    d.line([x + 8, y + 9, x + 12, y + 4], fill=(255, 80, 60, 255), width=2)
+    x, y = cell(0x26)
+    d.rectangle([x + 4, y + 1, x + 11, y + 14], fill=(30, 30, 35, 255))
+    d.rectangle([x + 5, y + 3, x + 10, y + 11], fill=(90, 200, 240, 255))
+    x, y = cell(0x27)
+    for a_, b_ in (((x + 1, y + 1), (x + 5, y + 5)), ((x + 14, y + 1), (x + 10, y + 5)), ((x + 1, y + 14), (x + 5, y + 10)), ((x + 14, y + 14), (x + 10, y + 10))):
+        d.line([a_, b_], fill=(255, 255, 255, 255), width=2)
+    x, y = cell(0x28)
+    d.ellipse([x + 2, y + 1, x + 13, y + 11], fill=(240, 240, 240, 255))
+    d.rectangle([x + 5, y + 10, x + 10, y + 14], fill=(240, 240, 240, 255))
+    d.ellipse([x + 4, y + 4, x + 6, y + 7], fill=(20, 20, 20, 255))
+    d.ellipse([x + 9, y + 4, x + 11, y + 7], fill=(20, 20, 20, 255))
+    return im
+
+
+APPS = {'story': ((200, 60, 180), 'S'), 'jobs': ((220, 60, 60), '$'), 'arms': ((230, 150, 30), 'G'),
+        'cars': ((40, 150, 230), 'C'), 'estate': ((60, 170, 80), 'H'), 'bank': ((30, 120, 130), 'B'),
+        'gps': ((240, 240, 240), 'N'), 'lawyer': ((40, 60, 160), 'L'), 'feed': ((150, 60, 220), 'F'),
+        'stats': ((110, 110, 120), 'i')}
+
+
+def app_icon(col, letter):
+    from PIL import ImageDraw
+    im = Image.new('RGBA', (32, 32), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([1, 1, 30, 30], radius=7, fill=col + (255,))
+    d.rounded_rectangle([1, 1, 30, 15], radius=7, fill=tuple(min(255, c + 35) for c in col) + (255,))
+    fg = (30, 30, 30, 255) if sum(col) > 600 else (255, 255, 255, 255)
+    d.text((10, 6), letter, fill=fg, font_size=20) if hasattr(d, 'text') else None
+    return im
 
 
 # --------------------------------------------------------------------------- skins (64x64 humanoid layout)
@@ -613,6 +706,11 @@ def build_addon(out_path, P):
             total = sum(math.hypot(a[0] - b[0], a[1] - b[1]) for a, b in zip(pts, pts[1:]))
             races.append({'title': ['Downtown Dash', 'Marina Mile', 'Neon Night Run'][k], 'par': int(total / 14) + 10,
                           'reward': 2000 + k * 1500, 'cps': [[int(p[0]), 66, int(p[1])] for p in pts]})
+    parked = []
+    if hasattr(P, 'cars') and len(P.cars):
+        sel = P.cars[:: max(1, len(P.cars) // 20000)]
+        for cx_, cz_, dr, col in sel:
+            parked.append([int(cx_), int(P.H[cz_, cx_]) + 1, int(cz_), int(dr)])
     named = {'Hospital (nearest)': 'hospital', 'Police Station (nearest)': 'police', 'Sunshine Arms (nearest)': 'guns',
              'Palm Bank (nearest)': 'bank'}
     landmarks = [['Funland Palmera', places.get('themepark')], ['Palmera Speedway', places.get('speedway')],
@@ -624,7 +722,8 @@ def build_addon(out_path, P):
                   {'name': 'Neon Saints', 'pos': near(rob, 0.215, 0.39), 'r': 160, 'skins': [0, 1, 2]}]
     data = {
         'guns': {'palmera:' + k: {'dmg': v[0], 'cd': v[1], 'range': v[2], 'pellets': v[3], 'ammo': v[4], 'spread': v[5],
-                                  'sound': v[6], 'pitch': v[7], 'explode': v[8],
+                                  'sound': v[6], 'pitch': v[7], 'explode': v[8], 'mag': GUN_EXTRA[k][0], 'reload': GUN_EXTRA[k][1],
+                                  'auto': GUN_EXTRA[k][2], 'recoil': GUN_EXTRA[k][3], 'zoom': k == 'sniper', 'name': ITEMS[k][0],
                                   'particle': 'minecraft:basic_flame_particle' if k == 'rocket' else 'minecraft:basic_crit_particle'}
                  for k, v in GUNS.items()},
         'shop': [{'key': k, 'label': l, 'price': p, 'cat': c, 'icon': 'textures/items/palmera_' + (k if k in ITEMS else 'cash')}
@@ -636,6 +735,8 @@ def build_addon(out_path, P):
         'safehouses': [{'pos': list(map(int, s_[:3])), 'kind': s_[3], 'price': 250000 if s_[3] == 'mansion' else 30000,
                         'income': 4000 if s_[3] == 'mansion' else 600} for s_ in safe],
         'races': races, 'landmarks': landmarks, 'gangs': gang_zones, 'feed': FEED,
+        'mm': [''.join(str(int(c)) for c in row) for row in P.minimap] if hasattr(P, 'minimap') else [], 'mmcell': 16,
+        'parked': parked,
     }
     script = open(__import__('os').path.join(__import__('os').path.dirname(__file__), 'palmera_main.js')).read()
     script = script.replace('__DATA__', json.dumps(data))
@@ -666,10 +767,16 @@ def build_addon(out_path, P):
                  'minecraft:max_stack_size': stack, 'minecraft:hand_equipped': hand}
         if key == 'bat':
             comps['minecraft:damage'] = 7
+        if key in GUNS:
+            comps['minecraft:use_modifiers'] = {'use_duration': 3600, 'movement_modifier': 0.8}
+            comps['minecraft:use_animation'] = 'bow'
         bp['items/%s.json' % key] = J({'format_version': '1.21.0', 'minecraft:item': {
             'description': {'identifier': 'palmera:' + key, 'menu_category': {'category': 'equipment'}}, 'components': comps}})
         rp['textures/items/palmera_%s.png' % key] = javapacks.sprite_png(SPRITES[key])
         tex_data['palmera_' + key] = {'textures': 'textures/items/palmera_' + key}
+    rp['font/glyph_E1.png'] = png(glyph_sheet())
+    for app, (col, letter) in APPS.items():
+        rp['textures/ui/palmera_app_%s.png' % app] = png(app_icon(col, letter))
     rp['textures/item_texture.json'] = J({'resource_pack_name': 'palmera', 'texture_name': 'atlas.items', 'texture_data': tex_data})
     bp['loot_tables/entities/palmera_armed.json'] = J({'pools': [{'rolls': 1, 'entries': [
         {'type': 'item', 'name': 'palmera:pistol', 'weight': 3}, {'type': 'item', 'name': 'palmera:smg', 'weight': 1}]}]})
