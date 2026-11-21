@@ -13,7 +13,7 @@ ap.add_argument('--size', type=int, default=2048); ap.add_argument('--seed', typ
 a = ap.parse_args()
 P = g.plan_world(a.size, a.seed)
 rx, rz = a.x0 // g.RS, a.z0 // g.RS
-vox = g.render_region(P, rx, rz)
+vox, _ = g.render_region(P, rx, rz)
 lx, lz = a.x0 - rx * g.RS, a.z0 - rz * g.RS
 y0 = 50 - g.YMIN
 v = vox[y0:, lz:lz + a.d, lx:lx + a.w]                      # (y, z, x)

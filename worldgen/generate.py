@@ -138,7 +138,7 @@ R_NONE, R_ASPH, R_WHITE, R_YEL, R_SIDE, R_MED, R_RUN = range(7)
 ROAD_MAT = np.array([AIR, ASPHALT, WHITE, YELLOW, SIDEWALK, GRASS, RUNWAY], np.uint8)
 
 # zones
-Z_OCEAN, Z_WILD, Z_FARM, Z_CITY, Z_SUB, Z_SWAMP, Z_BEACH, Z_KEYS, Z_AIR, Z_PORT, Z_LAKE, Z_TOWN, Z_RESORT, Z_SPACE, Z_ISLE, Z_GOLF = range(16)
+Z_OCEAN, Z_WILD, Z_FARM, Z_CITY, Z_SUB, Z_SWAMP, Z_BEACH, Z_KEYS, Z_AIR, Z_PORT, Z_LAKE, Z_TOWN, Z_RESORT, Z_SPACE, Z_ISLE, Z_GOLF, Z_PARK = range(17)
 
 BIOMES = ['minecraft:warm_ocean', 'minecraft:beach', 'minecraft:sparse_jungle', 'minecraft:plains',
           'minecraft:mangrove_swamp', 'minecraft:river']
@@ -959,6 +959,360 @@ BUILDERS.update({
 })
 
 
+# --------------------------------------------------------------------------- detailed builders (v3)
+# Builders may return (arr, oy, signs) where signs = [(x, y, z, facing, text)] in array-local coords.
+
+BUSINESS_KINDS = {
+    #  kind        sign text                 wall colour                     floor
+    'mart': (['SUNNY MART', 'OPEN 24/7'], CONCRETE['white'], CONCRETE['white']),
+    'diner': (['CORAL DINER'], CONCRETE['light_blue'], None),
+    'clothes': (['PALM THREADS', 'FASHION'], CONCRETE['pink'], OAK_PLANKS),
+    'pawn': (['LUCKY PAWN', 'WE BUY GOLD'], CONCRETE['yellow'], DARK_OAK),
+    'barber': (['FRESH CUTS', 'BARBER'], CONCRETE['white'], CONCRETE['white']),
+    'pharmacy': (['HEALTHY RX', 'PHARMACY'], CONCRETE['white'], CONCRETE['white']),
+    'electronics': (['VOLT', 'ELECTRONICS'], CONCRETE['gray'], CONCRETE['white']),
+    'pizza': (['PIZZA PALMA'], CONCRETE['red'], None),
+    'taco': (['TACO SOL'], CONCRETE['orange'], OAK_PLANKS),
+    'bar': (['TIKI BAR'], B('bamboo_planks'), OAK_PLANKS),
+    'club': (['NEON NIGHTS', 'CLUB'], CONCRETE['black'], CONCRETE['black']),
+    'gym': (['IRON BEACH', 'GYM'], CONCRETE['gray'], CONCRETE['black']),
+    'guns': (['SUNSHINE ARMS', 'GUNS AMMO'], CONCRETE['light_gray'], CONCRETE['gray']),
+    'bank': (['PALM BANK'], QUARTZ, QUARTZ),
+    'police': (['POLICE'], CONCRETE['blue'], CONCRETE['white']),
+    'hospital': (['HOSPITAL', 'EMERGENCY'], CONCRETE['white'], CONCRETE['white']),
+    'fire': (['FIRE DEPT', 'STATION 7'], CONCRETE['red'], CONCRETE['light_gray']),
+    'dealer': (['COASTLINE', 'MOTORS'], CONCRETE['white'], QUARTZ),
+}
+ROBBABLE = ('mart', 'pawn', 'pharmacy', 'electronics', 'diner', 'pizza', 'taco', 'bar', 'clothes', 'barber', 'guns')
+SIGN_BLOCK = {f: B('oak_wall_sign', facing=f) for f in ('north', 'south', 'east', 'west')}
+CARPET = {d: B(d + '_carpet') for d in DYES}
+BOOKSHELF = B('bookshelf')
+OAK_SLAB = B('oak_slab')
+PRESSURE = B('oak_pressure_plate')
+HYDRANT = B('red_nether_brick_wall')
+GOLD = B('gold_block')
+BARS = IRON_BARS
+WHITE_BED_WOOL = WOOL['white']
+FENCE = OAK_FENCE
+
+
+def checker(d, w, a_, b_):
+    Z, X = np.mgrid[0:d, 0:w]
+    return np.where((X + Z) % 2 == 0, a_, b_).astype(np.uint8)
+
+
+def build_business(seed, w, d, h, btype='mart'):
+    kind = btype
+    """Front faces north (low z). Row z=0 is outside: awning + sign. Interior depends on kind."""
+    r = random.Random(seed)
+    text, wall, floor = BUSINESS_KINDS[kind]
+    floors = 2 if h >= 9 else 1
+    hh = 5 if floors == 1 else 9
+    a = np.full((hh + 4, d, w), KEEP, np.uint8)
+    bd = d - 1
+    t = tower_block(w, bd, hh, wall, GLASS, floor if floor is not None else CONCRETE['white'],
+                    CONCRETE['light_gray'], 'punched', 4 if floors == 2 else 6, trim=CONCRETE['white'], door=False)
+    a[:hh + 2, 1:, :] = t
+    if floor is None:
+        a[0, 2:d - 1, 1:w - 1] = checker(d - 3, w - 2, CONCRETE['black'], CONCRETE['white'])
+    # glass storefront + door
+    a[1:4, 1, 1:w - 1] = GLASS
+    a[1:3, 1, w // 2] = AIR
+    # awning and sign
+    aw = WOOL[r.choice(['red', 'white', 'cyan', 'lime', 'yellow', 'orange', 'blue'])]
+    a[4, 0, :] = aw
+    signs = []
+    for i, line in enumerate(text[:1]):
+        pass
+    sx = w // 2
+    a[5, 1, sx - 2:sx + 3] = r.choice(NEONS)
+    a[5, 0, sx] = SIGN_BLOCK['north']
+    signs.append((sx, 5, 0, 'north', '\n'.join(text)))
+    # interior
+    iz0, iz1, ix0, ix1 = 3, d - 2, 2, w - 2
+    if kind in ('mart', 'pharmacy', 'electronics', 'pawn', 'guns', 'clothes'):
+        for x in range(ix0 + 1, ix1 - 1, 3):
+            a[1:3, iz0 + 1:iz1 - 3, x] = BOOKSHELF if kind != 'clothes' else FENCE
+            if kind == 'clothes':
+                a[3, iz0 + 1:iz1 - 3, x] = WOOL[r.choice(DYES)]
+            if kind == 'guns':
+                a[1:3, iz0 + 1:iz1 - 3, x] = BARS
+        a[1, iz1 - 2, ix0:ix0 + 5] = QUARTZ
+        a[2, iz1 - 2, ix0 + 2] = IRON
+        if kind == 'mart':
+            a[1:3, iz1, ix0:ix1] = GLASSES[0]
+    elif kind in ('diner', 'pizza', 'taco', 'bar'):
+        for x in range(ix0, ix1 - 1, 4):
+            a[1, iz0 + 1:iz0 + 3, x] = WOOL['red']
+            a[1, iz0 + 1:iz0 + 3, x + 1] = FENCE
+            a[2, iz0 + 1:iz0 + 3, x + 1] = PRESSURE
+            a[1, iz0 + 1:iz0 + 3, x + 2] = WOOL['red']
+        a[1, iz1 - 2, ix0:ix1] = QUARTZ
+        a[1, iz1, ix0:ix1] = IRON
+    elif kind == 'club':
+        a[0, 2:d - 1, 1:w - 1] = checker(d - 3, w - 2, CONCRETE['magenta'], CONCRETE['black'])
+        a[hh - 1, 3:d - 2:3, 2:w - 2:3] = r.choice(NEONS)
+        a[1, iz1 - 1, ix0:ix1] = QUARTZ
+    elif kind == 'gym':
+        for x in range(ix0, ix1, 3):
+            a[1, iz0 + 2, x] = IRON
+            a[1, iz0 + 5, x] = CONCRETE['black']
+    elif kind == 'bank':
+        a[1, iz0 + 3, ix0:ix1] = QUARTZ
+        a[2, iz0 + 3, ix0:ix1] = GLASS
+        vz0 = max(iz0 + 5, iz1 - 6)
+        a[1:4, vz0, ix0:ix1] = IRON
+        a[1:4, vz0:iz1 + 1, ix0] = IRON
+        a[1:4, vz0:iz1 + 1, ix1 - 1] = IRON
+        a[1:3, vz0, w // 2] = BARS
+        a[1:3, vz0 + 2:iz1, ix0 + 1:ix0 + 3] = GOLD
+        a[1:3, vz0 + 2:iz1, ix1 - 3:ix1 - 1] = GOLD
+    elif kind == 'police':
+        a[4, 0, :] = WOOL['blue']
+        for x in range(ix0, ix1 - 2, 5):
+            a[1, iz0 + 1, x:x + 2] = OAK_PLANKS
+        for x in range(ix0, ix1 - 3, 4):
+            a[1:4, iz1 - 3, x] = BARS
+        a[1:4, iz1 - 3, ix0:ix1][:, 1::4] = BARS
+    elif kind == 'hospital':
+        cx = w // 2
+        a[hh - 4:hh - 1, 1, cx] = CONCRETE['red']
+        a[hh - 3, 1, cx - 1:cx + 2] = CONCRETE['red']
+        for x in range(ix0, ix1 - 1, 3):
+            a[1, iz1 - 3:iz1, x] = WOOL['white']
+            a[1, iz1, x] = WOOL['light_blue']
+    elif kind == 'fire':
+        a[1:4, 1, 1:w - 1] = AIR
+        a[1:3, iz0 + 1:iz1 - 1, 2:w - 2] = KEEP
+        a[1:3, iz0 + 1:iz0 + 9, 3:6] = CONCRETE['red']
+        a[3, iz0 + 1:iz0 + 4, 3:6] = WHITE
+    elif kind == 'dealer':
+        a[1:4, 1, 1:w - 1] = GLASS
+        a[1:3, 1, w // 2] = AIR
+        for x in range(ix0 + 1, ix1 - 3, 5):
+            col = CONCRETE[r.choice(['red', 'blue', 'black', 'white', 'yellow'])]
+            a[1, iz0 + 2:iz0 + 6, x:x + 2] = col
+            a[2, iz0 + 3:iz0 + 5, x:x + 2] = GLASSES[3]
+    # ceiling lights on ground floor
+    a[hh // (2 if floors == 2 else 1) - (1 if floors == 1 else 0), 3:d - 2:4, 2:w - 2:4] = GLOW
+    return a, None, signs
+
+
+def build_house_v2(seed, lw, ld, stilts=0, flip=0):
+    """Detailed family home on a lot; array starts one block below ground. Front (street) at low z."""
+    r = random.Random(seed)
+    g = 1
+    two = (not stilts) and r.random() < 0.4
+    wh = 8 if two else 4
+    hw = max(7, min(lw - 2, r.randint(8, 11)))
+    hd = max(6, min(ld - 8, r.randint(7, 10)))
+    roof_h = (min(hw, hd) + 1) // 2 + 1
+    Hh = 2 + stilts + wh + roof_h + 2
+    a = np.full((Hh, ld, lw), KEEP, np.uint8)
+    x0 = max(1, (lw - hw) // 2 - (2 if lw - hw > 6 else 0))
+    z0 = 3
+    b = g + stilts
+    if stilts:
+        for sx in (x0, x0 + hw - 1):
+            for sz in (z0, z0 + hd - 1):
+                a[g:g + stilts + 1, sz, sx] = OAK_LOG
+    wall, roof = r.choice(HOUSE_WALLS), r.choice(ROOFS)
+    t = tower_block(hw, hd, wh, wall, GLASS, OAK_PLANKS, wall, 'punched', 4, lights=False, door=False)
+    a[b:b + wh, z0:z0 + hd, x0:x0 + hw] = t[:wh]
+    a[b, z0:z0 + hd, x0:x0 + hw] = OAK_PLANKS
+    a[b + 1:b + 3, z0, x0 + hw // 2] = AIR
+    a[b, z0 - 1:z0, x0 + hw // 2] = SIDEWALK
+    # furniture
+    carpet = CARPET[r.choice(['light_gray', 'white', 'brown', 'cyan', 'red', 'light_blue'])]
+    a[b + 1, z0 + 1:z0 + hd - 1, x0 + 1:x0 + hw - 1] = carpet
+    a[b + 1, z0 + hd - 2, x0 + 1:x0 + 4] = WOOL[r.choice(['gray', 'blue', 'red', 'brown', 'green'])]   # couch
+    a[b + 1, z0 + 2, x0 + 1] = BOOKSHELF
+    a[b + 1:b + 3, z0 + 1, x0 + hw - 2] = IRON          # fridge
+    a[b + 1, z0 + 1, x0 + hw - 3] = SIDEWALK            # counter
+    a[b + 1, z0 + hd // 2, x0 + hw // 2] = FENCE        # table
+    a[b + 2, z0 + hd // 2, x0 + hw // 2] = PRESSURE
+    a[b + 2, z0 + hd - 2, x0 + hw - 2] = CONCRETE['black']   # TV
+    a[b + wh - 1 if not two else b + 3, z0 + hd // 2, x0 + 2] = GLOW
+    if two:
+        a[b + 4, z0 + 1:z0 + hd - 1, x0 + 1:x0 + hw - 1] = OAK_PLANKS
+        a[b + 4, z0 + hd // 2, x0 + 3] = GLOW
+        a[b + 5, z0 + 1:z0 + hd - 1, x0 + 1:x0 + hw - 1] = CARPET['white']
+        a[b + 5, z0 + 1:z0 + 3, x0 + 1:x0 + 3] = WOOL[r.choice(['red', 'blue', 'pink', 'lime'])]   # bed
+    for k in range(roof_h):
+        y = b + wh + k
+        if hw - 2 * k <= 0 or hd - 2 * k <= 0:
+            break
+        a[y, z0 + k:z0 + hd - k, x0 + k:x0 + hw - k] = roof
+    # garage + driveway
+    if not stilts and lw - (x0 + hw) >= 5:
+        gx0 = x0 + hw
+        gw = min(5, lw - gx0 - 1)
+        gt = tower_block(gw, 6, 4, wall, GLASS, SIDEWALK, roof, 'punched', 6, lights=False, door=False)
+        a[b:b + 4, z0:z0 + 6, gx0:gx0 + gw] = gt[:4]
+        a[b + 4, z0:z0 + 6, gx0:gx0 + gw] = roof
+        a[b + 1:b + 4, z0, gx0 + 1:gx0 + gw - 1] = CONCRETE['white']
+        a[g, 0:z0, gx0:gx0 + gw] = CONCRETE['light_gray']
+    # mailbox, palm-free front lawn, back fence and pool
+    a[g + 1, 0, 0] = FENCE
+    a[g + 2, 0, 0] = CONCRETE[r.choice(['blue', 'red', 'black', 'white'])]
+    back0 = z0 + hd + 1
+    if not stilts and ld - back0 >= 3:
+        a[g + 1, ld - 1, :] = FENCE
+        a[g + 1, back0:ld, 0] = FENCE
+        a[g + 1, back0:ld, lw - 1] = FENCE
+        if ld - back0 >= 6 and hw >= 6 and r.random() < 0.6:
+            px0, px1 = x0 + 1, x0 + hw - 1
+            pz0, pz1 = back0, ld - 2
+            a[g, pz0:pz1, px0:px1] = QUARTZ
+            a[g - 1:g + 1, pz0 + 1:pz1 - 1, px0 + 1:px1 - 1] = WATER
+    if flip:
+        a = a[:, ::-1, :].copy()
+        # fix sign-free orientation-dependent blocks: none
+    return a, -1
+
+
+def build_traffic_light(seed, w, d, h, arm=0):
+    """1x1 pole with an arm over the road. arm: 0=+x,1=-x,2=+z,3=-z. Array covers arm reach."""
+    a = np.full((9, 11, 11), KEEP, np.uint8)
+    c = 5
+    a[1:7, c, c] = POST
+    dx, dz = [(1, 0), (-1, 0), (0, 1), (0, -1)][arm]
+    for k in range(1, 6):
+        a[6, c + dz * k, c + dx * k] = IRON_BARS
+    hx, hz = c + dx * 5, c + dz * 5
+    a[5, hz, hx] = CONCRETE['black']
+    a[4, hz, hx] = CONCRETE['lime']
+    a[3, hz, hx] = CONCRETE['black']
+    a[2, hz, hx] = KEEP
+    a[6, hz, hx] = CONCRETE['red']
+    a[1, c, c] = POST
+    return a, None
+
+
+def build_bus_stop(seed, w, d, h):
+    """w=5 d=3: glass back, roof, bench, sign."""
+    a = np.full((5, 3, 5), KEEP, np.uint8)
+    a[1:4, 2, :] = GLASSES[1]
+    a[1:4, 0, 0] = IRON
+    a[1:4, 0, 4] = IRON
+    a[4, :, :] = WHITE
+    a[1, 1, 1:4] = OAK_SLAB
+    a[3, 0, 2] = SIGN_BLOCK['north']
+    return a, None, [(2, 3, 0, 'north', 'BUS\nSTOP')]
+
+
+def build_theme_park(seed, w, d, h):
+    """Original theme park: coaster loop, drop tower, carousel, castle-style gate, food stands. w,d ~ 220x160."""
+    r = random.Random(seed)
+    a = np.full((h, d, w), KEEP, np.uint8)
+    a[0] = CONCRETE['light_gray']
+    a[0, 2:d - 2:6, :] = CONCRETE['white']
+    # coaster: an ellipse track with sinusoidal height
+    cx, cz, A, Bz = w * 0.55, d * 0.5, w * 0.38, d * 0.36
+    for t in np.linspace(0, 2 * np.pi, 1600):
+        x, z = int(cx + A * np.cos(t)), int(cz + Bz * np.sin(t))
+        y = int(8 + 14 * (1 + np.sin(3 * t)) + 10 * (1 + np.cos(t)))
+        y = min(y, h - 3)
+        if 0 <= x < w and 0 <= z < d:
+            a[y, z, x] = CONCRETE['red']
+            a[y + 1, z, x] = KEEP
+            if int(t * 100) % 9 == 0:
+                a[1:y, z, x] = CONCRETE['white']
+    # drop tower
+    tx, tz = int(w * 0.15), int(d * 0.3)
+    a[1:h - 2, tz:tz + 3, tx:tx + 3] = CONCRETE['light_gray']
+    a[h - 2, tz - 1:tz + 4, tx - 1:tx + 4] = CONCRETE['red']
+    a[h // 3:h // 3 + 2, tz - 2:tz + 5, tx - 2:tx + 5] = CONCRETE['yellow']
+    # carousel
+    zz, xx = np.mgrid[0:d, 0:w]
+    ccx, ccz = int(w * 0.18), int(d * 0.75)
+    rr = np.hypot(xx - ccx, zz - ccz)
+    a[1][rr < 9] = OAK_PLANKS
+    a[6][rr < 10] = np.where(((np.arctan2(zz - ccz, xx - ccx) * 4 / np.pi).astype(int) % 2 == 0), WOOL['red'], WOOL['white'])[rr < 10]
+    a[7][rr < 6] = WOOL['yellow']
+    for k in range(8):
+        ang = k * np.pi / 4
+        px, pz = int(ccx + 6 * np.cos(ang)), int(ccz + 6 * np.sin(ang))
+        a[2:6, pz, px] = FENCE
+        a[3, pz, px] = WOOL[r.choice(DYES)]
+    # entrance gate (original "fun castle" style)
+    gx = w // 2 - 10
+    a[1:16, 0:4, gx:gx + 20] = CONCRETE['light_blue']
+    a[1:8, 0:4, gx + 7:gx + 13] = AIR
+    for tx_ in (gx - 2, gx + 18):
+        a[1:22, 0:5, tx_:tx_ + 4] = CONCRETE['pink']
+        a[22:26, 1:4, tx_ + 1:tx_ + 3] = CONCRETE['purple']
+    a[14, 0, gx + 9] = SIGN_BLOCK['north']
+    signs = [(gx + 9, 14, 0, 'north', 'FUNLAND\nPALMERA')]
+    # food stands
+    for k in range(5):
+        fx, fz = int(w * 0.35) + k * 14, int(d * 0.12)
+        a[1:4, fz:fz + 5, fx:fx + 6] = CONCRETE['white']
+        a[2:3, fz, fx + 1:fx + 5] = AIR
+        a[4, fz - 1:fz + 6, fx - 1:fx + 7] = WOOL[r.choice(['red', 'yellow', 'cyan', 'lime'])]
+    return a, None, signs
+
+
+def build_speedway(seed, w, d, h):
+    """Oval race track with grandstand. w~260 d~150."""
+    a = np.full((h, d, w), KEEP, np.uint8)
+    zz, xx = np.mgrid[0:d, 0:w]
+    cx, cz = w / 2, d / 2
+    straight = w / 2 - d / 2
+    dx = np.maximum(np.abs(xx - cx) - straight, 0)
+    rr = np.hypot(dx, zz - cz)
+    R = d / 2 - 4
+    track = (rr <= R) & (rr >= R - 20)
+    a[0][rr < R + 4] = GRASS
+    a[0][track] = ASPHALT
+    a[0][track & (np.abs(rr - (R - 10)) < 0.5) & ((xx // 4) % 2 == 0)] = WHITE
+    a[0][(np.abs(xx - cx) < 1) & track] = WHITE
+    a[1][(np.abs(rr - R) < 0.8)] = WHITE
+    a[1][(np.abs(rr - (R - 20)) < 0.8)] = CONCRETE['red']
+    # grandstand along the north straight
+    for k in range(12):
+        a[1:k + 2, k, int(cx - straight):int(cx + straight)] = CONCRETE['light_gray']
+        a[k + 1, k, int(cx - straight):int(cx + straight)] = CONCRETE['blue'] if k % 2 else WHITE
+    a[14, 12, int(cx - straight):int(cx + straight)] = WHITE
+    a[13, 12, int(cx) - 1] = SIGN_BLOCK['south']
+    return a, None, [(int(cx) - 1, 13, 12, 'south', 'PALMERA\nSPEEDWAY')]
+
+
+def build_prison(seed, w, d, h):
+    a = np.full((h, d, w), KEEP, np.uint8)
+    a[0] = CONCRETE['light_gray']
+    a[1:7, 0, :] = STONE_BRICKS
+    a[1:7, d - 1, :] = STONE_BRICKS
+    a[1:7, :, 0] = STONE_BRICKS
+    a[1:7, :, w - 1] = STONE_BRICKS
+    a[7, 0, :] = IRON_BARS
+    a[7, d - 1, :] = IRON_BARS
+    a[7, :, 0] = IRON_BARS
+    a[7, :, w - 1] = IRON_BARS
+    for x_, z_ in ((0, 0), (w - 5, 0), (0, d - 5), (w - 5, d - 5)):
+        a[1:14, z_:z_ + 5, x_:x_ + 5] = STONE_BRICKS
+        a[12:14, z_ + 1:z_ + 4, x_ + 1:x_ + 4] = GLASS
+        a[14, z_:z_ + 5, x_:x_ + 5] = CONCRETE['gray']
+        a[13, z_ + 2, x_ + 2] = SEA_LANTERN
+    for k in range(3):
+        bx = 10 + k * ((w - 20) // 3)
+        bw = (w - 20) // 3 - 8
+        t = tower_block(bw, 24, 12, CONCRETE['light_gray'], IRON_BARS, CONCRETE['light_gray'], CONCRETE['gray'], 'punched', 4)
+        a[0:14, 10:34, bx:bx + bw] = t
+        for y in range(4, 12, 4):
+            for x in range(bx + 2, bx + bw - 2, 3):
+                a[y + 1:y + 3, 11:15, x] = IRON_BARS
+    a[0, d - 40:d - 8, 10:w - 10] = GRASS
+    a[0, d - 30:d - 18, w // 2 - 10:w // 2 + 10] = ASPHALT
+    a[1:3, 0, w // 2 - 2:w // 2 + 2] = AIR
+    a[3, 0, w // 2 + 3] = SIGN_BLOCK['north']
+    return a, None, [(w // 2 + 3, 3, 0, 'north', 'IRON BAY\nCORRECTIONAL')]
+
+
+BUILDERS.update({'business': build_business, 'traffic': build_traffic_light, 'busstop': build_bus_stop,
+                 'themepark': build_theme_park, 'speedway': build_speedway, 'prison': build_prison})
+
+
 # --------------------------------------------------------------------------- the plan
 class Plan:
     pass
@@ -1013,10 +1367,41 @@ def plan_world(S, seed):
         key_centers.append((ku, kv2))
     keys &= ~land
     land |= keys
+    prison_isl = ((u - 0.13) / 0.024) ** 2 + ((v - 0.845) / 0.019) ** 2 < 1 + 0.15 * n3
+    land |= prison_isl
     lake = (((u - 0.32) / 0.065) ** 2 + ((v - 0.27) / 0.05) ** 2 < 1 + 0.35 * n2) & land & ~metro
     land &= ~lake
+
+    def carve(pts, width):
+        m = np.zeros((S, S), bool)
+        for (ua, va), (ub, vb) in zip(pts, pts[1:]):
+            xa, za, xb, zb = X(ua), X(va), X(ub), X(vb)
+            hw_ = width / 2 + 1
+            bx0, bx1 = max(0, int(min(xa, xb) - hw_)), min(S, int(max(xa, xb) + hw_) + 1)
+            bz0, bz1 = max(0, int(min(za, zb) - hw_)), min(S, int(max(za, zb) + hw_) + 1)
+            zz_, xx_ = np.mgrid[bz0:bz1, bx0:bx1]
+            dx, dz = xb - xa, zb - za
+            t = np.clip(((xx_ - xa) * dx + (zz_ - za) * dz) / max(1, dx * dx + dz * dz), 0, 1)
+            m[bz0:bz1, bx0:bx1] |= np.hypot(xx_ - xa - t * dx, zz_ - za - t * dz) <= width / 2
+        return m
+
+    def wiggle(p0, p1, n, amp):
+        return [(p0[0] + (p1[0] - p0[0]) * i / n + (R.uniform(-amp, amp) if 0 < i < n else 0),
+                 p0[1] + (p1[1] - p0[1]) * i / n + (R.uniform(-amp, amp) if 0 < i < n else 0)) for i in range(n + 1)]
+
+    river = carve(wiggle((0.262, 0.275), (0.10, 0.255), 12, 0.006), 12)          # Solano River to the gulf
+    river |= carve(wiggle((0.565, 0.512), (0.80, 0.528), 16, 0.004), 22)         # Marina River through downtown
+    river |= carve(wiggle((0.35, 0.318), (0.43, 0.49), 10, 0.007), 10)           # Okee Creek
+    canals = np.zeros((S, S), bool)
+    for k in range(6):
+        cz_ = X(0.676) + k * 56
+        canals[cz_:cz_ + 10, X(0.57):X(0.673)] = True
+    canals[X(0.676):X(0.676) + 5 * 56 + 10, X(0.66):X(0.66) + 10] = True
+    waterways = (river | canals) & land & ~airport & ~barrier & ~isles
+    land &= ~waterways
     # clean small specks
     land = ndimage.binary_opening(land, iterations=2) | airport | barrier | isles
+    land &= ~waterways
 
     # ---- zones
     zone = np.full((S, S), Z_OCEAN, np.uint8)
@@ -1025,7 +1410,7 @@ def plan_world(S, seed):
     zone[farm] = Z_FARM
     swamp = land & (((u - 0.33) / 0.15) ** 2 + ((v - 0.62) / 0.13) ** 2 < 1 + 0.4 * n2)
     zone[swamp] = Z_SWAMP
-    town_centers = [(0.40, 0.165), (0.44, 0.50), (0.29, 0.715), (0.36, 0.375)]
+    town_centers = [(0.40, 0.165), (0.44, 0.50), (0.29, 0.715), (0.36, 0.375), (0.25, 0.55), (0.525, 0.80)]
     for tu, tv in town_centers:
         town = land & (((u - tu) / 0.028) ** 2 + ((v - tv) / 0.024) ** 2 < 1)
         zone[town] = Z_TOWN
@@ -1040,7 +1425,18 @@ def plan_world(S, seed):
             golf_rects.append((gx0, gz0, gw, gd))
     city = land & (u > 0.575) & (u < 0.80) & (v > 0.32) & (v < 0.665)
     city |= land & (u > 0.158) & (u < 0.275) & (v > 0.33) & (v < 0.45)
+    city_rect = ((u > 0.575) & (u < 0.80) & (v > 0.32) & (v < 0.665)) | ((u > 0.158) & (u < 0.275) & (v > 0.33) & (v < 0.45)) \
+        | ((u > 0.36) & (u < 0.455) & (v > 0.185) & (v < 0.235))
+    city |= land & (u > 0.36) & (u < 0.455) & (v > 0.185) & (v < 0.235)
     zone[city] = Z_CITY
+    sub_rect = (u > 0.48) & (u < 0.80) & (v > 0.15) & (v < 0.75)
+    park_rects = {'themepark': (X(0.445), X(0.112), 240, 170), 'speedway': (X(0.262), X(0.150), 260, 150)}
+    pz_, px_ = np.nonzero(prison_isl)
+    if len(pz_):
+        park_rects['prison'] = (int(px_.mean()) - 100, int(pz_.mean()) - 70, 200, 140)
+    for kname, (rx0, rz0, rw, rd) in park_rects.items():
+        zone[rz0:rz0 + rd, rx0:rx0 + rw] = Z_PARK
+        land[rz0:rz0 + rd, rx0:rx0 + rw] = True
     zone[airport] = Z_AIR
     port = land & (u > 0.675) & (u < 0.80) & (v > 0.665)
     zone[port] = Z_PORT
@@ -1048,18 +1444,23 @@ def plan_world(S, seed):
     zone[barrier] = Z_RESORT
     zone[lake] = Z_LAKE
     zone[isles] = Z_ISLE
+    pond = (zone == Z_WILD) & (n3 > 0.62)
+    land &= ~pond
+    zone[pond] = Z_LAKE
+    lake = lake | pond
 
     water = ~land
-    dw = ndimage.distance_transform_edt(land)          # land: distance to water
-    dl = ndimage.distance_transform_edt(water)         # water: distance to land
-    ocean_d = ndimage.distance_transform_edt(~(water & ~lake))  # distance to sea (not lake)
+    dw = ndimage.distance_transform_edt(land).astype(np.float32)          # land: distance to water
+    dl = ndimage.distance_transform_edt(water).astype(np.float32)         # water: distance to land
+    ocean_d = ndimage.distance_transform_edt(~(water & ~lake)).astype(np.float32)  # distance to sea (not lake)
+    del n1
     print(f'  shape + zones   {time.time() - t0:5.1f}s', flush=True)
 
     # ---- heights & surface
     H = np.zeros((S, S), np.int16)
     hill = np.clip((n2 + 0.15) * 9, 0, 5) * np.clip(dw / 40, 0, 1)
     H[land] = (63 + (dw >= 4) + hill)[land].astype(np.int16)
-    flat = np.isin(zone, [Z_CITY, Z_SUB, Z_AIR, Z_PORT, Z_TOWN, Z_SPACE, Z_GOLF, Z_ISLE])
+    flat = np.isin(zone, [Z_CITY, Z_SUB, Z_AIR, Z_PORT, Z_TOWN, Z_SPACE, Z_GOLF, Z_ISLE, Z_PARK])
     H[flat] = 64
     H[flat & (dw < 3) & ~np.isin(zone, [Z_CITY, Z_PORT, Z_AIR])] = 63
     sw = zone == Z_SWAMP
@@ -1093,12 +1494,14 @@ def plan_world(S, seed):
     # coral reefs around the keys
     near_keys = ndimage.distance_transform_edt(~keys) < 90
     reef = water & near_keys & (n3 > 0.15) & (H < SEA - 1)
-    cor = rng.integers(0, len(CORALS), size=(S, S))
+    cor = rng.integers(0, len(CORALS), size=(S, S), dtype=np.uint8)
     TOP[reef] = np.array(CORALS, np.uint8)[cor[reef]]
+    del cor, reef, near_keys, near_swamp
 
     biome = np.full((S, S), BI_JUNGLE, np.uint8)
     biome[water] = BI_OCEAN
     biome[lake] = BI_RIVER
+    biome[waterways] = BI_RIVER
     biome[zone == Z_FARM] = BI_PLAINS
     biome[sw] = BI_SWAMP
     biome[beachy | kz] = BI_BEACH
@@ -1115,6 +1518,7 @@ def plan_world(S, seed):
     P.occ = np.zeros((S, S), bool)
     P.structs = []
     P.trees = []
+    del dl, ocean_d, hill, beachy
     print(f'  terrain         {time.time() - t0:5.1f}s', flush=True)
 
     # ---- roads
@@ -1166,6 +1570,9 @@ def plan_world(S, seed):
                 P.pillar[sl][m & ((along % 24) < 2)] = True
             if lamps and k in (0, n - 1):
                 P.lamp[sl][m & ((along % 24) == 12)] = True
+                if spec == 'SSAAAAYAAAASS':
+                    for a in along[m & (along % 24 == 0)]:
+                        P.trees.append((a, row) if axis == 'x' else (row, a))
             if ch == 'M' and spec[k - 1] == 'M' and k + 2 < n and spec[k + 2] != 'M':
                 for a in along[m & (along % 14 == 7)]:
                     P.trees.append((a, row) if axis == 'x' else (row, a))
@@ -1202,11 +1609,12 @@ def plan_world(S, seed):
         zs += [a for a in avoid_z if z0 - step < a < z1 + step]
         return sorted(xs), sorted(zs)
 
-    city_m = land & (zone == Z_CITY)
+    city_m = (land & (zone == Z_CITY)) | (waterways & city_rect)
     cxs, czs = grid(city_m, X(0.585), X(0.80), X(0.325), X(0.67), 64, ST, True)
-    sub_m = land & (zone == Z_SUB)
+    sub_m = (land & (zone == Z_SUB)) | (waterways & sub_rect)
     sxs, szs = grid(sub_m, X(0.48), X(0.80), X(0.15), X(0.75), 48, SB, False)
     pxs, pzs = grid(city_m, X(0.165), X(0.275), X(0.335), X(0.45), 64, ST, True)
+    lxs, lzs = grid(city_m, X(0.365), X(0.455), X(0.19), X(0.235), 64, ST, True)
     town_m = land & (zone == Z_TOWN)
     town_grids = []
     for tu, tv in town_centers:
@@ -1238,6 +1646,21 @@ def plan_world(S, seed):
         rw2_z = None
     inter = (P.cov >= 2) & (P.road > 0)
     P.road[inter & (P.road != R_RUN)] = R_ASPH
+    hwset = set(c for _, c in hw_rows)
+    P.intersections = []
+    for xs_, zs_ in ((cxs, czs), (pxs, pzs), (lxs, lzs)):
+        for x in xs_:
+            if x in hwset:
+                continue
+            for z in zs_:
+                if z in hwset or not (12 < x < S - 12 and 12 < z < S - 12) or not city_m[z, x] or P.road[z, x] == 0:
+                    continue
+                for k in range(-4, 5):
+                    for d_ in range(7, 11):
+                        for (cx_, cz_) in ((x + k, z - d_), (x + k, z + d_), (x - d_, z + k), (x + d_, z + k)):
+                            if P.road[cz_, cx_] in (R_ASPH, R_YEL) and P.cov[cz_, cx_] == 1:
+                                P.road[cz_, cx_] = R_WHITE if k % 2 == 0 else R_ASPH
+                P.intersections.append((x, z))
     # runway threshold stripes
     for rz_, xa, xb in ((rw_z, ax0 + 15, ax1 - 27),) + (((rw2_z, ax0 + 61, ax1 - 73),) if rw2_z else ()):
         for xx in (xa, xb):
@@ -1279,8 +1702,24 @@ def plan_world(S, seed):
             for za, zb in zip(zs, zs[1:]):
                 yield xa + half + 1, za + half + 1, xb - half - 1, zb - half - 1
 
-    # landmarks first
-    st_x, st_z = X(0.60), X(0.53)
+    # street furniture at city intersections
+    for (x, z) in P.intersections:
+        for px_, pz_, arm in ((x - 8, z - 8, 0), (x + 8, z - 8, 2), (x + 8, z + 8, 1), (x - 8, z + 8, 3)):
+            add('traffic', px_ - 5, pz_ - 5, 11, 11, 9, oy=int(H[pz_, px_]), mark=False, arm=arm)
+            P.occ[pz_, px_] = True
+        if R.random() < 0.35 and free(x + 14, z + 8, 5, 3):
+            add('busstop', x + 14, z + 8, 5, 3, 5)
+        if H[z + 7, x - 7] >= SEA and not P.occ[z + 7, x - 7]:
+            P.deco[z + 7, x - 7] = HYDRANT
+    # landmarks
+    P.places = {}
+    for kname, (rx0, rz0, rw, rd) in park_rects.items():
+        H[rz0:rz0 + rd, rx0:rx0 + rw] = 64
+        TOP[rz0:rz0 + rd, rx0:rx0 + rw] = GRASS
+        P.road[rz0:rz0 + rd, rx0:rx0 + rw] = 0
+        add(kname, rx0, rz0, rw, rd, {'themepark': 48, 'speedway': 20, 'prison': 16}[kname], oy=64)
+        P.places[kname] = (rx0 + rw // 2, 65, rz0 - 2)
+    st_x, st_z = X(0.62), X(0.56)
     if free(st_x, st_z, 104, 80):
         add('stadium', st_x, st_z, 104, 80, 26, oy=64)
         H[st_z:st_z + 80, st_x:st_x + 104] = 64
@@ -1296,7 +1735,28 @@ def plan_world(S, seed):
     add('plane', ax0 + 60, rw_z - 13, 29, 27, 11, oy=64, mark=False)
 
     # city blocks
+    P.spots = {k: [] for k in ('rob', 'bank', 'police', 'hospital', 'guns', 'dealer', 'safehouse', 'fire')}
+    TOWN_KINDS = ['mart', 'diner', 'pizza', 'taco', 'bar', 'barber', 'pharmacy', 'pawn', 'clothes', 'mart']
+    CITY_KINDS = TOWN_KINDS + ['electronics', 'club', 'gym', 'guns', 'mart', 'clothes', 'club']
+
+    def add_business(kind, fx, fz, fw, fd):
+        w_, d_ = min(fw, 30), min(fd, 28)
+        oy = int(H[fz + d_ // 2, fx + w_ // 2])
+        h_ = 9 if (w_ >= 16 and R.random() < 0.5) or kind in ('bank', 'police', 'hospital') else 5
+        add('business', fx, fz, w_, d_, h_, oy=oy, btype=kind)
+        if kind in ('guns', 'dealer'):
+            P.spots[kind].append((fx + w_ // 2, oy + 1, fz - 1, kind))
+        if kind in ROBBABLE:
+            P.spots['rob'].append((fx + 4, oy + 1, fz + d_ - 5, kind))
+        elif kind == 'bank':
+            vz0 = max(8, d_ - 8)
+            P.spots['bank'].append((fx + w_ // 2, oy + 1, fz + (vz0 + d_ - 2) // 2, kind))
+        elif kind in P.spots:
+            P.spots[kind].append((fx + w_ // 2, oy + 1, fz - 1, kind))
+
     def place_city(xs, zs, dcx, dcz, scale):
+        forced = ['bank', 'police', 'hospital', 'guns', 'fire', 'dealer', 'bank', 'police', 'hospital', 'guns'] if scale >= 0.5 \
+            else ['bank', 'police', 'hospital', 'guns']
         for bx0, bz0, bx1, bz1 in blocks_between(xs, zs, 9):
             bw, bd = bx1 - bx0 + 1, bz1 - bz0 + 1
             if bw < 12 or bd < 12:
@@ -1318,6 +1778,9 @@ def plan_world(S, seed):
                     continue
                 uu, vv = (fx + fw / 2) / S, (fz + fd / 2) / S
                 dd = math.hypot(uu - dcx, (vv - dcz) * 0.8) / scale
+                if forced and dd > 0.04 and fw >= 16 and fd >= 16 and R.random() < 0.3:
+                    add_business(forced.pop(0), fx, fz, fw, fd)
+                    continue
                 waterfront = dw[fz + fd // 2, fx + fw // 2] < 70
                 k = R.random()
                 if k < 0.07:
@@ -1347,12 +1810,15 @@ def plan_world(S, seed):
                     kind = R.choice(['office', 'condo', 'deco', 'deco', 'garage', 'glass'])
                     h = R.randint(10, 16) if kind == 'garage' else R.randint(18, 60)
                     add(kind, fx, fz, fw, fd, h)
+                elif R.random() < 0.6 and fw >= 10 and fd >= 12:
+                    add_business(R.choice(CITY_KINDS), fx, fz, fw, fd)
                 else:
-                    kind = R.choice(['office', 'deco', 'deco', 'shop', 'shop'])
+                    kind = R.choice(['office', 'deco', 'deco', 'shop'])
                     add(kind, fx, fz, fw, fd, R.randint(8, 26))
 
     place_city(cxs + [X(0.797)], czs, 0.705, 0.47, 1.0)
     place_city(pxs, pzs, 0.215, 0.39, 0.55)
+    place_city(lxs, lzs, 0.405, 0.21, 0.35)
     print(f'  city            {time.time() - t0:5.1f}s', flush=True)
 
     # port
@@ -1411,6 +1877,7 @@ def plan_world(S, seed):
             add('pier', x_, zz, 22, 4, 10, oy=SEA - 7, axis='x')
 
     # suburbs: houses with pools
+    house_cands = []
     for bx0, bz0, bx1, bz1 in blocks_between(sxs, szs, 9):
         for lx in range(bx0, bx1 - 11, 13):
             for lz, flip in ((bz0, 0), (bz0 + (bz1 - bz0 + 1) // 2, 1)):
@@ -1419,19 +1886,23 @@ def plan_world(S, seed):
                     continue
                 if not (zone[lz:lz + ld, lx:lx + 12] == Z_SUB).all():
                     continue
-                add('house', lx, lz, 12, ld, 12)
+                add('house', lx, lz, 12, ld, 16, flip=flip)
+                house_cands.append((lx + 6, int(H[lz, lx]) + 1, lz + (ld - 2 if flip else 1), 'house'))
                 if R.random() < 0.5:
                     P.trees.append((lx + R.choice([1, 10]), lz + R.choice([1, ld - 2])))
+    if house_cands:
+        step_ = max(1, len(house_cands) // 7)
+        P.spots['safehouse'] = house_cands[step_ // 2::step_][:7] + P.spots['safehouse']
     # towns
     for txs, tzs in town_grids:
         for bx0, bz0, bx1, bz1 in blocks_between(txs, tzs, 9):
             for lx in range(bx0, bx1 - 9, 12):
                 for lz in (bz0, bz1 - 11):
-                    if free(lx, lz, 11, 11) and (zone[lz:lz + 11, lx:lx + 11] == Z_TOWN).all():
+                    if free(lx, lz, 12, 13) and (zone[lz:lz + 13, lx:lx + 12] == Z_TOWN).all():
                         if R.random() < 0.5:
-                            add('shop', lx, lz, 11, 11, R.choice([5, 9]))
+                            add_business(R.choice(TOWN_KINDS), lx, lz, 12, 13)
                         else:
-                            add('house', lx, lz, 11, 11, 12)
+                            add('house', lx, lz, 11, 11, 16, flip=int(lz != bz0))
     # Port Isla fishing pier into the gulf
     tz_ = X(0.42)
     tx_ = np.nonzero(land[tz_])[0].min() if land[tz_].any() else 0
@@ -1444,6 +1915,8 @@ def plan_world(S, seed):
             for mz in range(cz_ - 75, cz_ + 75, 42):
                 if free(mx, mz, 38, 38) and (zone[mz:mz + 38, mx:mx + 38] == Z_ISLE).all():
                     add('mansion', mx, mz, 38, 38, 14)
+                    if R.random() < 0.15:
+                        P.spots['safehouse'].append((mx + 19, 65, mz + 1, 'mansion'))
                     P.trees.append((mx + 1, mz + 1))
                     P.trees.append((mx + 36, mz + 1))
     # yachts in the lagoon
@@ -1506,6 +1979,8 @@ def plan_world(S, seed):
                 Hm = int(H[bz_:bz_ + d_, bx_:bx_ + w_].max())
                 H[bz_:bz_ + d_, bx_:bx_ + w_] = Hm
                 add(kind, bx_, bz_, w_, d_, h_, oy=Hm)
+                if kind == 'gas':
+                    P.spots['rob'].append((bx_ + w_ // 2, Hm + 1, bz_ + d_ - 5, 'gas'))
 
     # trailer parks near the towns
     for tu, tv in town_centers:
@@ -1561,7 +2036,7 @@ def plan_world(S, seed):
     free_ground = ~P.occ & (H >= SEA)
 
     def scatter(mask, density, ttype):
-        idx = np.flatnonzero(mask & (rng.random((S, S)) < density))
+        idx = np.flatnonzero(mask & (rng.random((S, S), dtype=np.float32) < density))
         zs_, xs_ = np.divmod(idx, S)
         for x_, z_ in zip(xs_, zs_):
             P.trees.append((int(x_), int(z_), ttype))
@@ -1577,11 +2052,11 @@ def plan_world(S, seed):
     scatter(swampm & (H >= 62), 0.003, T_CYPRESS)
     scatter(free_ground & (zone == Z_FARM) & (TOP == GRASS), 0.0006, T_OAK)
     gm = free_ground & (TOP == GRASS) & (P.deco == 0)
-    rnd = rng.random((S, S))
+    rnd = rng.random((S, S), dtype=np.float32)
     P.deco[gm & (rnd < 0.18)] = SHORT_GRASS
     P.deco[gm & (rnd < 0.03) & (zone == Z_SWAMP)] = FERN
     fl = gm & (rnd > 0.985) & ~np.isin(zone, [Z_AIR])
-    P.deco[fl] = np.array(FLOWERS, np.uint8)[rng.integers(0, len(FLOWERS), (S, S))[fl]]
+    P.deco[fl] = np.array(FLOWERS, np.uint8)[rng.integers(0, len(FLOWERS), (S, S), dtype=np.uint8)[fl]]
     shallow = (H < SEA - 1) & (H > SEA - 7) & ~lake & np.isin(TOP, [SAND, GRAVEL, MUD])
     P.deco[shallow & (rnd < 0.12)] = SEAGRASS
     lily = (zone == Z_SWAMP) & (H < SEA) & (rnd > 0.88) & (P.road == 0)
@@ -1591,7 +2066,7 @@ def plan_world(S, seed):
 
     # parked / stopped cars on the streets
     carz = np.isin(zone, [Z_CITY, Z_SUB, Z_TOWN, Z_RESORT, Z_ISLE]) & (P.road == R_ASPH) & (P.cov == 1) & (H >= SEA)
-    idx = np.flatnonzero(carz & (rng.random((S, S)) < 1 / 220))
+    idx = np.flatnonzero(carz & (rng.random((S, S), dtype=np.float32) < 1 / 220))
     cz_, cx_ = np.divmod(idx, S)
     P.cars = np.stack([cx_, cz_, P.rdir[cz_, cx_], rng.integers(0, len(CAR_COLORS), len(idx))], 1).astype(np.int32)
     print(f'  cars            {len(P.cars)}', flush=True)
@@ -1763,21 +2238,28 @@ def render_region(P, rx, rz):
     a[dy - YMIN, dz_, dx_] = d
 
     # buildings
+    signs = []
     sb = P.sbox
     hit = np.nonzero((sb[:, 0] + sb[:, 2] > x0) & (sb[:, 0] < x0 + RS) & (sb[:, 1] + sb[:, 3] > z0) & (sb[:, 1] < z0 + RS))[0]
     for i in hit:
         (bx, bz, w, dd, h, oy, kind, seed, kw) = P.structs[i]
+        signs_l = ()
         if kind == 'house':
-            arr, off = build_house_lot(seed, w, dd, kw.get('stilts', 0))
+            arr, off = build_house_v2(seed, w, dd, kw.get('stilts', 0), kw.get('flip', 0))
         elif kind == 'pier':
             arr, off = build_pier(seed, w, dd, h, kw.get('axis', 'x'))
         elif kind == 'office' and kw.get('style') == 'terminal':
             arr = tower_block(w, dd, h, CONCRETE['white'], GLASSES[0], CONCRETE['white'], CONCRETE['light_gray'], 'band', 7)
             off = None
         else:
-            arr, off = BUILDERS[kind](seed, w, dd, h)
+            res = BUILDERS[kind](seed, w, dd, h, **kw) if kind in ('business', 'traffic') else BUILDERS[kind](seed, w, dd, h)
+            arr, off = res[0], res[1]
+            if len(res) > 2:
+                signs_l = res[2]
         y0 = oy + (off or 0)
         c.blit(bx, y0, bz, arr)
+        for sx, sy, sz, face, text in signs_l:
+            signs.append((bx + sx, y0 + sy, bz + sz, face, text))
 
     # cars
     cr = P.cars
@@ -1799,7 +2281,7 @@ def render_region(P, rx, rz):
         if tt != T_MANGROVE and gy < SEA:
             continue
         draw_tree(c, int(tx), gy + 1, int(tz), int(tt), int(sd))
-    return a
+    return a, signs
 
 
 def pack_bits(idx, bits):
@@ -1878,23 +2360,43 @@ def write_region(path, chunks):
 PLAN = None
 
 
+FORMAT = 'both'
+PAL_BE = None
+
+
 def region_job(args):
-    rx, rz, outdir = args
+    rx, rz, outdir, spooldir = args
     P = PLAN
-    a = render_region(P, rx, rz)
+    a, signs = render_region(P, rx, rz)
     bio = P.biome[rz * RS:(rz + 1) * RS, rx * RS:(rx + 1) * RS]
-    chunks = {}
-    for lz in range(32):
-        for lx in range(32):
-            ch = a[:, lz * 16:(lz + 1) * 16, lx * 16:(lx + 1) * 16]
-            chunks[(lx, lz)] = encode_chunk(ch, bio[lz * 16:(lz + 1) * 16, lx * 16:(lx + 1) * 16],
-                                            rx * 32 + lx, rz * 32 + lz)
-    write_region(os.path.join(outdir, f'r.{rx}.{rz}.mca'), chunks)
+    x0, z0 = rx * RS, rz * RS
+    if FORMAT in ('java', 'both'):
+        chunks = {}
+        for lz in range(32):
+            for lx in range(32):
+                ch = a[:, lz * 16:(lz + 1) * 16, lx * 16:(lx + 1) * 16]
+                chunks[(lx, lz)] = encode_chunk(ch, bio[lz * 16:(lz + 1) * 16, lx * 16:(lx + 1) * 16],
+                                                rx * 32 + lx, rz * 32 + lz)
+        write_region(os.path.join(outdir, f'r.{rx}.{rz}.mca'), chunks)
+    if FORMAT in ('bedrock', 'both'):
+        import bedrock
+        by_chunk = {}
+        for sg in signs:
+            if x0 <= sg[0] < x0 + RS and z0 <= sg[2] < z0 + RS:
+                by_chunk.setdefault((sg[0] >> 4, sg[2] >> 4), {})[(sg[0], sg[1], sg[2])] = sg
+        recs = []
+        for lz in range(32):
+            for lx in range(32):
+                ch = a[:, lz * 16:(lz + 1) * 16, lx * 16:(lx + 1) * 16]
+                cx, cz = rx * 32 + lx, rz * 32 + lz
+                recs += bedrock.chunk_records(ch, bio[lz * 16:(lz + 1) * 16, lx * 16:(lx + 1) * 16], cx, cz, PAL_BE,
+                                              AIR, BIOMES, list(by_chunk.get((cx, cz), {}).values()), YMIN)
+        bedrock.spool(os.path.join(spooldir, f'{rx}.{rz}.spool'), recs)
     # top-down view for the preview map
     nz = a != AIR
     top = NY - 1 - np.argmax(nz[::-1], axis=0)
     zz, xx = np.mgrid[0:RS, 0:RS]
-    return rx, rz, a[top, zz, xx], top + YMIN
+    return rx, rz, a[top, zz, xx], top + YMIN, len(signs)
 
 
 # --------------------------------------------------------------------------- level.dat
@@ -2019,44 +2521,82 @@ def make_preview(S, tops, heights, outdir):
 
 # --------------------------------------------------------------------------- main
 def main():
-    global PLAN, PALETTE_RAW
+    global PLAN, PALETTE_RAW, FORMAT, PAL_BE
     ap = argparse.ArgumentParser()
-    ap.add_argument('--size', type=int, default=8192, help='map size in blocks (multiple of 512)')
+    ap.add_argument('--size', type=int, default=12288, help='map size in blocks (multiple of 512)')
     ap.add_argument('--seed', type=int, default=20261121)
     ap.add_argument('--out', default='out')
     ap.add_argument('--jobs', type=int, default=os.cpu_count() or 2)
+    ap.add_argument('--format', choices=['bedrock', 'java', 'both'], default='bedrock')
     args = ap.parse_args()
+    FORMAT = args.format
     S = args.size
     assert S % RS == 0 and S >= 1024
     t0 = time.time()
     print(f'Planning {S}x{S} world...', flush=True)
     PLAN = plan_world(S, args.seed)
+    try:
+        import resource
+        print(f'  plan memory     {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.1f} GB', flush=True)
+    except Exception:
+        pass
     PALETTE_RAW = [_palette_entry(i) for i in range(len(BLOCKS))]
+    import packs
+    import packs_bedrock
+    if FORMAT in ('bedrock', 'both'):
+        import bedrock
+        PAL_BE = bedrock.Palette(BLOCKS)
+    os.makedirs(args.out, exist_ok=True)
     world = os.path.join(args.out, WORLD_NAME)
-    if os.path.exists(world):
-        shutil.rmtree(world)
+    world_be = os.path.join(args.out, WORLD_NAME + '_bedrock')
+    spooldir = os.path.join(args.out, 'spool')
+    for d_ in (world, world_be, spooldir):
+        if os.path.exists(d_):
+            shutil.rmtree(d_)
     os.makedirs(os.path.join(world, 'region'))
+    os.makedirs(spooldir)
     n = S // RS
-    jobs = [(rx, rz, os.path.join(world, 'region')) for rz in range(n) for rx in range(n)]
+    jobs = [(rx, rz, os.path.join(world, 'region'), spooldir) for rz in range(n) for rx in range(n)]
     tops = np.zeros((S, S), np.uint8)
     heights = np.zeros((S, S), np.int16)
-    print(f'Rendering {len(jobs)} regions with {args.jobs} workers...', flush=True)
+    nsigns = 0
+    print(f'Rendering {len(jobs)} regions ({FORMAT}) with {args.jobs} workers...', flush=True)
     with get_context('fork').Pool(args.jobs) as pool:
-        for k, (rx, rz, t, h) in enumerate(pool.imap_unordered(region_job, jobs), 1):
+        for k, (rx, rz, t, h, ns) in enumerate(pool.imap_unordered(region_job, jobs), 1):
             tops[rz * RS:(rz + 1) * RS, rx * RS:(rx + 1) * RS] = t
             heights[rz * RS:(rz + 1) * RS, rx * RS:(rx + 1) * RS] = h
-            print(f'  region {k}/{len(jobs)} r.{rx}.{rz}  {time.time() - t0:6.1f}s', flush=True)
-    write_level(os.path.join(world, 'level.dat'), PLAN, args.seed)
-    import packs
-    for j in packs.build(world, PLAN):
-        print(f"  job {j['id']}: {j['title']:<20} at {j['spot']}")
-    import packs_bedrock
-    packs_bedrock.build_addon(os.path.join(args.out, 'Palmera_Life.mcaddon'), PLAN)
-    print('  Bedrock add-on: Palmera_Life.mcaddon')
+            nsigns += ns
+            if k % max(1, len(jobs) // 20) == 0 or k == len(jobs):
+                print(f'  region {k}/{len(jobs)}  {time.time() - t0:6.1f}s', flush=True)
+    print(f'  signs placed    {nsigns}')
     make_preview(S, tops, heights, args.out)
-    shutil.copy(os.path.join(args.out, 'icon.png'), os.path.join(world, 'icon.png'))
-    zpath = shutil.make_archive(os.path.join(args.out, WORLD_NAME), 'zip', args.out, WORLD_NAME)
-    print(f'Done in {time.time() - t0:.0f}s. Spawn {PLAN.spawn}. World: {world}  Zip: {zpath}')
+    del tops, heights
+    if FORMAT in ('java', 'both'):
+        write_level(os.path.join(world, 'level.dat'), PLAN, args.seed)
+        for j in packs.build(world, PLAN):
+            print(f"  job {j['id']}: {j['title']:<20} at {j['spot']}")
+        shutil.copy(os.path.join(args.out, 'icon.png'), os.path.join(world, 'icon.png'))
+        zpath = shutil.make_archive(os.path.join(args.out, WORLD_NAME), 'zip', args.out, WORLD_NAME)
+        print(f'  Java world: {zpath}')
+    else:
+        shutil.rmtree(world)
+    bp, rp = packs_bedrock.build_addon(os.path.join(args.out, 'Palmera_Life.mcaddon'), PLAN)
+    print('  Bedrock add-on: Palmera_Life.mcaddon')
+    if FORMAT in ('bedrock', 'both'):
+        spools = sorted(os.path.join(spooldir, f) for f in os.listdir(spooldir))
+        ntab, nrec = bedrock.write_leveldb(os.path.join(world_be, 'db'), bedrock.merged(spools))
+        print(f'  LevelDB: {nrec} records in {ntab} tables  {time.time() - t0:6.1f}s', flush=True)
+        bedrock.write_level_dat(os.path.join(world_be, 'level.dat'), WORLD_NAME, PLAN.spawn, args.seed, S)
+        open(os.path.join(world_be, 'levelname.txt'), 'w').write(WORLD_NAME)
+        from PIL import Image
+        import io as _io
+        buf = _io.BytesIO()
+        Image.open(os.path.join(args.out, 'map_preview.png')).convert('RGB').resize((256, 256)).save(buf, 'JPEG', quality=88)
+        mc = os.path.join(args.out, WORLD_NAME + '.mcworld')
+        bedrock.package_mcworld(world_be, mc, bp, rp, packs_bedrock.U('bp'), packs_bedrock.U('rp'), buf.getvalue())
+        print(f'  Bedrock world: {mc} ({os.path.getsize(mc) / 1e6:.0f} MB)')
+    shutil.rmtree(spooldir, ignore_errors=True)
+    print(f'Done in {time.time() - t0:.0f}s. Spawn {PLAN.spawn}.')
 
 
 if __name__ == '__main__':
