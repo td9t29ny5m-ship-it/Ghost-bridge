@@ -3,3 +3,5 @@ data/
 schematics/
 .env
 *.log
+worldgen/out/
+__pycache__/
