@@ -2050,6 +2050,9 @@ def main():
     import packs
     for j in packs.build(world, PLAN):
         print(f"  job {j['id']}: {j['title']:<20} at {j['spot']}")
+    import packs_bedrock
+    packs_bedrock.build_addon(os.path.join(args.out, 'Palmera_Life.mcaddon'), PLAN)
+    print('  Bedrock add-on: Palmera_Life.mcaddon')
     make_preview(S, tops, heights, args.out)
     shutil.copy(os.path.join(args.out, 'icon.png'), os.path.join(world, 'icon.png'))
     zpath = shutil.make_archive(os.path.join(args.out, WORLD_NAME), 'zip', args.out, WORLD_NAME)

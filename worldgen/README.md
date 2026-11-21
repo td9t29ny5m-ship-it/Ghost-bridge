@@ -5,17 +5,25 @@ Palmera is an original tropical state inspired by South Florida's real geography
 ![map](dist/map_preview.png)
 
 ## Downloads
-- **Full world: 8192 × 8192 blocks.** It's about 110 MB, too large for GitHub, so it's sent separately. You can also build it yourself (see the last section).
-- **`dist/Palmera-2048.zip`** is the same world at 2048 × 2048 with all the gameplay packs. Use it for a quick try.
+- **`Palmera_Life.mcaddon`** is the Bedrock add-on: guns, cash, cops, pedestrians, cars, jobs and the phone. It's sent with the full world. Job locations match the 8192 map.
+- **Full world: 8192 × 8192 blocks** (`Palmera.zip`, about 110 MB). It's too large for GitHub, so it's sent separately. You can also build it yourself (see the last section).
+- **`dist/Palmera-2048.zip`** is a small 2048 × 2048 Java version with the Java packs, for a quick try. Its job locations don't match the Bedrock add-on.
 
-**Play on Java Edition 1.21.1.** The gameplay datapack uses 1.21.1 command and item syntax. Newer versions open the map, but the guns, shops and NPCs may break. Unzip the world into `.minecraft/saves/`. When the game asks to use the world's resource pack, say yes, because that's what gives the guns, phone and cash their textures.
+## Bedrock (phone, Windows, Xbox, PlayStation, Switch)
+1. **Convert the map.** Open [chunker.app](https://chunker.app) on a PC or Mac. Load `Palmera.zip`, choose the latest Bedrock version as the output, and convert. You'll get `Palmera.mcworld`.
+2. **Install the add-on.** On Windows, Android or iOS, open `Palmera_Life.mcaddon` and Minecraft imports it. Then open `Palmera.mcworld` too.
+3. **Turn it on.** Go to World → Edit → Behavior Packs and activate **Palmera Life**. Its resource pack is activated automatically. You don't need any experimental toggles.
+4. **Consoles** can't import files. Upload the world (with the add-on active) to a **Realm** from Windows or a phone, then join the Realm from the console. You can also host it on a **Bedrock Dedicated Server**, put the two pack folders in `behavior_packs/` and `resource_packs/`, and join through Ghost Bridge.
 
-**Bedrock:** [Chunker](https://chunker.app) can convert the *map* to Bedrock. Datapacks don't exist on Bedrock, so you'd get the world without the gameplay.
+On Bedrock the phone opens a real button menu, and the cars are proper drivable vehicles with 3D models. A GPS arrow on screen points you to your current job.
 
-## Gameplay (Palmera Life datapack)
+## Java
+**Play on Java Edition 1.21.1.** The datapack uses 1.21.1 command and item syntax. Unzip into `.minecraft/saves/` and say yes when the game offers the world's resource pack.
+
+## Gameplay (Palmera Life: Bedrock add-on and Java datapack)
 | Feature | How it works |
 |---|---|
-| **Phone** | Right-click it to open the menu: Sunshine Arms (guns), Coastline Motors (cars), Jobs and Stats. You can also type `/trigger pl_menu set 1`. |
+| **Phone** | Use it to open the menu: Sunshine Arms (guns), Coastline Motors (cars), Jobs and Stats. |
 | **Guns** | Pistol, SMG, Pump Shotgun, Assault Rifle and Rocket Launcher. Shots are hitscan with tracers, and bullets shatter glass. |
 | **Other gear** | Grenades (explode on impact without breaking blocks), Baseball Bat, Body Armor, Medkits. |
 | **Cash** | Shown in the HUD. Defeated enemies drop green cash bundles that you collect by walking over them. Jobs pay $1,500 to $12,000. |
