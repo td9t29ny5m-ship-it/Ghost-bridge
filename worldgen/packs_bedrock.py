@@ -433,12 +433,13 @@ def npc(ident, family, hp, speed, nskins, kind):
         'minecraft:breathable': {'total_supply': 15, 'suffocate_time': 0},
         'minecraft:nameable': {'always_show': False},
         'minecraft:behavior.float': {'priority': 0},
-        'minecraft:behavior.random_stroll': {'priority': 7, 'speed_multiplier': 0.8},
         'minecraft:behavior.look_at_player': {'priority': 8, 'look_distance': 6, 'probability': 0.02},
         'minecraft:behavior.random_look_around': {'priority': 9},
         'minecraft:conditional_bandwidth_optimization': {},
         'minecraft:damage_sensor': {'triggers': [{'cause': 'fall', 'damage_multiplier': 0.5}]},
     }
+    groups['wander'] = {'minecraft:behavior.random_stroll': {'priority': 7, 'speed_multiplier': 0.8}}
+    spawn = {'sequence': [spawn, {'add': {'component_groups': ['wander']}}]}
     if kind == 'civilian':
         c['minecraft:behavior.panic'] = {'priority': 1, 'speed_multiplier': 1.7}
         c['minecraft:preferred_path'] = {'max_fall_blocks': 1, 'jump_cost': 5, 'default_block_cost': 3,
@@ -458,8 +459,16 @@ def npc(ident, family, hp, speed, nskins, kind):
         if kind in ('cop', 'swat'):
             c['minecraft:behavior.nearest_attackable_target'] = target_wanted(48)
         else:
-            c['minecraft:behavior.nearest_attackable_target'] = target_tag('gang_heat', 28)
-    events = {'minecraft:entity_spawned': spawn}
+            t = target_tag('gang_heat', 28)
+            rival = lambda lo: {'all_of': [{'test': 'is_family', 'subject': 'other', 'value': 'gangster'},
+                                           {'test': 'is_variant', 'subject': 'other', 'operator': '<' if lo else '>=', 'value': 3},
+                                           {'test': 'is_variant', 'subject': 'self', 'operator': '>=' if lo else '<', 'value': 3}]}
+            t['entity_types'] += [{'filters': rival(True), 'max_dist': 24}, {'filters': rival(False), 'max_dist': 24}]
+            c['minecraft:behavior.nearest_attackable_target'] = t
+    events = {'minecraft:entity_spawned': spawn, 'palmera:stay': {'remove': {'component_groups': ['wander']}},
+              'palmera:wander': {'add': {'component_groups': ['wander']}}}
+    for i in range(nskins):
+        events['palmera:s%d' % i] = {'add': {'component_groups': ['s%d' % i]}}
     if kind == 'civilian':
         events['palmera:scare'] = {'add': {'component_groups': ['scared']}}
         events['palmera:calm'] = {'remove': {'component_groups': ['scared']}}

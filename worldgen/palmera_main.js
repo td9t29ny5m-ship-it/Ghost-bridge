@@ -226,8 +226,19 @@ function heat(p) {
     }
   } catch { }
 }
+const DIRS = ["south", "south-west", "west", "north-west", "north", "north-east", "east", "south-east"];
+function radio(p) {
+  const w = wanted(p);
+  const heading = DIRS[Math.round((((p.getRotation().y % 360) + 360) % 360) / 45) % 8];
+  const lines = ["", "§9[Dispatch]§7 Units respond, suspect seen heading " + heading + ".",
+    "§9[Dispatch]§7 Shots fired, all units, suspect is armed.", "§9[Dispatch]§7 SWAT is rolling. Suspect heading " + heading + ".",
+    "§9[Dispatch]§7 Air unit up, we have eyes in the sky.", "§9[Dispatch]§7 All available units! Lethal force authorized."];
+  if (lines[w]) msg(p, lines[w]);
+}
 function addStars(p, n = 1) {
+  const before = wanted(p);
   setWanted(p, wanted(p) + n); setProp(p, "wcd", 700);
+  if (wanted(p) !== before) radio(p);
   setProp(p, "crimes", prop(p, "crimes", 0) + 1);
   sound(p.dimension, "note.bell", p.location, 0.6);
 }
@@ -358,7 +369,11 @@ function robberyTick(p) {
   const need = isBank ? 600 : 160;
   if (isBank && st.t % 40 === 0) sound(p.dimension, "random.anvil_use", p.location, 1.3, 0.6);
   if (isBank && st.t % 200 === 10) { setWanted(p, Math.max(wanted(p), 3)); for (let i = 0; i < 2; i++) { const s = spotNear(p, 8, 16); if (s) spawn(p.dimension, "palmera:swat", s, "§8§lSWAT", ["cop"]); } }
-  if (!isBank && st.t === 10) { msg(p, "§e[Clerk]§f " + pick(["Please don't shoot!", "Take it, take it!", "The register is empty, I swear!", "Not again..."])); }
+  if (!isBank && st.t === 10) {
+    const line = pick(["Please don't shoot!", "Take it, take it!", "The register is empty, I swear!", "Not again..."]);
+    msg(p, "§e[Clerk]§f " + line);
+    try { for (const c of p.dimension.getEntities({ location: p.location, maxDistance: 6, tags: ["clerk"] })) c.nameTag = "§e" + line; } catch { }
+  }
   if (st.t >= need) {
     robbing.delete(p.id);
     cooldown.set(key, system.currentTick + (isBank ? 24000 : 6000));
@@ -433,7 +448,7 @@ function despawnFar() {
   const ps = world.getAllPlayers();
   const far = (e, r) => !ps.some(p => flat(p.location, e.location) < r);
   try {
-    for (const e of OW().getEntities({ families: ["civilian"] })) if (far(e, 100)) e.remove();
+    for (const e of OW().getEntities({ families: ["civilian"] })) if (far(e, e.hasTag("clerk") ? 70 : 100)) e.remove();
     for (const e of OW().getEntities({ type: "palmera:traffic_car" })) if (far(e, 120)) e.remove();
     for (const e of OW().getEntities({ type: "palmera:gangster", tags: ["gang"] })) if (far(e, 110)) e.remove();
     for (const t of ["palmera:gator", "palmera:flamingo"]) for (const e of OW().getEntities({ type: t })) if (far(e, 120)) e.remove();
@@ -774,7 +789,8 @@ function minimap(p, o) {
 }
 function hud(p) {
   const w = wanted(p), o = objective(p), it = held(p), g = it && GUNS[it.typeId];
-  let line = `${I.cash} §a${money(cash(p))}\n${I.star.repeat(w)}${I.off.repeat(5 - w)}` + (w && prop(p, "searching", false) && system.currentTick % 20 < 10 ? " §7searching" : "");
+  let hp = 20; try { hp = Math.ceil(p.getComponent("minecraft:health").currentValue); } catch { }
+  let line = `${I.cash} §a${money(cash(p))}  ${I.heart}§c${hp}\n${I.star.repeat(w)}${I.off.repeat(5 - w)}` + (w && prop(p, "searching", false) && system.currentTick % 20 < 10 ? " §7searching" : "");
   if (g) {
     const r = reloading.get(p.id);
     line += `  ${I.ammo}§f` + (r ? "§eRELOADING" : `${magOf(p, it.typeId)[it.typeId]}§7/${ammo(p)}`);
@@ -909,6 +925,23 @@ system.runInterval(() => {
     }
   } catch { }
 }, 20);
+
+// ---------------------------------------------------------------- shop clerks
+const clerks = new Map();
+function clerkTick(p) {
+  const [s] = nearest(D.rob, p.location);
+  if (!s || flat(V(s), p.location) > 40) return;
+  const key = s.slice(0, 3).join(",");
+  const c = clerks.get(key);
+  if (c && valid(c)) return;
+  const pos = { x: s[0] + 0.5, y: s[1], z: s[2] + 2.5 };
+  const e = spawn(p.dimension, "palmera:civilian", pos, "§eClerk", ["clerk"], "palmera:stay");
+  if (e) clerks.set(key, e);
+}
+system.runInterval(() => {
+  for (const p of world.getAllPlayers()) { try { clerkTick(p); } catch { } }
+  for (const [k, e] of clerks) if (!valid(e)) clerks.delete(k);
+}, 60);
 
 // ---------------------------------------------------------------- pedestrian chatter
 const LINES = {
