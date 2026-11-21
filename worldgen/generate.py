@@ -1915,13 +1915,13 @@ def write_level(path, P, seed):
             'biome_source': {'type': 'minecraft:the_end'}}},
     }
     sx, sy, sz = P.spawn
-    rules = {'doMobSpawning': 'true', 'doDaylightCycle': 'true', 'doWeatherCycle': 'true',
+    rules = {'doMobSpawning': 'false', 'sendCommandFeedback': 'false', 'doInsomnia': 'false', 'doDaylightCycle': 'true', 'doWeatherCycle': 'true',
              'keepInventory': 'true', 'doFireTick': 'false', 'mobGriefing': 'false',
              'spawnRadius': '0'}
     data = {
         'DataVersion': Int(DATA_VERSION), 'version': Int(19133),
         'Version': {'Id': Int(DATA_VERSION), 'Name': VERSION_NAME, 'Series': 'main', 'Snapshot': Byte(0)},
-        'LevelName': WORLD_NAME, 'GameType': Int(1), 'Difficulty': Byte(1), 'DifficultyLocked': Byte(0),
+        'LevelName': WORLD_NAME, 'GameType': Int(0), 'Difficulty': Byte(2), 'DifficultyLocked': Byte(0),
         'hardcore': Byte(0), 'allowCommands': Byte(1), 'initialized': Byte(1),
         'SpawnX': Int(sx), 'SpawnY': Int(sy), 'SpawnZ': Int(sz), 'SpawnAngle': Float(90.0),
         'Time': Long(1000), 'DayTime': Long(1000), 'LastPlayed': Long(int(time.time() * 1000)),
@@ -1929,7 +1929,7 @@ def write_level(path, P, seed):
         'clearWeatherTime': Int(0), 'WasModded': Byte(0), 'ServerBrands': List(8, ['vanilla']),
         'WorldGenSettings': {'seed': Long(seed), 'generate_features': Byte(0), 'bonus_chest': Byte(0),
                              'dimensions': dims},
-        'DataPacks': {'Enabled': List(8, ['vanilla']), 'Disabled': List(8, [])},
+        'DataPacks': {'Enabled': List(8, ['vanilla', 'file/palmera_life']), 'Disabled': List(8, [])},
         'GameRules': rules,
         'BorderCenterX': Double(P.S / 2), 'BorderCenterZ': Double(P.S / 2), 'BorderSize': Double(59999968.0),
         'BorderSafeZone': Double(5.0), 'BorderWarningBlocks': Double(5.0), 'BorderWarningTime': Double(15.0),
@@ -2047,6 +2047,9 @@ def main():
             heights[rz * RS:(rz + 1) * RS, rx * RS:(rx + 1) * RS] = h
             print(f'  region {k}/{len(jobs)} r.{rx}.{rz}  {time.time() - t0:6.1f}s', flush=True)
     write_level(os.path.join(world, 'level.dat'), PLAN, args.seed)
+    import packs
+    for j in packs.build(world, PLAN):
+        print(f"  job {j['id']}: {j['title']:<20} at {j['spot']}")
     make_preview(S, tops, heights, args.out)
     shutil.copy(os.path.join(args.out, 'icon.png'), os.path.join(world, 'icon.png'))
     zpath = shutil.make_archive(os.path.join(args.out, WORLD_NAME), 'zip', args.out, WORLD_NAME)
