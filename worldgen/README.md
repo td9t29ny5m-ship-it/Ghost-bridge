@@ -1,59 +1,44 @@
-# Palmera: an open-world crime-sandbox map for Minecraft
+# Palmera: an open-world crime sandbox for Minecraft Bedrock
 
-Palmera is an original tropical state inspired by South Florida's real geography. It's built to feel like a big-city crime sandbox, rebuilt in Minecraft. It isn't a copy of any game's map, and it uses no other game's names or assets.
+Palmera is an original tropical state inspired by South Florida's geography. Its gameplay borrows the big-city crime-sandbox genre, but every name, character, story and asset in it is original.
 
 ![map](dist/map_preview.png)
 
-## Downloads
-- **`Palmera_Life.mcaddon`** is the Bedrock add-on: guns, cash, cops, pedestrians, cars, jobs and the phone. It's sent with the full world. Job locations match the 8192 map.
-- **Full world: 8192 × 8192 blocks** (`Palmera.zip`, about 110 MB). It's too large for GitHub, so it's sent separately. You can also build it yourself (see the last section).
-- **`dist/Palmera-2048.zip`** is a small 2048 × 2048 Java version with the Java packs, for a quick try. Its job locations don't match the Bedrock add-on.
+## Play it on Bedrock (phone, Windows, Xbox, PlayStation, Switch)
+**One file: `Palmera.mcworld`.** The map and the Palmera Life add-on are built into it.
 
-## Bedrock (phone, Windows, Xbox, PlayStation, Switch)
-1. **Convert the map.** Open [chunker.app](https://chunker.app) on a PC or Mac. Load `Palmera.zip`, choose the latest Bedrock version as the output, and convert. You'll get `Palmera.mcworld`.
-2. **Install the add-on.** On Windows, Android or iOS, open `Palmera_Life.mcaddon` and Minecraft imports it. Then open `Palmera.mcworld` too.
-3. **Turn it on.** Go to World → Edit → Behavior Packs and activate **Palmera Life**. Its resource pack is activated automatically. You don't need any experimental toggles.
-4. **Consoles** can't import files. Upload the world (with the add-on active) to a **Realm** from Windows or a phone, then join the Realm from the console. You can also host it on a **Bedrock Dedicated Server**, put the two pack folders in `behavior_packs/` and `resource_packs/`, and join through Ghost Bridge.
+- **Phone or Windows:** open `Palmera.mcworld` and Minecraft imports it with everything included. Then play it from your Worlds list. You don't need any experimental toggles.
+- **Xbox / PlayStation / Switch:** consoles can't import files. Import it on a phone or PC first, then upload it to a **Realm** (Edit World → Replace World) and join the Realm from your console. You can also host it on a **Bedrock Dedicated Server** and connect through Ghost Bridge.
+- The full world (12288 × 12288 blocks, ~150 km²) is sent separately because it's too large for GitHub. **`dist/Palmera-2048.mcworld`** is a small 2048 × 2048 version for a quick try.
 
-On Bedrock the phone opens a real button menu, and the cars are proper drivable vehicles with 3D models. A GPS arrow on screen points you to your current job.
-
-## Java
-**Play on Java Edition 1.21.1.** The datapack uses 1.21.1 command and item syntax. Unzip into `.minecraft/saves/` and say yes when the game offers the world's resource pack.
-
-## Gameplay (Palmera Life: Bedrock add-on and Java datapack)
-| Feature | How it works |
+## What you can do
+| | |
 |---|---|
-| **Phone** | Use it to open the menu: Sunshine Arms (guns), Coastline Motors (cars), Jobs and Stats. |
-| **Guns** | Pistol, SMG, Pump Shotgun, Assault Rifle and Rocket Launcher. Shots are hitscan with tracers, and bullets shatter glass. |
-| **Other gear** | Grenades (explode on impact without breaking blocks), Baseball Bat, Body Armor, Medkits. |
-| **Cash** | Shown in the HUD. Defeated enemies drop green cash bundles that you collect by walking over them. Jobs pay $1,500 to $12,000. |
-| **Wanted level ★★★★★** | Killing civilians or police, or firing near people, raises your stars. Police come at 1★, SWAT at 3★ and a police chopper at 5★. Get away from the cops to lose stars. |
-| **Pedestrians** | Named civilians walk the sidewalks and beaches around you and despawn when you leave. |
-| **Cars** | Sedans and sports cars in random colours. Right-click to drive. Each player gets one car at a time. |
-| **Jobs** | Beach Brawl, Dockside Shakedown, Swamp Runners, Hangar Deal, Launch Day and Isle Heist. Each gives you a GPS compass to the location. |
-| **Death** | You keep your inventory and pay a $500 hospital bill, and your wanted level resets. |
+| **Story** | 10 original missions with Sol (your partner), Benny (the mechanic who asks no questions), Detective Hale and the kingpin Victor Lazaro. Start it from the Phone. |
+| **Phone** | Story, Jobs & Races, Sunshine Arms (guns), Coastline Motors (cars), Real Estate, Palm Bank, GPS, Lawyer, Feed, Stats. |
+| **Robberies** | Crouch at a shop counter with a gun out. Corner stores, pawn shops, diners, pharmacies and gas stations all pay out. Each store has a cooldown. |
+| **Heists** | Get into a Palm Bank vault and keep drilling for 30 seconds while SWAT waves arrive, for $25k–$45k. |
+| **Wanted ★–★★★★★** | Crimes bring police on foot, then police cars with flashing light bars and sirens, then SWAT and a helicopter. Get out of sight to lose them, or pay a lawyer. |
+| **Traffic** | AI cars drive the roads. Crouch next to one to steal it. Sedans and sports cars are for sale too. |
+| **People** | Human pedestrians with 16 looks walk the sidewalks and scatter when you shoot. The Swamp Kings and Neon Saints gangs hold their own turf. |
+| **Wildlife** | Alligators in the swamp, flamingos on the beaches. |
+| **Weapons** | Pistol, SMG, Pump Shotgun, Assault Rifle, Sniper, Minigun, Rocket Launcher, Grenades, Baseball Bat, Body Armor, Medkits. |
+| **Life** | Bank account (safe when you die), safehouses that become your respawn point and pay daily income, hospitals, six side jobs, three street races. |
 
-You start in Survival with $2,500, a pistol, 60 ammo and a phone. Cheats stay on so you can switch to creative to explore.
+## The map
+- **Vista Marina:** a huge downtown with glass, round and art-deco skyscrapers, the Marina River and its bridges, a stadium, and street-level shops with interiors and signs (Sunny Mart, Coral Diner, Palm Bank, Police, Hospital, Tiki Bar, Neon Nights and more). Crosswalks, traffic lights, bus stops, hydrants, palms and lamps line the streets.
+- **Coral Strand:** a hotel strip on a barrier island, with a beach, a Ferris wheel pier and lifeguard towers.
+- **Port Isla and Lakeview:** two more cities. Towns: Citrus Grove, Palmetto, Okee Junction, Cypress Bend, Mangrove Point, Sandpiper.
+- **Landmarks:** Port Solano (container port), the international airport (two runways), a spaceport, the Millionaire Isles mansions, a canal district, Funland Palmera theme park, Palmera Speedway, Iron Bay Correctional prison island, the Sawgrass swamp, Lake Solano and its rivers, the Sunset Keys island chain, golf courses, farms, motels, gas stations and strip malls.
 
-## Map
-| Area | Highlights |
-|---|---|
-| Vista Marina | Huge downtown with glass, round and art-deco skyscrapers up to ~240 tall, condos with rooftop pools, garages, a stadium and parked cars |
-| Coral Strand | Barrier-island hotel strip, beach, umbrellas, lifeguard towers, a Ferris wheel pier |
-| Millionaire Isles | Lagoon islands with modern mansions and yachts |
-| Port Solano | Containers, gantry cranes, cargo ships |
-| Intl Airport | Two runways, terminal, tower, parked jets, hangars |
-| Spaceport | Rocket launch pads and a giant assembly building |
-| Port Isla | Second city on the gulf coast |
-| Towns | Citrus Grove, Palmetto, Okee Junction, Mangrove Point (with trailer parks) |
-| The Sawgrass | Mangrove swamp crossed by an elevated highway |
-| Sunset Keys | Island chain on an overseas bridge, lighthouse, coral reefs |
-| Everywhere | Divided highways with palm medians, gas stations, motels, strip malls, billboards, golf courses, farms and orange groves |
+![street](dist/street.png)
+![downtown](dist/downtown.png)
 
 ## Build it yourself
 ```
-pip install numpy scipy pillow nbtlib
-python3 generate.py --size 8192 --out out     # ~5 min, ~6 GB RAM, 4 cores
-python3 verify.py out/Palmera                  # NBT check of every chunk
+pip install numpy scipy pillow crc32c
+python3 generate.py --size 12288 --format bedrock --out out   # -> out/Palmera.mcworld (~20 min, 4 cores)
+python3 generate.py --size 2048 --format both --out out       # also writes a Java world + datapack
 ```
-`--size` takes a multiple of 512. `--seed` changes the coastline and building layout. The datapack and resource pack are made by `packs.py`, which sets each job's coordinates to match the generated map.
+- `bedrock.py` writes Bedrock LevelDB directly. `bedrock_blocks.json` holds the exact Bedrock block states. Regenerate it with `bedrock_map.py` (needs amulet-core) if you add blocks.
+- `packs_bedrock.py` and `palmera_main.js` hold the Bedrock add-on. `packs.py` holds the Java datapack.
