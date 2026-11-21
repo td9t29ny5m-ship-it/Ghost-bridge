@@ -282,22 +282,35 @@ def geo(ident, bones, w=6, h=3):
 
 
 def car_cubes(kind):
+    """Front of the car faces -z. Angled glass uses rotated cubes."""
     if kind == 'sports':
-        cubes = [cube([-16, 2, -36], [32, 8, 72], 'body'), cube([-13, 10, -6], [26, 7, 24], 'glass'),
-                 cube([-16, 14, 30], [32, 1, 6], 'body'), cube([-12, 10, 32], [2, 4, 2], 'tire'),
-                 cube([10, 10, 32], [2, 4, 2], 'tire'), cube([-16, 2, -37], [32, 2, 1], 'chrome'),
-                 cube([-14, 6, -37], [8, 2, 1], 'light'), cube([6, 6, -37], [8, 2, 1], 'light'),
-                 cube([-14, 6, 36], [8, 2, 1], 'tail'), cube([6, 6, 36], [8, 2, 1], 'tail')]
+        c = [cube([-16, 3, -38], [32, 7, 76], 'body'), cube([-15, 10, -38], [30, 1, 26], 'body'),
+             cube([-13, 10, -10], [26, 7, 2], 'glass', [0, 10, -10], [-55, 0, 0]),
+             cube([-13, 15, -8], [26, 2, 16], 'body'), cube([-13, 10, -8], [26, 5, 16], 'glass'),
+             cube([-13, 10, 8], [26, 6, 2], 'glass', [0, 10, 9], [50, 0, 0]),
+             cube([-15, 10, 12], [30, 1, 24], 'body'),
+             cube([-16, 14, 32], [32, 1, 6], 'body'), cube([-13, 10, 33], [2, 4, 2], 'black'), cube([11, 10, 33], [2, 4, 2], 'black'),
+             cube([-16, 3, -39], [32, 2, 1], 'black'), cube([-10, 5, -39], [20, 2, 1], 'dark'),
+             cube([-15, 7, -39], [7, 2, 1], 'light'), cube([8, 7, -39], [7, 2, 1], 'light'),
+             cube([-15, 7, 38], [8, 2, 1], 'tail'), cube([7, 7, 38], [8, 2, 1], 'tail'), cube([-4, 4, 38], [8, 2, 0.5], 'white')]
+        mirrors_y, wz = 13, (-27, 19)
     else:
-        cubes = [cube([-16, 3, -34], [32, 11, 68], 'body'), cube([-14, 14, -12], [28, 11, 32], 'glass'),
-                 cube([-14, 25, -12], [28, 1, 32], 'body'), cube([-16, 3, -35], [32, 3, 1], 'chrome'),
-                 cube([-16, 3, 34], [32, 3, 1], 'chrome'),
-                 cube([-13, 8, -35], [7, 3, 1], 'light'), cube([6, 8, -35], [7, 3, 1], 'light'),
-                 cube([-13, 9, 34], [7, 2, 1], 'tail'), cube([6, 9, 34], [7, 2, 1], 'tail')]
+        c = [cube([-16, 4, -36], [32, 9, 72], 'body'), cube([-15, 13, -36], [30, 2, 22], 'body'),
+             cube([-14, 13, -14], [28, 11, 2], 'glass', [0, 13, -14], [-30, 0, 0]),
+             cube([-14, 15, -12], [28, 9, 24], 'glass'), cube([-14, 24, -12], [28, 2, 24], 'body'),
+             cube([-14, 13, 12], [28, 10, 2], 'glass', [0, 13, 13], [28, 0, 0]),
+             cube([-15, 13, 14], [30, 2, 22], 'body'), cube([-0.5, 15, -12], [1, 9, 24], 'body'),
+             cube([-16, 4, -37], [32, 3, 1], 'chrome'), cube([-16, 4, 36], [32, 3, 1], 'chrome'),
+             cube([-9, 8, -37], [18, 4, 1], 'dark'),
+             cube([-14, 9, -37], [5, 3, 1], 'light'), cube([9, 9, -37], [5, 3, 1], 'light'),
+             cube([-14, 9, 36], [6, 3, 1], 'tail'), cube([8, 9, 36], [6, 3, 1], 'tail'), cube([-4, 5, 36.5], [8, 2, 0.5], 'white')]
+        mirrors_y, wz = 17, (-26, 17)
+    c += [cube([-18, mirrors_y, -12], [2, 2, 3], 'body'), cube([16, mirrors_y, -12], [2, 2, 3], 'body')]
     for x in (-17, 13):
-        for z in (-26, 17):
-            cubes.append(cube([x, 0, z], [4, 9, 9], 'tire'))
-    return cubes
+        for z in wz:
+            c.append(cube([x, 0, z], [4, 10, 10], 'tire'))
+            c.append(cube([x - 0.2 if x < 0 else x + 0.2, 3, z + 3], [4, 4, 4], 'chrome'))
+    return c
 
 
 CAR_GEO = geo('geometry.palmera_car', [{'name': 'body', 'pivot': [0, 0, 0], 'cubes': car_cubes('car')}])
@@ -940,7 +953,11 @@ def build_addon(out_path, P):
             'description': {'identifier': 'palmera:' + key, 'menu_category': {'category': 'equipment'}}, 'components': comps}})
         rp['textures/items/palmera_%s.png' % key] = javapacks.sprite_png(SPRITES[key])
         tex_data['palmera_' + key] = {'textures': 'textures/items/palmera_' + key}
-    rp['font/glyph_E1.png'] = png(glyph_sheet())
+    rp['font/glyph_E1.png'] = png(glyph_sheet_v2())
+    rp['ui/hud_screen.json'] = J(HUD_SCREEN)
+    rp['textures/ui/palmera_hud_bg.png'] = png(hud_bg())
+    import realism
+    rp.update(realism.textures())
     for app, (col, letter) in APPS.items():
         rp['textures/ui/palmera_app_%s.png' % app] = png(app_icon(col, letter))
     rp['textures/item_texture.json'] = J({'resource_pack_name': 'palmera', 'texture_name': 'atlas.items', 'texture_data': tex_data})
@@ -1038,3 +1055,124 @@ def build_addon(out_path, P):
         for k, v in rp.items():
             z.writestr('Palmera_Life_RP/' + k, v)
     return bp, rp
+
+
+# --------------------------------------------------------------------------- HUD v3: smooth radar glyphs + corner HUD layout
+def glyph_sheet_v2():
+    """512x512 glyph sheet (32px cells), drawn at 4x and downsampled for smooth edges."""
+    from PIL import ImageDraw
+    import math as _m
+    S = 128
+    big = Image.new('RGBA', (16 * S, 16 * S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(big)
+    def cell(i):
+        return (i % 16) * S, (i // 16) * S
+    def full(i, col):
+        x, y = cell(i)
+        d.rectangle([x, y, x + S - 1, y + S - 1], fill=col)
+    tiles = [(74, 104, 74, 215), (42, 74, 122, 215), (205, 205, 210, 235), (118, 118, 126, 225), (176, 164, 124, 215), (64, 76, 56, 215)]
+    for i, c in enumerate(tiles):
+        full(i, c)
+    full(6, (12, 14, 18, 28))                                   # rim / corner (nearly invisible but full width)
+    full(0x14, (14, 22, 40, 200))
+    def disc_bg(i):
+        full(i, (16, 18, 24, 210))
+    for k in range(8):
+        disc_bg(8 + k)
+        x, y = cell(8 + k)
+        ang = _m.radians(90 + 45 * k)
+        cx, cy = x + S / 2, y + S / 2
+        pts = [(cx + 52 * _m.cos(ang), cy + 52 * _m.sin(ang)), (cx + 44 * _m.cos(ang + 2.45), cy + 44 * _m.sin(ang + 2.45)),
+               (cx + 14 * _m.cos(ang + _m.pi), cy + 14 * _m.sin(ang + _m.pi)), (cx + 44 * _m.cos(ang - 2.45), cy + 44 * _m.sin(ang - 2.45))]
+        d.polygon(pts, fill=(255, 255, 255, 255), outline=(20, 20, 20, 255))
+    def dot(i, col, col2=None):
+        disc_bg(i)
+        x, y = cell(i)
+        d.ellipse([x + 26, y + 26, x + 102, y + 102], fill=col, outline=(255, 255, 255, 255), width=6)
+        if col2:
+            d.pieslice([x + 26, y + 26, x + 102, y + 102], 270, 90, fill=col2)
+    dot(0x10, (230, 40, 40, 255), (40, 90, 240, 255))
+    dot(0x13, (180, 60, 220, 255))
+    def starpoly(x, y, s, col):
+        pts = []
+        for j in range(10):
+            a = _m.radians(-90 + 36 * j)
+            rr = s if j % 2 == 0 else s * 0.42
+            pts.append((x + rr * _m.cos(a), y + rr * _m.sin(a)))
+        d.polygon(pts, fill=col)
+    disc_bg(0x11)
+    x, y = cell(0x11)
+    starpoly(x + S / 2, y + S / 2 + 4, 56, (255, 214, 40, 255))
+    x, y = cell(0x21)
+    starpoly(x + S / 2, y + S / 2 + 4, 58, (255, 214, 40, 255))
+    x, y = cell(0x22)
+    starpoly(x + S / 2, y + S / 2 + 4, 58, (110, 110, 110, 200))
+    x, y = cell(0x20)
+    d.rounded_rectangle([x + 6, y + 30, x + 122, y + 98], radius=10, fill=(70, 160, 80, 255), outline=(30, 90, 40, 255), width=6)
+    d.ellipse([x + 46, y + 44, x + 82, y + 84], fill=(210, 240, 210, 255))
+    x, y = cell(0x23)
+    for k in range(3):
+        d.rounded_rectangle([x + 14 + k * 36, y + 36, x + 38 + k * 36, y + 118], radius=6, fill=(225, 180, 70, 255))
+        d.pieslice([x + 14 + k * 36, y + 14, x + 38 + k * 36, y + 58], 180, 360, fill=(190, 120, 60, 255))
+    x, y = cell(0x24)
+    d.ellipse([x + 8, y + 16, x + 66, y + 74], fill=(230, 40, 60, 255))
+    d.ellipse([x + 62, y + 16, x + 120, y + 74], fill=(230, 40, 60, 255))
+    d.polygon([(x + 10, y + 56), (x + 118, y + 56), (x + 64, y + 118)], fill=(230, 40, 60, 255))
+    x, y = cell(0x25)
+    d.arc([x + 8, y + 20, x + 120, y + 132], 180, 360, fill=(255, 255, 255, 255), width=12)
+    d.line([x + 64, y + 76, x + 98, y + 36], fill=(255, 80, 60, 255), width=12)
+    x, y = cell(0x26)
+    d.rounded_rectangle([x + 34, y + 6, x + 94, y + 122], radius=12, fill=(25, 25, 30, 255))
+    d.rectangle([x + 42, y + 20, x + 86, y + 102], fill=(90, 200, 240, 255))
+    x, y = cell(0x27)
+    for a_, b_ in (((10, 10), (44, 44)), ((118, 10), (84, 44)), ((10, 118), (44, 84)), ((118, 118), (84, 84))):
+        d.line([(x + a_[0], y + a_[1]), (x + b_[0], y + b_[1])], fill=(255, 255, 255, 255), width=12)
+    x, y = cell(0x28)
+    d.ellipse([x + 18, y + 8, x + 110, y + 92], fill=(240, 240, 240, 255))
+    d.rounded_rectangle([x + 40, y + 80, x + 88, y + 118], radius=6, fill=(240, 240, 240, 255))
+    d.ellipse([x + 36, y + 36, x + 58, y + 60], fill=(20, 20, 20, 255))
+    d.ellipse([x + 70, y + 36, x + 92, y + 60], fill=(20, 20, 20, 255))
+    def poi(i, col, draw):
+        disc_bg(i)
+        x, y = cell(i)
+        d.ellipse([x + 10, y + 10, x + 118, y + 118], fill=col, outline=(255, 255, 255, 255), width=6)
+        draw(x, y)
+    poi(0x30, (40, 150, 70, 255), lambda x, y: d.text((x + 40, y + 22), '$', fill=(255, 255, 255, 255), font_size=80))
+    poi(0x31, (90, 90, 95, 255), lambda x, y: (d.rectangle([x + 26, y + 46, x + 104, y + 62], fill=(255, 255, 255, 255)),
+                                               d.rectangle([x + 34, y + 62, x + 50, y + 92], fill=(255, 255, 255, 255))))
+    poi(0x32, (220, 50, 50, 255), lambda x, y: (d.rectangle([x + 54, y + 28, x + 74, y + 100], fill=(255, 255, 255, 255)),
+                                                d.rectangle([x + 28, y + 54, x + 100, y + 74], fill=(255, 255, 255, 255))))
+    poi(0x33, (40, 70, 180, 255), lambda x, y: starpoly(x + 64, y + 66, 40, (255, 220, 60, 255)))
+    poi(0x34, (60, 160, 90, 255), lambda x, y: (d.polygon([(x + 64, y + 26), (x + 100, y + 60), (x + 28, y + 60)], fill=(255, 255, 255, 255)),
+                                                d.rectangle([x + 38, y + 60, x + 90, y + 98], fill=(255, 255, 255, 255))))
+    disc_bg(0x35)
+    x, y = cell(0x35)
+    d.ellipse([x + 32, y + 8, x + 96, y + 72], fill=(170, 90, 230, 255))
+    d.polygon([(x + 36, y + 52), (x + 92, y + 52), (x + 64, y + 120)], fill=(170, 90, 230, 255))
+    d.ellipse([x + 52, y + 28, x + 76, y + 52], fill=(255, 255, 255, 255))
+    poi(0x36, (30, 150, 220, 255), lambda x, y: (d.rounded_rectangle([x + 26, y + 50, x + 102, y + 84], radius=10, fill=(255, 255, 255, 255)),
+                                                 d.ellipse([x + 32, y + 76, x + 52, y + 96], fill=(30, 30, 30, 255)),
+                                                 d.ellipse([x + 76, y + 76, x + 96, y + 96], fill=(30, 30, 30, 255))))
+    full(0x37, (16, 18, 24, 200))
+    x, y = cell(0x37)
+    d.text((x + 30, y + 16), 'N', fill=(255, 255, 255, 255), font_size=92)
+    return big.resize((512, 512), Image.LANCZOS)
+
+
+HUD_SCREEN = {
+    'namespace': 'hud',
+    'hud_actionbar_text': {
+        'type': 'image', 'size': ['100%c + 10px', '100%c + 8px'],
+        'anchor_from': 'top_left', 'anchor_to': 'top_left', 'offset': [4, 4],
+        'texture': 'textures/ui/palmera_hud_bg', 'alpha': 0.85, 'layer': 30,
+        'controls': [{'actionbar_message': {
+            'type': 'label', 'anchor_from': 'top_left', 'anchor_to': 'top_left', 'offset': [5, 4],
+            'color': [1, 1, 1], 'layer': 31, 'text': '$actionbar_text', 'localize': False,
+            'text_alignment': 'left', 'shadow': True}}]}}
+
+
+def hud_bg():
+    from PIL import ImageDraw
+    im = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
+    ImageDraw.Draw(im).rounded_rectangle([0, 0, 63, 63], radius=10, fill=(10, 12, 18, 170))
+    return im

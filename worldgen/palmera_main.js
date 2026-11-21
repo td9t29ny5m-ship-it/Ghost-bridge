@@ -12,7 +12,8 @@ const CARS = new Set(["palmera:car", "palmera:sports_car"]);
 const G = c => String.fromCharCode(0xE100 + c);
 const I = { cash: G(0x20), star: G(0x21), off: G(0x22), ammo: G(0x23), heart: G(0x24), speed: G(0x25), phone: G(0x26), hit: G(0x27), skull: G(0x28) };
 const TILE = [G(0), G(1), G(2), G(3), G(4), G(5)], ARROW = [0, 1, 2, 3, 4, 5, 6, 7].map(k => G(8 + k));
-const COPDOT = G(0x10), TARGET = G(0x11), GANGDOT = G(0x13), VOID = G(0x14);
+const COPDOT = G(0x10), TARGET = G(0x11), GANGDOT = G(0x13), VOID = G(0x14), RIM = G(0x06);
+const POI = { bank: G(0x30), guns: G(0x31), hospital: G(0x32), police: G(0x33), home: G(0x34), pin: G(0x35), car: G(0x36), north: G(0x37) };
 
 // ---------------------------------------------------------------- helpers
 const add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
@@ -304,6 +305,19 @@ function policeResponse(p) {
     else spawn(dim, "palmera:cop", s, "§9Police", ["cop"]);
   }
   if (cars < wantCars) { const s = spotNear(p, 32, 55, t => ROAD.has(t)); if (s) spawn(dim, "palmera:police_car", s, "§9Police", ["cop"]); }
+  if (w >= 3 && Math.random() < 0.35) {              // roadblock ahead of a fast-moving player
+    const car = ridingCar(p);
+    let v = { x: 0, z: 0 }; try { v = (car ?? p).getVelocity(); } catch { }
+    const sp = Math.hypot(v.x, v.z);
+    if (sp > 0.3) {
+      const ahead = { x: loc.x + v.x / sp * 60, z: loc.z + v.z / sp * 60 };
+      const g = ground(dim, Math.floor(ahead.x), Math.floor(ahead.z));
+      if (g && ROAD.has(g.block.typeId)) {
+        for (const off of [-3, 3]) spawn(dim, "palmera:police_car", add(g.loc, { x: -v.z / sp * off, y: 0, z: v.x / sp * off }), "§9Roadblock", ["cop", "deployed"]);
+        for (let i = 0; i < 3; i++) spawn(dim, w >= 4 ? "palmera:swat" : "palmera:cop", add(g.loc, { x: rnd(-4, 4), y: 0, z: rnd(-4, 4) }), w >= 4 ? "§8§lSWAT" : "§9Police", ["cop"]);
+      }
+    }
+  }
   if (helis < wantHeli) spawn(dim, "palmera:police_heli", add(loc, { x: rnd(-25, 25), y: 22, z: rnd(-25, 25) }), "§9Police Air", ["cop"]);
 }
 function clearPolice() {
@@ -572,13 +586,14 @@ async function phone(p) {
     .button("§2Real Estate\n§8Safehouses", "textures/ui/palmera_app_estate")
     .button("§3Palm Bank\n§8Deposit / withdraw", "textures/ui/palmera_app_bank")
     .button("§fGPS\n§8Set a waypoint", "textures/ui/palmera_app_gps")
+    .button(`§eTaxi\n§8Fast travel ($250)`, "textures/ui/palmera_app_gps")
     .button(`§9Call Lawyer\n§8Clear wanted level`, "textures/ui/palmera_app_lawyer")
     .button("§5Feed\n§8What's happening", "textures/ui/palmera_app_feed")
     .button(active.has(p.id) ? "§8Cancel current mission" : "§7Settings & Stats", active.has(p.id) ? "textures/ui/palmera_app_stats" : "textures/ui/palmera_app_settings");
   const r = await f.show(p);
   if (r.canceled) return;
   [() => storyMission(p), () => jobsForm(p), () => shopForm(p, "arms", "§6Sunshine Arms"), () => shopForm(p, "cars", "§bCoastline Motors"),
-  () => estateForm(p), () => bankForm(p), () => gpsForm(p), () => lawyer(p), () => feed(p),
+  () => estateForm(p), () => bankForm(p), () => gpsForm(p), () => taxi(p), () => lawyer(p), () => feed(p),
   () => active.has(p.id) ? finishMission(p, false) : settings(p)][r.selection]?.();
 }
 async function jobsForm(p) {
@@ -660,6 +675,22 @@ async function gpsForm(p) {
   setProp(p, "wp", JSON.stringify({ name: n, pos }));
   msg(p, `§aWaypoint set: ${n} (${pos[0]} ${pos[1]} ${pos[2]})`);
 }
+async function taxi(p) {
+  if (wanted(p) > 0) { msg(p, "§e[Taxi]§f Not with the cops on your tail, pal."); return; }
+  const dests = D.landmarks.slice();
+  for (const [name, list] of [["Nearest Hospital", D.hospitals], ["Nearest Sunshine Arms", D.gunshops], ["Nearest Palm Bank", D.banks]]) {
+    const [b] = nearest(list, p.location); if (b) dests.unshift([name, b]);
+  }
+  const f = new ActionFormData().title("§eTaxi").body("§7$250 anywhere in Palmera.");
+  for (const [n] of dests) f.button(n);
+  const r = await f.show(p);
+  if (r.canceled) return;
+  if (cash(p) < 250) { msg(p, "§cYou can't afford the fare."); return; }
+  addCash(p, -250);
+  const [n, pos] = dests[r.selection];
+  title(p, "§e§lTAXI", "§7Heading to " + n + "...");
+  system.runTimeout(() => { try { p.teleport({ x: pos[0] + 0.5, y: pos[1] + 1, z: pos[2] + 2.5 }); } catch { } }, 40);
+}
 function lawyer(p) {
   const w = wanted(p);
   if (!w) { msg(p, "§9[Lawyer]§f You're clean, kid. Call me when you're not."); return; }
@@ -674,7 +705,7 @@ function feed(p) {
   new ActionFormData().title("§5Feed").body(posts.join("\n\n")).button("Close").show(p);
 }
 async function settings(p) {
-  const mm = prop(p, "set_minimap", false), h = prop(p, "set_hud", "full");
+  const mm = prop(p, "set_minimap", true), h = prop(p, "set_hud", "full");
   const f = new ActionFormData().title("§7Settings").body(`§aCash ${money(cash(p))} §bBank ${money(bank(p))}\n§7Story ${prop(p, "story", 0)}/${D.story.length} | Missions ${prop(p, "missions", 0)} | Crimes ${prop(p, "crimes", 0)}`)
     .button(`Minimap: ${mm ? "§aON" : "§cOFF"}`).button(`HUD: ${h === "full" ? "§aON" : "§cOFF"}`);
   const r = await f.show(p);
@@ -687,39 +718,63 @@ function stats(p) {
 }
 
 // ---------------------------------------------------------------- HUD + minimap
-const MMR = 1, MMC = 3;
+const RR = 2, RC = 3;                         // radar: 5 rows x 7 columns, heading-up
 function cellAt(cx, cz) {
   const row = D.mm[cz];
   if (!row || cx < 0 || cx >= row.length) return VOID;
   return TILE[row.charCodeAt(cx) - 48] ?? VOID;
 }
 function minimap(p, o) {
-  const C = D.mmcell, pcx = Math.floor(p.location.x / C), pcz = Math.floor(p.location.z / C);
-  const marks = new Map();
+  const car = ridingCar(p);
+  const C = car ? 28 : 16;                      // zoom out while driving
+  const yaw = p.getRotation().y * Math.PI / 180;
+  const f = { x: -Math.sin(yaw), z: Math.cos(yaw) }, r = { x: -Math.cos(yaw), z: -Math.sin(yaw) };
+  const L = p.location, marks = new Map();
+  const toScreen = (pos) => {
+    const wx = pos.x - L.x, wz = pos.z - L.z;
+    return [(wx * r.x + wz * r.z) / C, -(wx * f.x + wz * f.z) / C];
+  };
+  const put = (pos, glyph, pin) => {
+    let [sx, sy] = toScreen(pos);
+    const k = Math.max(Math.abs(sx) / RC, Math.abs(sy) / RR);
+    if (k > 1.15) { if (!pin) return; sx /= k; sy /= k; }
+    const key = `${Math.round(sx)},${Math.round(sy)}`;
+    if (key !== "0,0") marks.set(key, glyph);
+  };
+  const near = (list, glyph) => { for (const s of list) if (flat(V(s), L) < C * 6) put(V(s), glyph, false); };
+  near(D.banks, POI.bank); near(D.gunshops, POI.guns); near(D.hospitals, POI.hospital); near(D.police, POI.police);
   try {
-    for (const e of p.dimension.getEntities({ location: p.location, maxDistance: C * 4, families: ["palmera_police"] }))
-      marks.set(`${Math.floor(e.location.x / C) - pcx},${Math.floor(e.location.z / C) - pcz}`, COPDOT);
-    for (const e of p.dimension.getEntities({ location: p.location, maxDistance: C * 4, tags: ["mission"] }))
-      marks.set(`${Math.floor(e.location.x / C) - pcx},${Math.floor(e.location.z / C) - pcz}`, GANGDOT);
+    const homes = JSON.parse(prop(p, "homes", "[]")).map(i => D.safehouses[i]?.pos).filter(Boolean);
+    near(homes, POI.home);
+    const mine = prop(p, "car", "") && world.getEntity(prop(p, "car", ""));
+    if (mine && !car) put(mine.location, POI.car, false);
+    for (const e of p.dimension.getEntities({ location: L, maxDistance: C * 5, tags: ["mission"] })) put(e.location, GANGDOT, false);
+    for (const e of p.dimension.getEntities({ location: L, maxDistance: C * 6, families: ["palmera_police"] })) put(e.location, COPDOT, wanted(p) > 0);
   } catch { }
-  if (o && o.pos) {
-    let dx = Math.floor(o.pos.x / C) - pcx, dz = Math.floor(o.pos.z / C) - pcz;
-    const k = Math.max(Math.abs(dx) / MMC, Math.abs(dz) / MMR, 1);
-    marks.set(`${Math.round(dx / k)},${Math.round(dz / k)}`, TARGET);
-  }
-  const yaw = ((p.getRotation().y % 360) + 360) % 360;
-  marks.set("0,0", ARROW[Math.round(yaw / 45) % 8]);
+  const [nx, ny] = [Math.sin(yaw), Math.cos(yaw)];
+  const kN = Math.max(Math.abs(nx) / RC, Math.abs(ny) / RR);
+  marks.set(`${Math.round(nx / kN)},${Math.round(ny / kN)}`, POI.north);
+  const wp = prop(p, "wp", "");
+  if (wp) { try { put(V(JSON.parse(wp).pos), POI.pin, true); } catch { } }
+  if (o && o.pos) put(o.pos, TARGET, true);
   const rows = [];
-  for (let dz = -MMR; dz <= MMR; dz++) {
+  for (let sy = -RR; sy <= RR; sy++) {
     let line = "";
-    for (let dx = -MMC; dx <= MMC; dx++) line += marks.get(`${dx},${dz}`) ?? cellAt(pcx + dx, pcz + dz);
+    for (let sx = -RC; sx <= RC; sx++) {
+      if (Math.abs(sx) === RC && Math.abs(sy) === RR) { line += RIM; continue; }
+      if (sx === 0 && sy === 0) { line += ARROW[4]; continue; }
+      const m = marks.get(`${sx},${sy}`);
+      if (m) { line += m; continue; }
+      const wx = L.x + r.x * sx * C - f.x * sy * C, wz = L.z + r.z * sx * C - f.z * sy * C;
+      line += cellAt(Math.floor(wx / D.mmcell), Math.floor(wz / D.mmcell));
+    }
     rows.push(line);
   }
   return rows.join("\n");
 }
 function hud(p) {
   const w = wanted(p), o = objective(p), it = held(p), g = it && GUNS[it.typeId];
-  let line = `${I.cash}§a${money(cash(p))}  ` + `${I.star.repeat(w)}${I.off.repeat(5 - w)}`;
+  let line = `${I.cash} §a${money(cash(p))}\n${I.star.repeat(w)}${I.off.repeat(5 - w)}` + (w && prop(p, "searching", false) && system.currentTick % 20 < 10 ? " §7searching" : "");
   if (g) {
     const r = reloading.get(p.id);
     line += `  ${I.ammo}§f` + (r ? "§eRELOADING" : `${magOf(p, it.typeId)[it.typeId]}§7/${ammo(p)}`);
@@ -734,7 +789,7 @@ function hud(p) {
   if (o) obj = `§d${o.label}` + (o.pos ? ` §f${Math.round(flat(p.location, o.pos))}m ${arrow(p, o.pos)}` : "");
   const a = arrestState.get(p.id);
   if (a) obj = `§9§lPOLICE: STOP! §r§f${"█".repeat(Math.floor(a / 6))}`;
-  const mm = prop(p, "set_minimap", false) ? minimap(p, o) + "\n" : "";
+  const mm = prop(p, "set_minimap", true) ? minimap(p, o) + "\n" : "";
   if (prop(p, "set_hud", "full") === "off") return obj;
   return mm + line + robHud(p) + (obj ? "\n" + obj : "");
 }
@@ -855,6 +910,33 @@ system.runInterval(() => {
   } catch { }
 }, 20);
 
+// ---------------------------------------------------------------- pedestrian chatter
+const LINES = {
+  calm: ["Nice day, huh?", "Have you tried the tacos at Taco Sol?", "Traffic on the causeway is insane.", "I'm late for work!",
+         "Is that a real gun?", "Love your outfit!", "My cousin got a job at the spaceport.", "Watch out for gators by the swamp."],
+  car: ["Hey! Watch where you're driving!", "Learn to drive!", "Nice ride!", "Slow down, maniac!"],
+  gun: ["He's got a gun!", "Somebody call the cops!", "Don't shoot!", "Run!"],
+};
+const talked = new Map();
+function chatter(p) {
+  try {
+    const it = held(p), car = ridingCar(p);
+    for (const c of p.dimension.getEntities({ location: p.location, maxDistance: car ? 10 : 4, families: ["civilian"] })) {
+      if ((talked.get(c.id) ?? 0) > system.currentTick) continue;
+      talked.set(c.id, system.currentTick + 600);
+      const set = isGun(it) ? LINES.gun : car ? LINES.car : LINES.calm;
+      if (Math.random() < 0.5) {
+        const name = c.nameTag;
+        c.nameTag = "§f" + pick(set);
+        system.runTimeout(() => { try { c.nameTag = name; } catch { } }, 70);
+        if (isGun(it)) { try { c.triggerEvent("palmera:scare"); } catch { } }
+      }
+      break;
+    }
+  } catch { }
+}
+system.runInterval(() => { for (const p of world.getAllPlayers()) chatter(p); }, 20);
+
 // ---------------------------------------------------------------- main loops
 system.runInterval(() => {                       // every 10 ticks: HUD, cash pickup, robberies, carjacking, missions
   for (const p of world.getAllPlayers()) {
@@ -883,6 +965,7 @@ system.runInterval(() => {                       // every second: wanted decay, 
     if ((gangHeat.get(p.id) ?? 0) < system.currentTick && !active.has(p.id)) { try { p.removeTag("gang_heat"); } catch { } }
     if (!w) continue;
     const seen = count(p.dimension, p.location, 16, { families: ["palmera_police"] });
+    setProp(p, "searching", !seen);
     if (seen) { setProp(p, "wcd", Math.max(prop(p, "wcd", 600), 300)); continue; }
     const cd = prop(p, "wcd", 600) - 20;
     if (cd <= 0) {

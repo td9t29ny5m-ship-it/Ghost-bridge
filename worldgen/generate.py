@@ -340,6 +340,10 @@ def build_glass_tower(seed, w, d, h):
             ux = r.randint(tins + 1, tins + tw_ - 4)
             uz = r.randint(tins + 1, tins + td_ - 4)
             a[top + 1, uz:uz + 2, ux:ux + 2] = IRON
+    if tw_ >= 10 and td_ >= 10 and r.random() < 0.5:          # rooftop water tank
+        tx, tz = tins + 2, tins + 2
+        a[top + 1:top + 3, tz:tz + 3, tx:tx + 3] = POST
+        a[top + 3:top + 7, tz:tz + 3, tx:tx + 3] = DARK_OAK
     return a, None
 
 
@@ -352,6 +356,13 @@ def build_condo(seed, w, d, h):
     if r.random() < 0.6 and w >= 10 and d >= 10:   # rooftop pool
         a[h - 1, 3:d - 3, 3:w - 3] = wall
         a[h, 3:d - 3, 3:w - 3] = WATER
+    # balconies: carve every third floor's front row back one block and add a glass railing
+    if d >= 10:
+        for y in range(3, h - 1, 3):
+            a[y + 1:y + 3, 0, 1:w - 1] = AIR
+            a[y + 1:y + 3, 1, 1:w - 1] = glass
+            a[y, 0, 1:w - 1] = wall
+            a[y + 1, 0, 1:w - 1] = GLASSES[5]
     return a, None
 
 
