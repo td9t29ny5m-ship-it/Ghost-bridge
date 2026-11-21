@@ -108,6 +108,13 @@ LIGHTNING_ROD = B('lightning_rod')
 QUARTZ = B('smooth_quartz')
 DARK_OAK = B('dark_oak_planks')
 HAY = B('hay_block')
+# custom Palmera blocks (Bedrock add-on blocks; Java falls back to vanilla)
+CUSTOM_FALLBACK = {'palmera:atm': 'minecraft:iron_block', 'palmera:vending_machine': 'minecraft:red_concrete',
+                   'palmera:hydrant': 'minecraft:red_nether_brick_wall', 'palmera:trash_bin': 'minecraft:composter',
+                   'palmera:bench': 'minecraft:oak_slab', 'palmera:parking_meter': 'minecraft:andesite_wall',
+                   'palmera:traffic_signal': 'minecraft:black_concrete', 'palmera:street_light': 'minecraft:sea_lantern'}
+FACES = ('north', 'south', 'east', 'west')
+CB = {n.split(':')[1]: {f: B(n, **{'minecraft:cardinal_direction': f}) for f in FACES} for n in CUSTOM_FALLBACK}
 B_SANDSTONE_SMOOTH = B('smooth_sandstone')
 B_WHITE_TERRACOTTA = B('white_terracotta')
 B_YELLOW_TERRACOTTA = B('yellow_terracotta')
@@ -228,6 +235,8 @@ def payload(v):
 
 def _palette_entry(i):
     name, props = BLOCKS[i]
+    if name in CUSTOM_FALLBACK:
+        name, props = CUSTOM_FALLBACK[name], ()
     c = {'Name': name}
     if props:
         c['Properties'] = {k: v for k, v in props}
@@ -726,6 +735,8 @@ def build_gas_station(seed, w, d, h):
     a[0:7, d - 8:d - 1, 2:w - 2] = st
     a[1:4, d - 8, 4:w - 4] = GLASS
     a[1:3, d - 8, w // 2] = AIR
+    a[1, d - 9, 3] = CB['vending_machine']['north']
+    a[1, d - 9, w - 4] = CB['atm']['north']
     a[5, d - 8, 2:w - 2] = brand
     a[1:16, 0, 0] = POST
     a[16:21, 0, 0] = brand
@@ -1022,6 +1033,10 @@ def build_business(seed, w, d, h, btype='mart'):
     for i, line in enumerate(text[:1]):
         pass
     sx = w // 2
+    if kind in ('bank', 'mart', 'pharmacy', 'club', 'gym'):
+        a[1, 0, 1] = CB['atm']['north']
+    if kind in ('mart', 'gym', 'hospital', 'police'):
+        a[1, 0, w - 2] = CB['vending_machine']['north']
     a[5, 1, sx - 2:sx + 3] = r.choice(NEONS)
     a[5, 0, sx] = SIGN_BLOCK['north']
     signs.append((sx, 5, 0, 'north', '\n'.join(text)))
@@ -1174,11 +1189,8 @@ def build_traffic_light(seed, w, d, h, arm=0):
     for k in range(1, 6):
         a[6, c + dz * k, c + dx * k] = IRON_BARS
     hx, hz = c + dx * 5, c + dz * 5
-    a[5, hz, hx] = CONCRETE['black']
-    a[4, hz, hx] = CONCRETE['lime']
-    a[3, hz, hx] = CONCRETE['black']
+    a[5, hz, hx] = CB['traffic_signal'][['west', 'east', 'north', 'south'][arm]]
     a[2, hz, hx] = KEEP
-    a[6, hz, hx] = CONCRETE['red']
     a[1, c, c] = POST
     return a, None
 
@@ -1587,11 +1599,14 @@ def plan_world(S, seed):
                     for a in along[m & (along % 24 == 0)]:
                         P.trees.append((a, row) if axis == 'x' else (row, a))
                     orow = row - 1 if k == 0 else row + 1
+                    face = (('south' if k == 0 else 'north') if axis == 'x' else ('east' if k == 0 else 'west'))
                     if 0 <= orow < S:
                         for a in along[m & (along % 24 == 6)]:
-                            P.street_props.append((a, orow, 0) if axis == 'x' else (orow, a, 0))
+                            P.street_props.append((a, orow, CB['bench'][face]) if axis == 'x' else (orow, a, CB['bench'][face]))
                         for a in along[m & (along % 24 == 18)]:
-                            P.street_props.append((a, orow, 1) if axis == 'x' else (orow, a, 1))
+                            P.street_props.append((a, orow, CB['trash_bin'][face]) if axis == 'x' else (orow, a, CB['trash_bin'][face]))
+                        for a in along[m & (along % 24 == 21)]:
+                            P.street_props.append((a, orow, CB['parking_meter'][face]) if axis == 'x' else (orow, a, CB['parking_meter'][face]))
             if ch == 'M' and spec[k - 1] == 'M' and k + 2 < n and spec[k + 2] != 'M':
                 for a in along[m & (along % 14 == 7)]:
                     P.trees.append((a, row) if axis == 'x' else (row, a))
@@ -1729,13 +1744,13 @@ def plan_world(S, seed):
         if R.random() < 0.35 and free(x + 14, z + 8, 5, 3):
             add('busstop', x + 14, z + 8, 5, 3, 5)
         if H[z + 7, x - 7] >= SEA and not P.occ[z + 7, x - 7]:
-            P.deco[z + 7, x - 7] = HYDRANT
+            P.deco[z + 7, x - 7] = CB['hydrant']['north']
         if not P.occ[z + 9, x - 9] and H[z + 9, x - 9] >= SEA:
             add('streetsign', x - 9, z + 9, 1, 1, 4, oy=int(H[z + 9, x - 9]), mark=True,
                 text=STREETS_NS[(x // 64) % len(STREETS_NS)] + '\n' + ORDINALS[(z // 64) % len(ORDINALS)])
     for (px_, pz_, kind_) in P.street_props:
         if 0 <= px_ < S and 0 <= pz_ < S and not P.occ[pz_, px_] and P.road[pz_, px_] == 0 and H[pz_, px_] >= SEA:
-            P.deco[pz_, px_] = OAK_SLAB if kind_ == 0 else COMPOSTER
+            P.deco[pz_, px_] = kind_
     # landmarks
     P.places = {}
     for kname, (rx0, rz0, rw, rd) in park_rects.items():
@@ -2265,8 +2280,8 @@ def render_region(P, rx, rz):
     # street lamps
     for zz, xx in zip(*np.nonzero(P.lamp[sl] & (H >= SEA))):
         y = H[zz, xx] + 1
-        a[y - YMIN:y + 3 - YMIN, zz, xx] = POST
-        a[y + 3 - YMIN, zz, xx] = LANTERN
+        a[y - YMIN:y + 4 - YMIN, zz, xx] = POST
+        a[y + 4 - YMIN, zz, xx] = CB['street_light']['north' if P.edge[z0 + zz, x0 + xx] != 2 else 'east']
     # ground decoration
     deco = P.deco[sl]
     dz_, dx_ = np.nonzero(deco)

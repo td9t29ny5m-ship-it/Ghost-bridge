@@ -17,6 +17,8 @@ jv = tm.get_version('java', (1, 21, 0))
 bv = tm.get_version('bedrock', TARGET)
 out = {}
 for i, (name, props) in enumerate(g.BLOCKS):
+    if name.startswith('palmera:'):
+        continue
     ns, base = name.split(':')
     b = Block(ns, base, {k: amulet_nbt.TAG_String(v) for k, v in props})
     uni = jv.block.to_universal(b)[0]

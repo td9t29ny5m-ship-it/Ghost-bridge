@@ -574,12 +574,12 @@ async function phone(p) {
     .button("§fGPS\n§8Set a waypoint", "textures/ui/palmera_app_gps")
     .button(`§9Call Lawyer\n§8Clear wanted level`, "textures/ui/palmera_app_lawyer")
     .button("§5Feed\n§8What's happening", "textures/ui/palmera_app_feed")
-    .button(active.has(p.id) ? "§8Cancel current mission" : "§7Stats", "textures/ui/palmera_app_stats");
+    .button(active.has(p.id) ? "§8Cancel current mission" : "§7Settings & Stats", active.has(p.id) ? "textures/ui/palmera_app_stats" : "textures/ui/palmera_app_settings");
   const r = await f.show(p);
   if (r.canceled) return;
   [() => storyMission(p), () => jobsForm(p), () => shopForm(p, "arms", "§6Sunshine Arms"), () => shopForm(p, "cars", "§bCoastline Motors"),
   () => estateForm(p), () => bankForm(p), () => gpsForm(p), () => lawyer(p), () => feed(p),
-  () => active.has(p.id) ? finishMission(p, false) : stats(p)][r.selection]?.();
+  () => active.has(p.id) ? finishMission(p, false) : settings(p)][r.selection]?.();
 }
 async function jobsForm(p) {
   const f = new ActionFormData().title("§cJobs & Races").body("§7Pick something:");
@@ -673,12 +673,21 @@ function feed(p) {
   const posts = [...D.feed].sort(() => Math.random() - 0.5).slice(0, 5);
   new ActionFormData().title("§5Feed").body(posts.join("\n\n")).button("Close").show(p);
 }
+async function settings(p) {
+  const mm = prop(p, "set_minimap", false), h = prop(p, "set_hud", "full");
+  const f = new ActionFormData().title("§7Settings").body(`§aCash ${money(cash(p))} §bBank ${money(bank(p))}\n§7Story ${prop(p, "story", 0)}/${D.story.length} | Missions ${prop(p, "missions", 0)} | Crimes ${prop(p, "crimes", 0)}`)
+    .button(`Minimap: ${mm ? "§aON" : "§cOFF"}`).button(`HUD: ${h === "full" ? "§aON" : "§cOFF"}`);
+  const r = await f.show(p);
+  if (r.canceled) return;
+  if (r.selection === 0) setProp(p, "set_minimap", !mm);
+  if (r.selection === 1) setProp(p, "set_hud", h === "full" ? "off" : "full");
+}
 function stats(p) {
   msg(p, `§aCash ${money(cash(p))} §bBank ${money(bank(p))} §7| Story ${prop(p, "story", 0)}/${D.story.length} | Missions ${prop(p, "missions", 0)} | Crimes ${prop(p, "crimes", 0)} | Homes ${JSON.parse(prop(p, "homes", "[]")).length}`);
 }
 
 // ---------------------------------------------------------------- HUD + minimap
-const MMR = 3, MMC = 6;
+const MMR = 1, MMC = 3;
 function cellAt(cx, cz) {
   const row = D.mm[cz];
   if (!row || cx < 0 || cx >= row.length) return VOID;
@@ -688,9 +697,9 @@ function minimap(p, o) {
   const C = D.mmcell, pcx = Math.floor(p.location.x / C), pcz = Math.floor(p.location.z / C);
   const marks = new Map();
   try {
-    for (const e of p.dimension.getEntities({ location: p.location, maxDistance: C * 7, families: ["palmera_police"] }))
+    for (const e of p.dimension.getEntities({ location: p.location, maxDistance: C * 4, families: ["palmera_police"] }))
       marks.set(`${Math.floor(e.location.x / C) - pcx},${Math.floor(e.location.z / C) - pcz}`, COPDOT);
-    for (const e of p.dimension.getEntities({ location: p.location, maxDistance: C * 7, tags: ["mission"] }))
+    for (const e of p.dimension.getEntities({ location: p.location, maxDistance: C * 4, tags: ["mission"] }))
       marks.set(`${Math.floor(e.location.x / C) - pcx},${Math.floor(e.location.z / C) - pcz}`, GANGDOT);
   } catch { }
   if (o && o.pos) {
@@ -725,7 +734,9 @@ function hud(p) {
   if (o) obj = `§d${o.label}` + (o.pos ? ` §f${Math.round(flat(p.location, o.pos))}m ${arrow(p, o.pos)}` : "");
   const a = arrestState.get(p.id);
   if (a) obj = `§9§lPOLICE: STOP! §r§f${"█".repeat(Math.floor(a / 6))}`;
-  return minimap(p, o) + "\n" + line + robHud(p) + (obj ? "\n" + obj : "");
+  const mm = prop(p, "set_minimap", false) ? minimap(p, o) + "\n" : "";
+  if (prop(p, "set_hud", "full") === "off") return obj;
+  return mm + line + robHud(p) + (obj ? "\n" + obj : "");
 }
 
 // ---------------------------------------------------------------- cars: parked cars, physics, crashes
@@ -746,6 +757,7 @@ function parkedTick(p) {
     if (count(dim, loc, 80, { tags: ["parked"] }) >= 10) return;
   }
 }
+const carState = new Map();
 function carPhysics() {
   for (const p of world.getAllPlayers()) {
     const car = ridingCar(p);
@@ -757,22 +769,53 @@ function carPhysics() {
       }
     }
     let v; try { v = car.getVelocity(); } catch { continue; }
-    const sp = Math.hypot(v.x, v.z), top = car.typeId === "palmera:sports_car" ? 1.25 : 0.85;
-    if (sp > 0.08 && sp < top) { try { car.applyImpulse({ x: v.x / sp * 0.045, y: 0, z: v.z / sp * 0.045 }); } catch { } }
-    if (system.currentTick % 6 === 0) sound(car.dimension, "minecart.base", car.location, 0.6 + sp * 0.8, 0.5);
+    const dim = car.dimension, sp = Math.hypot(v.x, v.z), sports = car.typeId === "palmera:sports_car";
+    const top = sports ? 1.3 : 0.9, st = carState.get(car.id) ?? { sp: 0, vx: 0, vz: 0, vy: 0 };
+    const head = st.sp > 0.05 ? { x: st.vx / st.sp, z: st.vz / st.sp } : { x: 0, z: 0 };
+    // crash: sudden stop with a solid block in front
+    if (st.sp > 0.45 && sp < st.sp * 0.35) {
+      let solid = false;
+      try { const b = dim.getBlock({ x: Math.floor(car.location.x + head.x * 2.4), y: Math.floor(car.location.y + 0.6), z: Math.floor(car.location.z + head.z * 2.4) }); solid = b && !b.isAir && !b.isLiquid; } catch { }
+      if (solid) {
+        sound(dim, "random.explode", car.location, 1.6, 0.6);
+        for (let i = 0; i < 6; i++) particle(dim, "minecraft:basic_smoke_particle", add(car.location, { x: rnd(-1, 1), y: 1, z: rnd(-1, 1) }));
+        try { car.applyDamage(Math.round(st.sp * 25), { cause: EntityDamageCause.entityAttack }); } catch { }
+        if (st.sp > 0.8) try { p.applyDamage(Math.round(st.sp * 6), { cause: EntityDamageCause.entityAttack }); } catch { }
+        cmd(p, `camerashake add @s ${Math.min(1, st.sp * 0.6).toFixed(2)} 0.3 positional`);
+        try { car.applyImpulse({ x: -head.x * st.sp * 0.5, y: 0.15, z: -head.z * st.sp * 0.5 }); } catch { }
+      } else if (st.sp > 0.2) {
+        // momentum: the car coasts instead of stopping dead when you let go
+        try { car.applyImpulse({ x: st.vx * 0.55, y: 0, z: st.vz * 0.55 }); } catch { }
+      }
+    } else if (sp > 0.08 && sp < top) {
+      try { car.applyImpulse({ x: v.x / sp * (sports ? 0.06 : 0.045), y: 0, z: v.z / sp * (sports ? 0.06 : 0.045) }); } catch { }
+    }
+    // drifting: sharp direction change at speed -> tire smoke
+    if (sp > 0.5 && st.sp > 0.5) {
+      const turn = Math.abs(Math.atan2(v.x * st.vz - v.z * st.vx, v.x * st.vx + v.z * st.vz));
+      if (turn > 0.12) {
+        for (let i = 0; i < 3; i++) particle(dim, "minecraft:basic_smoke_particle", add(car.location, { x: -v.x / sp * 2 + rnd(-0.8, 0.8), y: 0.2, z: -v.z / sp * 2 + rnd(-0.8, 0.8) }));
+        if (system.currentTick % 6 === 0) sound(dim, "random.fizz", car.location, 1.6, 0.3);
+      }
+    }
+    // landing after a jump
+    if (st.vy < -0.7 && v.y > -0.1) { sound(dim, "random.anvil_land", car.location, 0.8, 0.5); cmd(p, "camerashake add @s 0.4 0.2 positional"); }
+    carState.set(car.id, { sp, vx: v.x, vz: v.z, vy: v.y });
+    if (system.currentTick % 6 === 0) sound(dim, "minecart.base", car.location, 0.6 + sp * 0.8, 0.5);
     if (sp > 0.35) {
       try {
-        for (const e of car.dimension.getEntities({ location: car.location, maxDistance: 2.4, excludeFamilies: ["palmera_vehicle", "inanimate"] })) {
+        for (const e of dim.getEntities({ location: car.location, maxDistance: 2.4, excludeFamilies: ["palmera_vehicle", "inanimate"] })) {
           if (e.id === p.id || e.typeId === "minecraft:item") continue;
           e.applyDamage(Math.round(sp * 22), { cause: EntityDamageCause.entityAttack, damagingEntity: p });
-          try { e.applyKnockback(v.x / sp, v.z / sp, sp * 2.5, 0.4); } catch { }
-          sound(car.dimension, "random.hurt", e.location, 0.8);
+          try { e.applyKnockback(v.x / sp, v.z / sp, sp * 3, 0.5); } catch { }
+          sound(dim, "random.hurt", e.location, 0.8);
         }
       } catch { }
     }
     try {
       const h = car.getComponent("minecraft:health");
-      if (h && h.currentValue < h.effectiveMax * 0.35 && system.currentTick % 4 === 0) particle(car.dimension, "minecraft:basic_smoke_particle", add(car.location, { x: 0, y: 1.2, z: 0 }));
+      if (h && h.currentValue < h.effectiveMax * 0.35 && system.currentTick % 4 === 0) particle(dim, "minecraft:basic_smoke_particle", add(car.location, { x: 0, y: 1.2, z: 0 }));
+      if (h && h.currentValue < h.effectiveMax * 0.15 && system.currentTick % 4 === 0) particle(dim, "minecraft:basic_flame_particle", add(car.location, { x: 0, y: 1.1, z: 0 }));
     } catch { }
   }
 }

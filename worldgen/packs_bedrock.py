@@ -154,7 +154,7 @@ def glyph_sheet():
 APPS = {'story': ((200, 60, 180), 'S'), 'jobs': ((220, 60, 60), '$'), 'arms': ((230, 150, 30), 'G'),
         'cars': ((40, 150, 230), 'C'), 'estate': ((60, 170, 80), 'H'), 'bank': ((30, 120, 130), 'B'),
         'gps': ((240, 240, 240), 'N'), 'lawyer': ((40, 60, 160), 'L'), 'feed': ((150, 60, 220), 'F'),
-        'stats': ((110, 110, 120), 'i')}
+        'stats': ((110, 110, 120), 'i'), 'settings': ((90, 90, 95), '*')}
 
 
 def app_icon(col, letter):
@@ -249,7 +249,7 @@ HUMANOID_GEO = {'format_version': '1.12.0', 'minecraft:geometry': [{
     'bones': [
         {'name': 'root', 'pivot': [0, 0, 0]},
         {'name': 'body', 'parent': 'root', 'pivot': [0, 24, 0], 'cubes': [box([-4, 12, -2], [8, 12, 4], [16, 16])]},
-        {'name': 'head', 'parent': 'body', 'pivot': [0, 24, 0], 'cubes': [box([-4, 24, -4], [8, 8, 8], [0, 0])]},
+        {'name': 'head', 'parent': 'body', 'pivot': [0, 24, 0], 'cubes': [box([-4, 24, -4], [8, 8, 8], [0, 0]), box([-4, 24, -4], [8, 8, 8], [32, 0], 0.5)]},
         {'name': 'rightArm', 'parent': 'body', 'pivot': [-5, 22, 0], 'cubes': [box([-8, 12, -2], [4, 12, 4], [40, 16])]},
         {'name': 'rightItem', 'parent': 'rightArm', 'pivot': [-6, 15, 1]},
         {'name': 'leftArm', 'parent': 'body', 'pivot': [5, 22, 0], 'cubes': [box([4, 12, -2], [4, 12, 4], [32, 48])]},
@@ -367,6 +367,10 @@ ANIMS = {'format_version': '1.8.0', 'animations': {
     'animation.palmera.npc.walk': {'loop': True, 'bones': {
         'rightArm': {'rotation': [WALK.format(a=40.0), 0, 0]}, 'leftArm': {'rotation': ['-' + WALK.format(a=40.0), 0, 0]},
         'rightLeg': {'rotation': ['-' + WALK.format(a=45.0), 0, 0]}, 'leftLeg': {'rotation': [WALK.format(a=45.0), 0, 0]}}},
+    'animation.palmera.npc.idle': {'loop': True, 'bones': {
+        'rightArm': {'rotation': [0, 0, 'math.cos(query.life_time * 103) * 2.5 + 2.5']},
+        'leftArm': {'rotation': [0, 0, '-math.cos(query.life_time * 103) * 2.5 - 2.5']},
+        'body': {'scale': [1, '1 + math.sin(query.life_time * 120) * 0.006', 1]}}},
     'animation.palmera.npc.look': {'loop': True, 'bones': {'head': {'rotation': ['query.target_x_rotation', 'query.target_y_rotation', 0]}}},
     'animation.palmera.npc.aim': {'loop': True, 'bones': {'rightArm': {'rotation': ['-85.0 + query.target_x_rotation', 'query.target_y_rotation', 0]}}},
     'animation.palmera.quad.walk': {'loop': True, 'bones': {
@@ -568,6 +572,168 @@ def rc(name, n):
     return {'arrays': {'textures': {'Array.skins': ['Texture.s%d' % i for i in range(n)]}},
             'geometry': 'Geometry.default', 'materials': [{'*': 'Material.default'}],
             'textures': ['Array.skins[query.variant]']}
+
+
+
+
+# --------------------------------------------------------------------------- custom blocks (v3)
+BSW = {'a': (0, 0), 'b': (4, 0), 'c': (8, 0), 'd': (12, 0), 'e': (0, 4), 'f': (4, 4), 'g': (8, 4), 'h': (12, 4)}
+
+
+def bcube(o, s, key):
+    u, v = BSW[key]
+    return {'origin': o, 'size': s, 'uv': {f: {'uv': [u, v], 'uv_size': [4, 4]} for f in ('north', 'south', 'east', 'west', 'up', 'down')}}
+
+
+#  id: (palette a..h colours, cubes, light, collision)
+CUSTOM_BLOCKS = {
+    'atm': ({'a': (70, 72, 80), 'b': (40, 140, 220), 'c': (25, 25, 28), 'd': (200, 200, 205), 'e': (60, 170, 80)},
+            [bcube([-6, 0, -4], [12, 16, 8], 'a'), bcube([-4, 9, -4.2], [8, 5, 0.2], 'b'), bcube([-4, 5, -5], [8, 2, 1], 'c'),
+             bcube([-3, 3, -4.2], [6, 1, 0.2], 'd'), bcube([-6, 15, -4], [12, 1, 8], 'e')], 3, [[-6, 0, -4], [12, 16, 8]]),
+    'vending_machine': ({'a': (200, 30, 40), 'b': (170, 210, 230), 'c': (240, 240, 240), 'd': (30, 30, 30), 'e': (250, 200, 40)},
+                        [bcube([-7, 0, -6], [14, 16, 12], 'a'), bcube([-6, 4, -6.2], [8, 11, 0.2], 'b'), bcube([3, 6, -6.2], [3, 6, 0.2], 'd'),
+                         bcube([-6, 1, -6.2], [8, 2, 0.2], 'd'), bcube([-6, 12, -6.3], [8, 2, 0.1], 'e')], 6, [[-7, 0, -6], [14, 16, 12]]),
+    'hydrant': ({'a': (200, 30, 30), 'b': (230, 230, 230), 'c': (150, 20, 20)},
+                [bcube([-3, 0, -3], [6, 9, 6], 'a'), bcube([-2, 9, -2], [4, 2, 4], 'c'), bcube([-1, 11, -1], [2, 1, 2], 'b'),
+                 bcube([-5, 5, -1], [2, 2, 2], 'b'), bcube([3, 5, -1], [2, 2, 2], 'b'), bcube([-4, 0, -4], [8, 1, 8], 'c')], 0, [[-3, 0, -3], [6, 12, 6]]),
+    'trash_bin': ({'a': (40, 90, 60), 'b': (30, 30, 32), 'c': (200, 200, 200)},
+                  [bcube([-4, 0, -4], [8, 11, 8], 'a'), bcube([-4.5, 11, -4.5], [9, 1, 9], 'b'), bcube([-1, 6, -4.2], [2, 2, 0.2], 'c')], 0,
+                  [[-4, 0, -4], [8, 12, 8]]),
+    'bench': ({'a': (150, 100, 55), 'b': (40, 40, 45)},
+              [bcube([-8, 5, -3], [16, 1, 6], 'a'), bcube([-8, 7, 3], [16, 4, 1], 'a'), bcube([-7, 0, -3], [1, 5, 6], 'b'),
+               bcube([6, 0, -3], [1, 5, 6], 'b'), bcube([-7, 5, 3], [1, 6, 1], 'b'), bcube([6, 5, 3], [1, 6, 1], 'b')], 0, [[-8, 0, -3], [16, 8, 7]]),
+    'parking_meter': ({'a': (60, 60, 65), 'b': (200, 200, 205), 'c': (40, 200, 90)},
+                      [bcube([-1, 0, -1], [2, 10, 2], 'a'), bcube([-2.5, 10, -2], [5, 5, 4], 'b'), bcube([-1.5, 12, -2.2], [3, 2, 0.2], 'c')], 0,
+                      [[-2, 0, -2], [4, 15, 4]]),
+    'traffic_signal': ({'a': (25, 25, 28), 'b': (255, 40, 30), 'c': (250, 200, 30), 'd': (60, 230, 90), 'e': (60, 60, 60)},
+                       [bcube([-3, 0, -3], [6, 16, 6], 'a'), bcube([-2, 11, -3.3], [4, 4, 0.3], 'b'), bcube([-2, 6, -3.3], [4, 4, 0.3], 'e'),
+                        bcube([-2, 1, -3.3], [4, 4, 0.3], 'd'), bcube([-2, 11, 3], [4, 4, 0.3], 'b'), bcube([-2, 1, 3], [4, 4, 0.3], 'd')], 7,
+                       [[-3, 0, -3], [6, 16, 6]]),
+    'street_light': ({'a': (90, 92, 98), 'b': (255, 245, 210)},
+                     [bcube([-1, 0, -1], [2, 10, 2], 'a'), bcube([-3, 10, -7], [6, 2, 14], 'a'), bcube([-2, 9.8, -6], [4, 0.2, 12], 'b')], 15,
+                     [[-1, 0, -1], [2, 12, 2]]),
+}
+ROT = {'north': 0, 'east': 270, 'south': 180, 'west': 90}
+
+
+def block_texture(cols):
+    im = Image.new('RGBA', (16, 16), (128, 128, 128, 255))
+    for k, (u, v) in BSW.items():
+        c = cols.get(k, (128, 128, 128))
+        for x in range(u, u + 4):
+            for y in range(v, v + 4):
+                im.putpixel((x, y), tuple(c) + (255,))
+    return im
+
+
+def add_custom_blocks(bp, rp):
+    terrain = {}
+    for name, (cols, cubes, light, coll) in CUSTOM_BLOCKS.items():
+        ident = 'palmera:' + name
+        comps = {
+            'minecraft:geometry': 'geometry.palmera_block_' + name,
+            'minecraft:material_instances': {'*': {'texture': 'palmera_' + name, 'render_method': 'alpha_test'}},
+            'minecraft:collision_box': {'origin': coll[0], 'size': coll[1]},
+            'minecraft:selection_box': {'origin': coll[0], 'size': coll[1]},
+            'minecraft:destructible_by_mining': {'seconds_to_destroy': 1.0},
+            'minecraft:destructible_by_explosion': {'explosion_resistance': 30},
+            'minecraft:light_dampening': 0,
+            'minecraft:map_color': '#%02x%02x%02x' % tuple(cols['a']),
+        }
+        if light:
+            comps['minecraft:light_emission'] = light
+        bp['blocks/%s.json' % name] = J({'format_version': '1.21.0', 'minecraft:block': {
+            'description': {'identifier': ident, 'menu_category': {'category': 'items'},
+                            'traits': {'minecraft:placement_direction': {'enabled_states': ['minecraft:cardinal_direction']}}},
+            'components': comps,
+            'permutations': [{'condition': "q.block_state('minecraft:cardinal_direction') == '%s'" % f,
+                              'components': {'minecraft:transformation': {'rotation': [0, r, 0]}}} for f, r in ROT.items()]}})
+        rp['models/blocks/palmera_%s.geo.json' % name] = J({'format_version': '1.12.0', 'minecraft:geometry': [{
+            'description': {'identifier': 'geometry.palmera_block_' + name, 'texture_width': 16, 'texture_height': 16,
+                            'visible_bounds_width': 2, 'visible_bounds_height': 2, 'visible_bounds_offset': [0, 0.5, 0]},
+            'bones': [{'name': 'root', 'pivot': [0, 0, 0], 'cubes': cubes}]}]})
+        rp['textures/blocks/palmera_%s.png' % name] = png(block_texture(cols))
+        terrain['palmera_' + name] = {'textures': 'textures/blocks/palmera_' + name}
+    rp['textures/terrain_texture.json'] = J({'resource_pack_name': 'palmera', 'texture_name': 'atlas.terrain',
+                                             'padding': 8, 'num_mip_levels': 4, 'texture_data': terrain})
+    names = {'atm': 'ATM', 'vending_machine': 'Vending Machine', 'hydrant': 'Fire Hydrant', 'trash_bin': 'Trash Bin',
+             'bench': 'Bench', 'parking_meter': 'Parking Meter', 'traffic_signal': 'Traffic Signal', 'street_light': 'Street Light'}
+    return ''.join('tile.palmera:%s.name=%s\n' % kv for kv in names.items())
+
+
+# --------------------------------------------------------------------------- detailed people (v3)
+def skin_v3(r, outfit):
+    """64x64 skin with shading, outfit details, hair styles and an overlay hat layer."""
+    from PIL import ImageDraw
+    sk = r.choice(SKINS_T)
+    hair = r.choice(HAIR)
+    im = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    def R(x0, y0, x1, y1, c):
+        d.rectangle([x0, y0, x1 - 1, y1 - 1], fill=tuple(c) + (255,))
+    def shade(c, k):
+        return tuple(max(0, min(255, int(v * k))) for v in c)
+    # head + face
+    R(0, 0, 32, 16, sk)
+    R(8, 8, 16, 16, sk)
+    style = r.choice(['short', 'long', 'bald', 'buzz', 'bun'])
+    if style != 'bald':
+        R(8, 0, 16, 8, hair)
+        R(0, 8, 32, 9 if style == 'buzz' else 10, hair)
+        R(24, 8, 32, 14 if style == 'long' else 12, hair)
+        if style == 'long':
+            R(0, 8, 2, 15, hair); R(22, 8, 24, 15, hair); R(16, 8, 18, 15, hair); R(6, 8, 8, 15, hair)
+    for ex in (9, 13):
+        R(ex, 12, ex + 2, 13, (250, 250, 250))
+        R(ex + (1 if ex == 9 else 0), 12, ex + (2 if ex == 9 else 1), 13, r.choice([(60, 40, 20), (40, 80, 140), (30, 90, 40)]))
+    R(9, 11, 11, 12, shade(hair, 0.8)); R(13, 11, 15, 12, shade(hair, 0.8))
+    R(11, 13, 13, 14, shade(sk, 0.85))
+    R(10, 14, 14, 15, shade(sk, 0.7))
+    if r.random() < 0.25 and outfit != 'suit':
+        R(8, 14, 16, 16, shade(hair, 0.9))           # beard
+    # outfits
+    O = {'suit': ((35, 40, 55), (35, 40, 55), (20, 20, 20)), 'beach': (r.choice(SHIRTS), (60, 130, 200), (240, 220, 180)),
+         'jogger': (r.choice([(250, 80, 80), (80, 220, 120), (250, 200, 40)]), (30, 30, 35), (240, 240, 240)),
+         'tourist': ((250, 150, 60), (200, 180, 140), (120, 80, 50)), 'worker': ((250, 140, 20), (40, 60, 110), (90, 60, 30)),
+         'casual': (r.choice(SHIRTS), r.choice(PANTS), r.choice([(250, 250, 250), (30, 30, 30)]))}[outfit]
+    shirt, pants, shoes = O
+    R(16, 16, 40, 32, shirt)
+    R(16, 20, 20, 32, shade(shirt, 0.8)); R(28, 20, 32, 32, shade(shirt, 0.8))
+    if outfit == 'suit':
+        R(22, 20, 26, 32, (240, 240, 240)); R(23, 20, 25, 28, r.choice([(180, 30, 40), (30, 60, 150), (30, 30, 30)]))
+    if outfit == 'tourist':
+        for _ in range(14):
+            x, y = r.randrange(16, 40), r.randrange(20, 32)
+            R(x, y, x + 1, y + 1, r.choice([(250, 240, 80), (240, 60, 120), (60, 200, 120)]))
+    if outfit == 'worker':
+        R(20, 26, 28, 28, (230, 230, 230)); R(32, 26, 40, 28, (230, 230, 230))
+    R(20, 30, 28, 31, shade(pants, 0.6))                                       # belt
+    short_sleeves = outfit in ('beach', 'jogger', 'tourist', 'casual')
+    for (x0, y0) in ((40, 16), (32, 48)):
+        R(x0, y0, x0 + 16, y0 + 16, shirt if not short_sleeves else sk)
+        R(x0 + 4, y0, x0 + 8, y0 + 4, shirt)
+        R(x0, y0 + 4, x0 + 16, y0 + 8 if short_sleeves else y0 + 16, shirt)
+        R(x0, y0 + 14, x0 + 16, y0 + 16, sk if outfit != 'suit' else (240, 240, 240))
+    shorts = outfit in ('beach', 'jogger')
+    for (x0, y0) in ((0, 16), (16, 48)):
+        R(x0, y0, x0 + 16, y0 + 16, pants if not shorts else sk)
+        R(x0, y0 + 4, x0 + 16, y0 + (9 if shorts else 16), pants)
+        R(x0 + 4, y0, x0 + 8, y0 + 4, pants)
+        R(x0, y0 + 13, x0 + 16, y0 + 16, shoes)
+        R(x0 + 8, y0, x0 + 12, y0 + 4, shoes)
+    # overlay hat layer (32,0)
+    if outfit in ('tourist', 'worker') or r.random() < 0.2:
+        hc = {'tourist': (240, 230, 190), 'worker': (250, 220, 40)}.get(outfit, r.choice(SHIRTS))
+        R(40, 0, 48, 8, hc); R(32, 8, 64, 10, hc)
+    if outfit in ('beach', 'tourist') and r.random() < 0.6:
+        R(41, 11, 47, 13, (20, 20, 25))                                       # sunglasses on hat layer front
+    return im
+
+
+def civilian_skins_v3(n=24):
+    r = random.Random(11)
+    outfits = ['suit', 'beach', 'jogger', 'tourist', 'worker', 'casual']
+    return [skin_v3(r, outfits[i % len(outfits)]) for i in range(n)]
 
 
 # --------------------------------------------------------------------------- story (original)
@@ -782,7 +948,7 @@ def build_addon(out_path, P):
         {'type': 'item', 'name': 'palmera:pistol', 'weight': 3}, {'type': 'item', 'name': 'palmera:smg', 'weight': 1}]}]})
 
     # NPCs
-    npcs = [('civilian', ['civilian'], 20, 0.25, civilian_skins(), 'civilian', ('#f0c090', '#3070d0')),
+    npcs = [('civilian', ['civilian'], 20, 0.25, civilian_skins_v3(), 'civilian', ('#f0c090', '#3070d0')),
             ('cop', ['cop', 'palmera_police'], 26, 0.3, cop_skins(), 'cop', ('#203070', '#f0d020')),
             ('swat', ['swat', 'palmera_police'], 44, 0.3, swat_skins(), 'swat', ('#202020', '#808080')),
             ('gangster', ['gangster'], 26, 0.3, gang_skins(), 'gang', ('#c030b0', '#408020'))]
@@ -795,8 +961,9 @@ def build_addon(out_path, P):
             path = 'textures/entity/palmera_npc/%s_%d' % (name, i)
             rp[path + '.png'] = png(im)
             tex['s%d' % i] = path
-        anim = {'walk': 'animation.palmera.npc.walk', 'look': 'animation.palmera.npc.look', 'aim': 'animation.palmera.npc.aim'}
-        animate = ['walk', 'look'] + ([{'aim': 'query.has_target'}] if kind != 'civilian' else [])
+        anim = {'walk': 'animation.palmera.npc.walk', 'look': 'animation.palmera.npc.look', 'aim': 'animation.palmera.npc.aim',
+                'idle': 'animation.palmera.npc.idle'}
+        animate = ['walk', 'look', 'idle'] + ([{'aim': 'query.has_target'}] if kind != 'civilian' else [])
         rp['entity/%s.entity.json' % name] = J(client(ident, 'geometry.palmera_npc', tex, 'controller.render.palmera_' + name,
                                                       anim, animate, egg=egg, attach=True))
         rc_all['controller.render.palmera_' + name] = rc(name, len(skins))
@@ -855,13 +1022,14 @@ def build_addon(out_path, P):
         'geometry': {'default': 'geometry.item_sprite'}, 'render_controllers': ['controller.render.item_sprite'],
         'animations': {'flying': 'animation.actor.billboard'}, 'scripts': {'animate': ['flying']}}}})
 
+    block_lang = add_custom_blocks(bp, rp)
     rp['render_controllers/palmera.render_controllers.json'] = J({'format_version': '1.8.0', 'render_controllers': rc_all})
     rp['animations/palmera.animation.json'] = J(ANIMS)
     names = {'civilian': 'Civilian', 'cop': 'Police Officer', 'swat': 'SWAT', 'gangster': 'Gang Member', 'car': 'Sedan',
              'sports_car': 'Sports Car', 'traffic_car': 'Car', 'police_car': 'Police Car', 'police_heli': 'Police Helicopter',
              'gator': 'Alligator', 'flamingo': 'Flamingo', 'bullet': 'Bullet'}
     rp['texts/en_US.lang'] = ''.join('entity.palmera:%s.name=%s\nitem.spawn_egg.entity.palmera:%s.name=%s\n' % (k, v, k, v)
-                                     for k, v in names.items()) + 'action.interact.steal=Steal\n'
+                                     for k, v in names.items()) + 'action.interact.steal=Steal\n' + block_lang
     rp['texts/languages.json'] = J(['en_US'])
 
     with zipfile.ZipFile(out_path, 'w', zipfile.ZIP_DEFLATED) as z:

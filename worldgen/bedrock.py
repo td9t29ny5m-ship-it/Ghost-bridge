@@ -95,6 +95,10 @@ class Palette:
         self.raw = []
         self.water_layer = set()
         for name, props in blocks:
+            if name.startswith('palmera:'):
+                self.raw.append(nbt_root({'name': ('string', name), 'states': ('compound', {k: ('string', v) for k, v in props}),
+                                          'version': ('int', self.version)}))
+                continue
             key = name + ('[' + ','.join('%s=%s' % kv for kv in props) + ']' if props else '')
             e = m['blocks'].get(key)
             if e is None:
