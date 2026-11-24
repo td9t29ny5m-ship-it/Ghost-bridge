@@ -507,7 +507,11 @@ function missionTick(p) {
   const dim = p.dimension, loc = p.location;
   switch (s.t) {
     case "goto": if (flat(loc, V(s.pos)) < s.r) nextStep(p); break;
-    case "drive": if (ridingCar(p) && flat(loc, V(s.pos)) < s.r) nextStep(p); break;
+    case "drive": {
+      if (s.limit && system.currentTick - a.t0 > s.limit) { msg(p, "§cOut of time!"); finishMission(p, false); break; }
+      if (ridingCar(p) && flat(loc, V(s.pos)) < s.r) nextStep(p);
+      break;
+    }
     case "escape": if (wanted(p) === 0) nextStep(p); break;
     case "rob": if (a.robbed) nextStep(p); break;
     case "heist": if (a.heisted) nextStep(p); break;
@@ -582,6 +586,25 @@ function jobMission(p, j) {
     { t: "kill", pos: j.spot, label: j.title, spawn: [["palmera:gangster", j.boss, 1, true], ["palmera:gangster", "Goon", j.goons, false]] },
     { t: "cash", amount: j.reward }] });
 }
+function deliveryMission(p) {
+  const spots = D.rob.filter(s => { const d = flat(V(s), p.location); return d > 250 && d < 1400; });
+  if (!spots.length) { msg(p, "§7No deliveries available around here."); return; }
+  const to = pick(spots), d = flat(V(to), p.location);
+  const limit = Math.round(d / 9 + 25) * 20, pay = Math.round(d * 2.2 / 50) * 50 + 300;
+  startMission(p, { kind: "job", title: "Delivery Run", sub: `§7${Math.round(d)}m, ${Math.round(limit / 20)}s, ${money(pay)}`, steps: [
+    { t: "talk", lines: ["§a[Dispatcher]§f Package for a shop across town. Get a car and step on it."] },
+    { t: "drive", pos: to.slice(0, 3), r: 10, label: "Deliver the package", limit },
+    { t: "cash", amount: pay }] });
+}
+function vigilanteMission(p) {
+  const spots = D.rob.filter(s => { const d = flat(V(s), p.location); return d > 150 && d < 900; });
+  if (!spots.length) { msg(p, "§7No criminals reported nearby."); return; }
+  const at = pick(spots);
+  startMission(p, { kind: "job", title: "Vigilante", sub: "§7Armed suspects reported", steps: [
+    { t: "talk", lines: ["§9[Scanner]§f Armed suspects reported near " + at.slice(0, 3).join(" ") + ". Take them down."] },
+    { t: "kill", pos: at.slice(0, 3), label: "Take down the suspects", spawn: [["palmera:gangster", "Suspect", 3, false], ["palmera:gangster", "Ringleader", 1, true]] },
+    { t: "cash", amount: 2500 }] });
+}
 function raceMission(p, r) {
   startMission(p, { kind: "race", title: r.title, sub: `§7Street race, par ${r.par}s`, steps: [
     { t: "goto", pos: r.cps[0], r: 10, label: "Go to the start line" },
@@ -615,9 +638,15 @@ async function jobsForm(p) {
   const f = new ActionFormData().title("§cJobs & Races").body("§7Pick something:");
   for (const j of D.jobs) f.button(`§f${j.title} §6${money(j.reward)}\n§8${j.where}`);
   for (const r of D.races) f.button(`§bRace: ${r.title} §6${money(r.reward)}\n§8Par ${r.par}s`);
+  f.button("§aDelivery Run\n§8Drive a package across town, against the clock");
+  f.button("§9Vigilante\n§8Hunt down armed criminals");
   const r = await f.show(p);
   if (r.canceled) return;
-  if (r.selection < D.jobs.length) jobMission(p, D.jobs[r.selection]); else raceMission(p, D.races[r.selection - D.jobs.length]);
+  const nj = D.jobs.length, nr = D.races.length;
+  if (r.selection < nj) jobMission(p, D.jobs[r.selection]);
+  else if (r.selection < nj + nr) raceMission(p, D.races[r.selection - nj]);
+  else if (r.selection === nj + nr) deliveryMission(p);
+  else vigilanteMission(p);
 }
 async function shopForm(p, cat, name) {
   const list = D.shop.filter(s => s.cat === cat);
@@ -721,7 +750,7 @@ function feed(p) {
 }
 async function settings(p) {
   const mm = prop(p, "set_minimap", true), h = prop(p, "set_hud", "full");
-  const f = new ActionFormData().title("§7Settings").body(`§aCash ${money(cash(p))} §bBank ${money(bank(p))}\n§7Story ${prop(p, "story", 0)}/${D.story.length} | Missions ${prop(p, "missions", 0)} | Crimes ${prop(p, "crimes", 0)}`)
+  const f = new ActionFormData().title("§7Settings").body(`§aCash ${money(cash(p))} §bBank ${money(bank(p))}\n§7Story ${prop(p, "story", 0)}/${D.story.length} | Missions ${prop(p, "missions", 0)} | Crimes ${prop(p, "crimes", 0)} | Palm Tokens ${JSON.parse(prop(p, "tokens", "[]")).length}/${TOKENS.length}`)
     .button(`Minimap: ${mm ? "§aON" : "§cOFF"}`).button(`HUD: ${h === "full" ? "§aON" : "§cOFF"}`);
   const r = await f.show(p);
   if (r.canceled) return;
@@ -942,6 +971,53 @@ system.runInterval(() => {
   for (const p of world.getAllPlayers()) { try { clerkTick(p); } catch { } }
   for (const [k, e] of clerks) if (!valid(e)) clerks.delete(k);
 }, 60);
+
+// ---------------------------------------------------------------- hidden Palm Tokens + random street events
+const TOKENS = [];
+{ let seed = 1234567; const rr = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const pool = D.parked.length ? D.parked : D.rob;
+  for (let i = 0; i < 50 && pool.length; i++) { const c = pool[Math.floor(rr() * pool.length)]; TOKENS.push([c[0] + 1, c[1] + 1, c[2] - 3]); } }
+function tokenTick(p) {
+  const got = JSON.parse(prop(p, "tokens", "[]"));
+  TOKENS.forEach((t, i) => {
+    if (got.includes(i)) return;
+    const pos = V(t), d = dist(p.location, pos);
+    if (d < 32) particle(p.dimension, "minecraft:totem_particle", pos);
+    if (d < 2.2) {
+      got.push(i); setProp(p, "tokens", JSON.stringify(got));
+      addCash(p, 500); sound(p.dimension, "random.levelup", p.location, 1.8);
+      title(p, "§6§lPALM TOKEN", `§f${got.length}/${TOKENS.length} found  §a+$500`);
+      if (got.length === TOKENS.length) { addCash(p, 25000); msg(p, "§6You found every Palm Token! +$25,000"); }
+    }
+  });
+}
+const events = new Map();
+function streetEvent(p) {
+  if (active.has(p.id) || wanted(p) || events.has(p.id) || Math.random() > 0.15) return;
+  const s = spotNear(p, 25, 45, t => WALKABLE.has(t));
+  if (!s) return;
+  const dim = p.dimension;
+  const victim = spawn(dim, "palmera:civilian", s, "§fHELP! I'm being robbed!", ["event"], "palmera:stay");
+  const mugger = spawn(dim, "palmera:gangster", add(s, { x: 1.5, y: 0, z: 0 }), "§cMugger", ["event", "mission"]);
+  if (!mugger) return;
+  p.addTag("gang_heat"); gangHeat.set(p.id, system.currentTick + 1200);
+  events.set(p.id, { mugger, victim, until: system.currentTick + 1800 });
+  msg(p, "§e» A mugging is happening nearby! Stop the mugger for a reward.");
+}
+function eventTick(p) {
+  const e = events.get(p.id);
+  if (!e) return;
+  if (!valid(e.mugger)) {
+    events.delete(p.id);
+    addCash(p, 750); title(p, "§a§lGOOD SAMARITAN", "§a+$750");
+    try { if (valid(e.victim)) { e.victim.nameTag = "§aThank you!!"; e.victim.triggerEvent("palmera:wander"); } } catch { }
+  } else if (system.currentTick > e.until) {
+    events.delete(p.id);
+    for (const x of [e.mugger, e.victim]) { try { if (valid(x)) x.remove(); } catch { } }
+  }
+}
+system.runInterval(() => { for (const p of world.getAllPlayers()) { try { tokenTick(p); eventTick(p); } catch { } } }, 10);
+system.runInterval(() => { for (const p of world.getAllPlayers()) { try { streetEvent(p); } catch { } } }, 1200);
 
 // ---------------------------------------------------------------- pedestrian chatter
 const LINES = {
