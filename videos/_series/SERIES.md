@@ -1,4 +1,4 @@
-# Channel format — "Why does that happen?" shorts (for every age)
+# Channel format — wow-fact shorts for every age
 
 One niche: **everyday "why does that happen?" questions about your brain and body**, things an 8-year-old and an 80-year-old both
 experience and both get curious about. One look, one voice, so every episode feels like the same channel.
@@ -10,11 +10,16 @@ experience and both get curious about. One look, one voice, so every episode fee
 - **Wonder, then a twist:** every episode ends with something viewers want to tell a friend or try right now (good for shares and comments).
 Reference episode: `videos/zeigarnik/` (Ep. 1, "Don't watch this to the end").
 
-## Fixed identity (don't change between episodes)
-- **Look:** the faceless-video "editing desk" (cream paper, cut-outs, cards, marker), accent `#ec5626`.
-- **Voice:** Kokoro `am_michael` at speed **1.1** (`npx --yes hyperframes@0.8.157 tts vo.txt -o <wav> -v am_michael -s 1.1`).
-- **Sound:** `python3 videos/_series/tools/gen_audio.py <project> <seconds>`: the same lo-fi bed + foley every time, `musicGain: -20`.
-- **Length:** 40–55 s. **Ending:** loops into the opening line.
+## Fixed identity (v2 — "POP" format; reference: `videos/octopus/`)
+- **Topics:** jaw-dropping facts about animals, space, the human body and the weird world, the kind kids AND grandparents share.
+- **Look:** `_series/pop-template/`: full-screen real photos (Openverse, CC0/CC BY/BY-SA, credited in `CREDITS.md`) that hard-cut every 1–3 s
+  with a zoom punch + flash, big white/yellow outlined titles, Twemoji stickers, count-up numbers, `#1/#2/#3` badges,
+  TikTok-style 1–3-word captions, yellow progress bar.
+- **Voice:** Microsoft neural `en-US-AndrewMultilingualNeural` at `+12%` via `tools/voice_edge.py` (needs the content-creator-studio environment; gives exact word timings).
+- **Sound:** `tools/gen_audio.py` lo-fi bed + whoosh on every cut + pop on every overlay (`tools/pop_mix.mjs`).
+- **Length:** 30–40 s. **Ending:** "Which one blew your mind? Comment 1, 2 or 3." (comments boost reach).
+- **Build:** `python3 tools/voice_edge.py .` → `words.mjs transcript.json .` → photos `tools/find_photos.py` → write `scenes.js` (shots) →
+  `node tools/pop_apply.mjs .` → `node tools/pop_mix.mjs .` → `hyperframes render`.
 
 ## Retention rules (the script)
 1. **Hook in the first second.** The first line is a command, a contradiction or a shocking claim ("Don't watch this to the end."). Hook text is ON SCREEN at frame 0. No intros, no "hey guys".
