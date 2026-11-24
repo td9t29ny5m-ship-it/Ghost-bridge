@@ -272,6 +272,35 @@ function throwGrenade(p) {
   system.runTimeout(() => boom(dim, land, 3, p), 30);
   heat(p);
 }
+const boosting = new Map();
+function nitro(p) {
+  const car = ridingCar(p);
+  if (!car) { msg(p, "§7Use nitro while driving."); return; }
+  if ((boosting.get(p.id) ?? 0) > system.currentTick) return;
+  const c = inv(p), slot = p.selectedSlotIndex ?? p.selectedSlot, it = c.getItem(slot);
+  if (it) { if (it.amount > 1) { it.amount--; c.setItem(slot, it); } else c.setItem(slot, undefined); }
+  boosting.set(p.id, system.currentTick + 60);
+  sound(car.dimension, "firework.launch", car.location, 0.5, 2);
+  cmd(p, "camerashake add @s 0.25 2.5 positional");
+  for (let t = 0; t < 60; t += 2) system.runTimeout(() => {
+    try {
+      const d = p.getViewDirection(), hl = Math.hypot(d.x, d.z) || 1;
+      car.applyImpulse({ x: d.x / hl * 0.12, y: 0, z: d.z / hl * 0.12 });
+      particle(car.dimension, "minecraft:blue_flame_particle", add(car.location, { x: -d.x / hl * 2.4, y: 0.5, z: -d.z / hl * 2.4 }));
+    } catch { }
+  }, t);
+}
+const GLOW = { blue: "minecraft:blue_flame_particle", purple: "minecraft:dragon_breath_trail", green: "minecraft:villager_happy",
+               red: "minecraft:redstone_wire_dust_particle", white: "minecraft:endrod" };
+system.runInterval(() => {
+  for (const p of world.getAllPlayers()) {
+    const g = GLOW[prop(p, "glow", "")];
+    if (!g) continue;
+    const car = ridingCar(p);
+    if (!car || !CARS.has(car.typeId)) continue;
+    for (let i = 0; i < 3; i++) particle(car.dimension, g, add(car.location, { x: rnd(-1, 1), y: 0.1, z: rnd(-1.8, 1.8) }));
+  }
+}, 4);
 function throwMolotov(p) {
   const c = inv(p), slot = p.selectedSlotIndex ?? p.selectedSlot, it = c.getItem(slot);
   if (!it) return;
@@ -298,6 +327,7 @@ world.afterEvents.itemUse.subscribe(ev => {
   if (id === "palmera:phone") { system.run(() => phone(p)); return; }
   if (id === "palmera:grenade") { throwGrenade(p); return; }
   if (id === "palmera:molotov") { throwMolotov(p); return; }
+  if (id === "palmera:nitro") { nitro(p); return; }
   if (GUNS[id]) fire(p, GUNS[id], id);
 });
 try {
@@ -864,6 +894,9 @@ function buy(p, s) {
   else if (k === "ammo") addAmmo(p, 60);
   else if (k === "ammo300") addAmmo(p, 300);
   else if (k === "grenade") give(p, "palmera:grenade", 4);
+  else if (k === "molotov") give(p, "palmera:molotov", 4);
+  else if (k === "nitro") give(p, "palmera:nitro", 3);
+  else if (k.startsWith("glow_")) { setProp(p, "glow", k.slice(5)); msg(p, "§bUnderglow installed. It lights up whatever car you drive."); }
   else if (k === "armor") { give(p, "minecraft:iron_chestplate", 1, "§7Body Armor"); give(p, "minecraft:iron_helmet", 1, "§7Helmet"); }
   else if (k === "medkit") give(p, "minecraft:golden_apple", 3, "§aMedkit");
   else if (k === "car_sedan") spawnCar(p, "palmera:car");

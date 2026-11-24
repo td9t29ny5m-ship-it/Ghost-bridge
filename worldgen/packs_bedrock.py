@@ -53,11 +53,15 @@ SPRITES['molotov'] = [
     '................', '......bb........', '......WW........', '......rr........', '.....GGGG.......', '....GgGGGG......',
     '....GgGGGG......', '....GGOOGG......', '....GOOOOG......', '....GOOOOG......', '....GGOOGG......', '.....GGGG.......',
     '................', '................', '................', '................']
+SPRITES['nitro'] = [
+    '................', '.....SSSS.......', '.....DDDD.......', '....CCCCCC......', '....CWCCCC......', '....CWCCCC......',
+    '....CCCCCC......', '....CrrrrC......', '....CrYYrC......', '....CrrrrC......', '....CCCCCC......', '....CCCCCC......',
+    '....DDDDDD......', '................', '................', '................']
 ITEMS = {
     'pistol': ('Pistol', 1, True), 'smg': ('SMG', 1, True), 'shotgun': ('Pump Shotgun', 1, True),
     'rifle': ('Assault Rifle', 1, True), 'sniper': ('Sniper Rifle', 1, True), 'minigun': ('Minigun', 1, True),
     'rocket': ('Rocket Launcher', 1, True), 'phone': ('Phone', 1, False), 'grenade': ('Grenade', 16, False),
-    'cash': ('Cash', 64, False), 'bat': ('Baseball Bat', 1, True), 'molotov': ('Molotov Cocktail', 16, False),
+    'cash': ('Cash', 64, False), 'bat': ('Baseball Bat', 1, True), 'molotov': ('Molotov Cocktail', 16, False), 'nitro': ('Nitro Can', 16, False),
 }
 GUNS = {
     #           dmg  cd  range pellets ammo spread  sound                pitch explode
@@ -80,7 +84,10 @@ SHOP = [
     ('ammo', 'Ammo x60', 150, 'arms'), ('ammo300', 'Ammo x300', 650, 'arms'), ('grenade', 'Grenades x4', 600, 'arms'), ('molotov', 'Molotovs x4', 800, 'arms'),
     ('armor', 'Body Armor', 1500, 'arms'), ('medkit', 'Medkits x3', 300, 'arms'), ('bat', 'Baseball Bat', 100, 'arms'),
     ('car_sedan', 'Sedan', 4000, 'cars'), ('car_sports', 'Sports Car', 15000, 'cars'), ('car_bike', 'Motorcycle', 8000, 'cars'),
-    ('car_boat', 'Speedboat (stand by water)', 20000, 'cars'), ('car_heli', 'Helicopter', 75000, 'cars'),
+    ('car_boat', 'Speedboat (stand by water)', 20000, 'cars'), ('car_heli', 'Helicopter', 75000, 'cars'), ('nitro', 'Nitro Cans x3', 1500, 'cars'),
+    ('glow_blue', 'Neon Underglow: Blue', 3000, 'cars'), ('glow_purple', 'Neon Underglow: Purple', 3000, 'cars'),
+    ('glow_green', 'Neon Underglow: Green', 3000, 'cars'), ('glow_red', 'Neon Underglow: Red', 3000, 'cars'),
+    ('glow_white', 'Neon Underglow: White', 3000, 'cars'),
 ]
 
 
