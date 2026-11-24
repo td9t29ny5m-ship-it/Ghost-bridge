@@ -371,6 +371,7 @@ world.afterEvents.entityDie.subscribe(ev => {
   let tags = [];
   try { tags = d.getTags(); } catch { }
   if (CARS.has(type) || type === "palmera:traffic_car" || type === "palmera:police_car") { boom(dim, loc, 2.5, k); return; }
+  if (type === "palmera:gangster" && k?.typeId === "minecraft:player") dailyTick(k, "kill_gang");
   if (type === "palmera:gangster" && k?.typeId === "minecraft:player") {
     for (const g of D.gangs) {
       if (flat(V(g.pos), loc) > g.r) continue;
@@ -433,8 +434,14 @@ function policeResponse(p) {
   const cars = count(dim, loc, 80, { type: "palmera:police_car" });
   const helis = count(dim, loc, 120, { type: "palmera:police_heli" });
   const wantCops = [0, 3, 4, 6, 7, 9][w], wantCars = [0, 0, 1, 2, 3, 4][w], wantHeli = [0, 0, 0, 0, 1, 2][w];
+  const base = Math.random() * Math.PI * 2;
   for (let i = 0; i < 2 && cops + i < wantCops; i++) {
-    const s = spotNear(p, 26, 42, t => WALKABLE.has(t) || ROAD.has(t));
+    let s;
+    for (let tries = 0; tries < 3 && !s; tries++) {
+      const a = base + i * Math.PI + rnd(-0.4, 0.4), r = rnd(26, 40);
+      const g = ground(dim, Math.floor(loc.x + Math.cos(a) * r), Math.floor(loc.z + Math.sin(a) * r));
+      if (g && (WALKABLE.has(g.block.typeId) || ROAD.has(g.block.typeId))) s = g.loc;
+    }
     if (!s) continue;
     if (w >= 3 && Math.random() < 0.5) spawn(dim, "palmera:swat", s, "§8§lSWAT", ["cop"]);
     else spawn(dim, "palmera:cop", s, "§9Police", ["cop"]);
@@ -509,6 +516,7 @@ function robberyTick(p) {
     setProp(p, "crimes", prop(p, "crimes", 0) + 1);
     title(p, isBank ? "§6§lVAULT CRACKED" : "§e§lROBBERY", "§a+" + money(loot));
     if (isBank) trophy(p, "vault", "Vault Buster", "Crack a bank vault"); else trophy(p, "rob", "Register Ninja", "Rob a store");
+    dailyTick(p, "rob");
     market(isBank ? "PALM" : "SUNY", -0.05);
     sound(p.dimension, "palmera.cash", p.location);
     const a = active.get(p.id);
@@ -544,7 +552,22 @@ try {
     if (ev.target?.typeId === "palmera:traffic_car") { ev.cancel = true; const p = ev.player, t = ev.target; system.run(() => jack(p, t)); }
   });
 } catch { }
+function bumpTick(p) {
+  if (ridingCar(p)) return;
+  try {
+    const v = p.getVelocity(), sp = Math.hypot(v.x, v.z);
+    if (sp < 0.2) return;
+    for (const c of p.dimension.getEntities({ location: p.location, maxDistance: 1.3, type: "palmera:civilian" })) {
+      if ((talked.get(c.id) ?? 0) > system.currentTick) continue;
+      talked.set(c.id, system.currentTick + 200);
+      try { c.applyKnockback(v.x / sp, v.z / sp, 0.5, 0.2); } catch { }
+      const name = c.nameTag; c.nameTag = "§f" + pick(["Watch it!", "Hey!", "Excuse YOU.", "Rude!"]);
+      system.runTimeout(() => { try { c.nameTag = name; } catch { } }, 50);
+    }
+  } catch { }
+}
 function honkTick(p) {
+  bumpTick(p);
   if (ridingCar(p) || system.currentTick % 40 !== 0) return;
   try {
     const b = p.dimension.getBlock({ x: Math.floor(p.location.x), y: Math.floor(p.location.y) - 1, z: Math.floor(p.location.z) });
@@ -648,6 +671,8 @@ function finishMission(p, ok) {
   for (const e of a.ents) { try { if (valid(e)) e.remove(); } catch { } }
   if (ok) {
     if (a.kind === "story") { setProp(p, "story", a.idx + 1); if (a.idx + 1 >= D.story.length) trophy(p, "story", "King of Palmera", "Finish the story"); }
+    dailyTick(p, "mission");
+    if (a.kind === "taxi") { dailyTick(p, "taxi"); }
     if (a.kind === "taxi") { const n = prop(p, "fares", 0) + 1; setProp(p, "fares", n); if (n >= 5) trophy(p, "taxi", "Cabbie", "Complete 5 taxi fares"); }
     if (/Launch/.test(a.title)) market("ORBT", 0.2);
     if (/Swamp/.test(a.title)) market("GATR", 0.12);
@@ -987,9 +1012,42 @@ function lawyer(p) {
   msg(p, `§9[Lawyer]§f Paperwork's filed. You were never there. (${money(fee)})`);
   if (!world.getAllPlayers().some(x => wanted(x) > 0)) clearPolice();
 }
+const HINTS = {
+  goto: "Follow the purple GPS distance on your HUD, it points the way.",
+  drive: "Grab any car: crouch next to one on the street, or buy one at Coastline Motors.",
+  rob: "Walk up to the shop counter, crouch and hold a gun out until the bar fills.",
+  escape: "Break line of sight. Get indoors or far away, the stars drop faster when you hide inside.",
+  kill: "They're marked as purple dots on your radar. Bring armor and medkits from Sunshine Arms.",
+  heist: "Get inside the vault behind the counter, crouch with a gun and hold. SWAT comes in waves.",
+  collect: "Look for the green sparkles near the shops in Port Isla.",
+  race: "Stay on the road and hit every white beam. A sports car makes par easy.",
+};
+function contacts(p) {
+  const s = stepOf(p);
+  const who = pick(["§d[Sol]", "§6[Benny]"]);
+  msg(p, `${who}§f ` + (s ? (HINTS[s.t] ?? "You've got this. Check your objective on the HUD.") : pick(["Bored? Pull a job from the phone.", "Heard Palm Bank's vault is full this week...", "Gang turf pays well if you clear it out."])));
+  sound(p.dimension, "palmera.phone", p.location, 1.2, 0.6);
+}
+const DAILY = [["rob", 3, "Rob 3 stores", 3000], ["kill_gang", 8, "Take down 8 gang members", 2500], ["taxi", 2, "Complete 2 taxi fares", 2000],
+               ["token", 2, "Find 2 Palm Tokens", 2000], ["mission", 2, "Complete 2 missions or jobs", 3500]];
+function daily(p) {
+  const day = Math.floor(system.currentTick / 24000);
+  if (prop(p, "daily_day", -1) !== day) { setProp(p, "daily_day", day); setProp(p, "daily_prog", 0); setProp(p, "daily_done", false); }
+  return DAILY[day % DAILY.length];
+}
+function dailyTick(p, kind) {
+  const [k, n, label, reward] = daily(p);
+  if (k !== kind || prop(p, "daily_done", false)) return;
+  const v = prop(p, "daily_prog", 0) + 1;
+  setProp(p, "daily_prog", v);
+  if (v >= n) { setProp(p, "daily_done", true); addCash(p, reward); title(p, "§b§lDAILY CHALLENGE", `§f${label} §a+${money(reward)}`); }
+  else msg(p, `§bDaily: ${label} ${v}/${n}`);
+}
 function feed(p) {
   const posts = [...D.feed].sort(() => Math.random() - 0.5).slice(0, 5);
-  new ActionFormData().title("§5Feed").body(posts.join("\n\n")).button("Close").show(p);
+  const [, n, label, reward] = daily(p);
+  new ActionFormData().title("§5Feed").body(`§bToday's challenge: §f${label} §7(${prop(p, "daily_prog", 0)}/${n}) §a${money(reward)}\n\n` + posts.join("\n\n"))
+    .button("§dCall Sol / Benny for a hint").button("Close").show(p).then(r => { if (!r.canceled && r.selection === 0) contacts(p); });
 }
 async function settings(p) {
   const mm = prop(p, "set_minimap", false), h = prop(p, "set_hud", "full"), rd = prop(p, "set_radar", true);
@@ -1259,6 +1317,7 @@ function tokenTick(p) {
       addCash(p, 500); sound(p.dimension, "random.levelup", p.location, 1.8);
       title(p, "§6§lPALM TOKEN", `§f${got.length}/${TOKENS.length} found  §a+$500`);
       if (got.length >= 10) trophy(p, "token", "Token Hunter", "Find 10 Palm Tokens");
+      dailyTick(p, "token");
       if (got.length === TOKENS.length) { addCash(p, 25000); msg(p, "§6You found every Palm Token! +$25,000"); }
     }
   });
@@ -1387,7 +1446,9 @@ system.runInterval(() => {                       // every second: wanted decay, 
     const seen = count(p.dimension, p.location, 16, { families: ["palmera_police"] });
     setProp(p, "searching", !seen);
     if (seen) { setProp(p, "wcd", Math.max(prop(p, "wcd", 600), 300)); continue; }
-    const cd = prop(p, "wcd", 600) - 20;
+    let indoors = false;
+    try { const b = p.dimension.getBlockFromRay(p.getHeadLocation(), { x: 0, y: 1, z: 0 }, { maxDistance: 12 }); indoors = !!b; } catch { }
+    const cd = prop(p, "wcd", 600) - (indoors ? 40 : 20);
     if (cd <= 0) {
       setWanted(p, w - 1); setProp(p, "wcd", 600);
       if (w - 1 === 0 && prop(p, "hadfour", false)) { setProp(p, "hadfour", false); trophy(p, "lost5", "Ghost", "Lose a 4+ star wanted level"); }
