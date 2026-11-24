@@ -12,7 +12,7 @@ Read `references/pipeline.md` for the step details, `references/scenes.md` for t
 ## 0. Setup (first run only, ~2 min)
 Check and report in one short list, with the exact fix for anything missing:
 - Node 22+ (`node -v`), ffmpeg (`ffmpeg -version`), Claude Code (you are in it).
-- Voice: `ELEVENLABS_API_KEY` set → premium voice; otherwise the free local voice: `pip install kokoro-onnx soundfile` (and `HYPERFRAMES_PYTHON=<that python>` if there are several).
+- Voice: `ELEVENLABS_API_KEY` set → premium voice; otherwise the free local Kokoro voice `am_michael` (best-rated male; `--voice af_heart` for the best female): `pip install kokoro-onnx soundfile` (and `HYPERFRAMES_PYTHON=<that python>` if there are several).
 - Captions: `npx --yes hyperframes@0.8.157 models install parakeet` (one-time, ~640 MB).
 - Images: `codex` CLI signed in → images are generated for the user; otherwise you write the prompts and the user drops the images in.
 Paths: `$SKILL` below means this skill's own folder (the one this SKILL.md is in; Claude Code shows it as the skill's base directory when the skill loads). Create the project: copy `$SKILL/template/` to `videos/<slug>/` in the user's working folder (slug from the topic). All commands below run inside that project folder; on Windows run them in Git Bash, or replace `$SKILL` with the full path in quotes.

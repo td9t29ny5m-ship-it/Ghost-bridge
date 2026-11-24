@@ -24,7 +24,7 @@ if (key) {
   } catch (e) { console.error("ElevenLabs request failed:", e.message, "→ falling back to the free local voice"); }
 }
 if (!done) {
-  const voice = key ? "am_adam" : opt("--voice", "am_adam");
+  const voice = key ? "am_michael" : opt("--voice", "am_michael");
   const txt = join(A, "vo_clean.txt"); writeFileSync(txt, text); // a file, so newlines and quotes survive the shell
   // one quoted command line: npx is a .cmd on Windows (needs a shell) and project paths may contain spaces
   const q = (s) => `"${String(s).replace(/"/g, '\\"')}"`;
