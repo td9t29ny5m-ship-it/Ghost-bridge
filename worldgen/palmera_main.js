@@ -232,11 +232,32 @@ function throwGrenade(p) {
   system.runTimeout(() => boom(dim, land, 3, p), 30);
   heat(p);
 }
+function throwMolotov(p) {
+  const c = inv(p), slot = p.selectedSlotIndex ?? p.selectedSlot, it = c.getItem(slot);
+  if (!it) return;
+  if (it.amount > 1) { it.amount--; c.setItem(slot, it); } else c.setItem(slot, undefined);
+  const dim = p.dimension, head = p.getHeadLocation(), dir = p.getViewDirection();
+  let land = add(head, mul(dir, 16));
+  try { const bh = dim.getBlockFromRay(head, dir, { maxDistance: 16, includePassableBlocks: false }); if (bh) land = add(bh.block.location, bh.faceLocation); } catch { }
+  sound(dim, "random.glass", land, 0.8);
+  heat(p);
+  for (let t = 0; t < 120; t += 5) system.runTimeout(() => {
+    for (let i = 0; i < 6; i++) particle(dim, "minecraft:basic_flame_particle", add(land, { x: rnd(-2.5, 2.5), y: 0.2, z: rnd(-2.5, 2.5) }));
+    if (t % 10 === 0) try {
+      for (const e of dim.getEntities({ location: land, maxDistance: 3 })) {
+        if (SKIP.has(e.typeId)) continue;
+        e.applyDamage(3, { cause: EntityDamageCause.fire, damagingEntity: p });
+        try { e.setOnFire(2, true); } catch { }
+      }
+    } catch { }
+  }, t);
+}
 world.afterEvents.itemUse.subscribe(ev => {
   const p = ev.source, id = ev.itemStack?.typeId;
   if (!p || !id) return;
   if (id === "palmera:phone") { system.run(() => phone(p)); return; }
   if (id === "palmera:grenade") { throwGrenade(p); return; }
+  if (id === "palmera:molotov") { throwMolotov(p); return; }
   if (GUNS[id]) fire(p, GUNS[id], id);
 });
 try {
@@ -308,6 +329,18 @@ world.afterEvents.entityDie.subscribe(ev => {
   let tags = [];
   try { tags = d.getTags(); } catch { }
   if (CARS.has(type) || type === "palmera:traffic_car" || type === "palmera:police_car") { boom(dim, loc, 2.5, k); return; }
+  if (type === "palmera:gangster" && k?.typeId === "minecraft:player") {
+    for (const g of D.gangs) {
+      if (flat(V(g.pos), loc) > g.r) continue;
+      const turf = JSON.parse(prop(k, "turf", "[]"));
+      if (turf.includes(g.name)) break;
+      const n = prop(k, "turfkills_" + g.name, 0) + 1;
+      setProp(k, "turfkills_" + g.name, n);
+      if (n % 5 === 0 && n < 15) msg(k, `§c${g.name} turf: ${n}/15 gang members down.`);
+      if (n >= 15) { turf.push(g.name); setProp(k, "turf", JSON.stringify(turf)); title(k, "§4§lTURF TAKEN", `§f${g.name} territory is yours. +$1,000/day`); }
+      break;
+    }
+  }
   if (type === "palmera:gangster") dim.spawnItem(new ItemStack("palmera:cash", tags.includes("boss") ? 12 : 2), loc);
   if (type === "palmera:civilian" && Math.random() < 0.5) dim.spawnItem(new ItemStack("palmera:cash", 1), loc);
   if (POLICE.has(type) && Math.random() < 0.5) dim.spawnItem(new ItemStack("palmera:cash", 1), loc);
@@ -409,6 +442,8 @@ function robberyTick(p) {
   else { const [r, rd] = nearest(D.rob, p.location); if (r && rd < 3.5 && Math.abs(r[1] - p.location.y) < 3) target = r; }
   if (!target) { robbing.delete(p.id); return; }
   const key = target.slice(0, 3).join(",");
+  const mine = JSON.parse(prop(p, "biz", "[]")).some(i => D.businesses?.[i]?.slice(0, 3).join(",") === key);
+  if (mine) { p.onScreenDisplay.setActionBar("§7This is your own business."); return; }
   if ((cooldown.get(key) ?? -1e9) > system.currentTick) { p.onScreenDisplay.setActionBar("§7This place was hit recently. Come back later."); return; }
   const st = robbing.get(p.id) ?? { key, t: 0 };
   if (st.key !== key) { st.key = key; st.t = 0; }
@@ -480,6 +515,7 @@ function ambient(p) {
   const cars = count(dim, loc, 72, { type: "palmera:traffic_car" });
   if (cars < 8) { const s = spotNear(p, 30, 60, t => ROAD.has(t)); if (s) spawn(dim, "palmera:traffic_car", s); }
   for (const g of D.gangs) {
+    if (JSON.parse(prop(p, "turf", "[]")).includes(g.name)) continue;
     if (flat(V(g.pos), loc) < g.r && count(dim, loc, 60, { type: "palmera:gangster" }) < 6) {
       const s = spotNear(p, 16, 36, t => WALKABLE.has(t) || t === "minecraft:mud");
       if (s) spawn(dim, "palmera:gangster", s, (g.name === "Swamp Kings" ? "§2" : "§5") + g.name.slice(0, -1), ["gang"], "palmera:s" + pick(g.skins));
@@ -791,8 +827,19 @@ async function estateForm(p) {
   const owned = JSON.parse(prop(p, "homes", "[]"));
   const f = new ActionFormData().title("§2Real Estate").body("§7Safehouses become your respawn point and pay daily income into your bank.");
   D.safehouses.forEach((h, i) => f.button(`${owned.includes(i) ? "§a[OWNED] " : ""}§f${h.kind === "mansion" ? "Isle Mansion" : "Family Home"} #${i + 1}\n§2${money(h.price)} §8+${money(h.income)}/day`));
+  const biz = JSON.parse(prop(p, "biz", "[]"));
+  (D.businesses ?? []).forEach((b, i) => f.button(`${biz.includes(i) ? "§a[OWNED] " : ""}§6${b[3].toUpperCase()} business #${i + 1}\n§2$120,000 §8+$1,500/day`));
   const r = await f.show(p);
   if (r.canceled) return;
+  if (r.selection >= D.safehouses.length) {
+    const i = r.selection - D.safehouses.length, b = D.businesses[i];
+    if (biz.includes(i)) { setProp(p, "wp", JSON.stringify({ name: "Your business", pos: b.slice(0, 3) })); msg(p, "§aWaypoint set to your business."); return; }
+    if (cash(p) + bank(p) < 120000) { msg(p, "§cYou can't afford this business yet."); return; }
+    let left = 120000; const c = Math.min(cash(p), left); addCash(p, -c); left -= c; setProp(p, "bank", bank(p) - left);
+    biz.push(i); setProp(p, "biz", JSON.stringify(biz));
+    title(p, "§6§lBUSINESS BOUGHT", "§7+$1,500 every day. Nobody robs your own place.");
+    return;
+  }
   const i = r.selection, h = D.safehouses[i];
   if (owned.includes(i)) { setProp(p, "wp", JSON.stringify({ name: "Safehouse", pos: h.pos })); msg(p, "§aWaypoint set to your safehouse."); return; }
   if (cash(p) + bank(p) < h.price) { msg(p, "§cYou can't afford this place yet."); return; }
@@ -1151,6 +1198,29 @@ function eventTick(p) {
 system.runInterval(() => { for (const p of world.getAllPlayers()) { try { tokenTick(p); eventTick(p); } catch { } } }, 10);
 system.runInterval(() => { for (const p of world.getAllPlayers()) { try { streetEvent(p); } catch { } } }, 1200);
 
+// ---------------------------------------------------------------- tropical storms + police searchlight
+let storm = 0;
+system.runInterval(() => {
+  if (storm === 0 && Math.random() < 0.08) {
+    storm = 1; cmd(OW(), "weather thunder 6000");
+    for (const p of world.getAllPlayers()) { msg(p, "§b[Palmera Weather]§f Tropical storm warning! Heavy rain and strong winds incoming."); }
+    system.runTimeout(() => { storm = 0; cmd(OW(), "weather clear"); }, 6000);
+  }
+}, 6000);
+system.runInterval(() => {
+  if (storm) for (const p of world.getAllPlayers()) { if (!ridingCar(p)) try { p.applyKnockback(1, 0.3, 0.12, 0); } catch { } }
+  let night = false; try { const t = world.getTimeOfDay(); night = t > 13000 && t < 23000; } catch { }
+  if (!night) return;
+  try {
+    for (const h of OW().getEntities({ type: "palmera:police_heli" })) {
+      const t = world.getAllPlayers().find(p => wanted(p) > 0 && flat(p.location, h.location) < 60);
+      if (!t) continue;
+      const a = h.location, b = t.location;
+      for (let k = 0; k <= 12; k++) particle(h.dimension, "minecraft:endrod", { x: a.x + (b.x - a.x) * k / 12, y: a.y + (b.y - a.y) * k / 12, z: a.z + (b.z - a.z) * k / 12 });
+    }
+  } catch { }
+}, 10);
+
 // ---------------------------------------------------------------- pedestrian chatter
 const LINES = {
   calm: ["Nice day, huh?", "Have you tried the tacos at Taco Sol?", "Traffic on the causeway is insane.", "I'm late for work!",
@@ -1224,7 +1294,8 @@ system.runInterval(() => { for (const p of world.getAllPlayers()) { try { ambien
 system.runInterval(() => {                       // every in-game day: property income
   for (const p of world.getAllPlayers()) {
     const owned = JSON.parse(prop(p, "homes", "[]"));
-    const inc = owned.reduce((s, i) => s + (D.safehouses[i]?.income ?? 0), 0);
+    const inc = owned.reduce((s, i) => s + (D.safehouses[i]?.income ?? 0), 0) + JSON.parse(prop(p, "biz", "[]")).length * 1500
+      + JSON.parse(prop(p, "turf", "[]")).length * 1000;
     if (inc) { setProp(p, "bank", bank(p) + inc); msg(p, `§2Your properties earned ${money(inc)} today (paid to your bank).`); }
   }
 }, 24000);

@@ -49,11 +49,15 @@ SPRITES['minigun'] = [
     '.DDSSSSSSSSSSSSS', '.DDDDDDDDDDDDDD.', '.DDSSSSSSSSSSSSS', '..DDDDDDDDDDDDD.',
     '...YY.K.........', '...YY.KK........', '................', '................',
     '................', '................', '................', '................']
+SPRITES['molotov'] = [
+    '................', '......bb........', '......WW........', '......rr........', '.....GGGG.......', '....GgGGGG......',
+    '....GgGGGG......', '....GGOOGG......', '....GOOOOG......', '....GOOOOG......', '....GGOOGG......', '.....GGGG.......',
+    '................', '................', '................', '................']
 ITEMS = {
     'pistol': ('Pistol', 1, True), 'smg': ('SMG', 1, True), 'shotgun': ('Pump Shotgun', 1, True),
     'rifle': ('Assault Rifle', 1, True), 'sniper': ('Sniper Rifle', 1, True), 'minigun': ('Minigun', 1, True),
     'rocket': ('Rocket Launcher', 1, True), 'phone': ('Phone', 1, False), 'grenade': ('Grenade', 16, False),
-    'cash': ('Cash', 64, False), 'bat': ('Baseball Bat', 1, True),
+    'cash': ('Cash', 64, False), 'bat': ('Baseball Bat', 1, True), 'molotov': ('Molotov Cocktail', 16, False),
 }
 GUNS = {
     #           dmg  cd  range pellets ammo spread  sound                pitch explode
@@ -73,7 +77,7 @@ SHOP = [
     ('pistol', 'Pistol', 500, 'arms'), ('smg', 'SMG', 2500, 'arms'), ('shotgun', 'Pump Shotgun', 3500, 'arms'),
     ('rifle', 'Assault Rifle', 7500, 'arms'), ('sniper', 'Sniper Rifle', 12000, 'arms'),
     ('minigun', 'Minigun', 45000, 'arms'), ('rocket', 'Rocket Launcher', 25000, 'arms'),
-    ('ammo', 'Ammo x60', 150, 'arms'), ('ammo300', 'Ammo x300', 650, 'arms'), ('grenade', 'Grenades x4', 600, 'arms'),
+    ('ammo', 'Ammo x60', 150, 'arms'), ('ammo300', 'Ammo x300', 650, 'arms'), ('grenade', 'Grenades x4', 600, 'arms'), ('molotov', 'Molotovs x4', 800, 'arms'),
     ('armor', 'Body Armor', 1500, 'arms'), ('medkit', 'Medkits x3', 300, 'arms'), ('bat', 'Baseball Bat', 100, 'arms'),
     ('car_sedan', 'Sedan', 4000, 'cars'), ('car_sports', 'Sports Car', 15000, 'cars'), ('car_bike', 'Motorcycle', 8000, 'cars'),
     ('car_boat', 'Speedboat (stand by water)', 20000, 'cars'), ('car_heli', 'Helicopter', 75000, 'cars'),
@@ -932,6 +936,7 @@ def build_addon(out_path, P):
         'jobs': [{'title': j['title'], 'where': j['where'], 'reward': j['reward'], 'desc': j['desc'], 'spot': list(j['spot']),
                   'boss': j['boss'][1], 'goons': len(j['goons'])} for j in jobs],
         'story': story(P, D), 'rob': rob, 'banks': banks, 'hospitals': hospitals, 'police': police, 'gunshops': gunshops,
+        'businesses': [list(map(int, r_[:3])) + [r_[3]] for r_ in sp.get('rob', []) if r_[3] in ('bar', 'club', 'diner', 'pizza', 'taco')][:12],
         'safehouses': [{'pos': list(map(int, s_[:3])), 'kind': s_[3], 'price': 250000 if s_[3] == 'mansion' else 30000,
                         'income': 4000 if s_[3] == 'mansion' else 600} for s_ in safe],
         'races': races, 'landmarks': landmarks, 'gangs': gang_zones, 'feed': FEED,
