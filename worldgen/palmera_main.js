@@ -855,11 +855,12 @@ async function phone(p) {
     .button(`§9Call Lawyer\n§8Clear wanted level`, "textures/ui/palmera_app_lawyer")
     .button("§5Feed\n§8What's happening", "textures/ui/palmera_app_feed")
     .button("§6Exchange\n§8Stocks", "textures/ui/palmera_app_bank")
+    .button("§bCall My Car\n§8Delivered to you", "textures/ui/palmera_app_cars")
     .button(active.has(p.id) ? "§8Cancel current mission" : "§7Settings & Stats", active.has(p.id) ? "textures/ui/palmera_app_stats" : "textures/ui/palmera_app_settings");
   const r = await f.show(p);
   if (r.canceled) return;
   [() => storyMission(p), () => jobsForm(p), () => shopForm(p, "arms", "§6Sunshine Arms"), () => shopForm(p, "cars", "§bCoastline Motors"),
-  () => estateForm(p), () => bankForm(p), () => gpsForm(p), () => taxi(p), () => lawyer(p), () => feed(p), () => exchange(p),
+  () => estateForm(p), () => bankForm(p), () => gpsForm(p), () => taxi(p), () => lawyer(p), () => feed(p), () => exchange(p), () => callCar(p),
   () => active.has(p.id) ? finishMission(p, false) : settings(p)][r.selection]?.();
 }
 async function jobsForm(p) {
@@ -948,6 +949,15 @@ system.runInterval(() => {
   for (const k in m) m[k] = Math.max(1, +(m[k] * (1 + (Math.random() - 0.48) * 0.06)).toFixed(2));
   try { world.setDynamicProperty("market", JSON.stringify(m)); } catch { }
 }, 1200);
+function callCar(p) {
+  const id = prop(p, "car", "");
+  let car; try { car = id && world.getEntity(id); } catch { }
+  if (!car) { msg(p, "§7You don't own a car right now. Buy one at Coastline Motors, or steal one."); return; }
+  const s = spotNear(p, 6, 14, t => ROAD.has(t)) ?? spotNear(p, 4, 10);
+  if (!s) { msg(p, "§7No space to bring your car here."); return; }
+  try { car.teleport(s); } catch { }
+  title(p, "§bYour car is here", "§7Parked nearby");
+}
 async function exchange(p) {
   const m = market(), own = JSON.parse(prop(p, "stocks", "{}"));
   const keys = Object.keys(TICKERS);
@@ -1088,13 +1098,15 @@ async function settings(p) {
   const mm = prop(p, "set_minimap", false), h = prop(p, "set_hud", "full"), rd = prop(p, "set_radar", false);
   const f = new ActionFormData().title("§7Settings").body(`§aCash ${money(cash(p))} §bBank ${money(bank(p))}\n§7Story ${prop(p, "story", 0)}/${D.story.length} | Missions ${prop(p, "missions", 0)} | Crimes ${prop(p, "crimes", 0)} | Palm Tokens ${JSON.parse(prop(p, "tokens", "[]")).length}/${TOKENS.length}`)
     .button("§6Trophies")
+    .button(`Fast running: ${prop(p, "set_run", true) ? "§aON" : "§cOFF"}`)
     .button(`Radar map (off-hand): ${rd ? "§aON" : "§cOFF"}`).button(`HUD: ${h === "full" ? "§aON" : "§cOFF"}`).button(`Text radar: ${mm ? "§aON" : "§cOFF"}`);
   const r = await f.show(p);
   if (r.canceled) return;
   if (r.selection === 0) return trophies(p);
-  if (r.selection === 1) { setProp(p, "set_radar", !rd); if (rd) radarOff(p); }
-  if (r.selection === 2) setProp(p, "set_hud", h === "full" ? "off" : "full");
-  if (r.selection === 3) setProp(p, "set_minimap", !mm);
+  if (r.selection === 1) { setProp(p, "set_run", !prop(p, "set_run", true)); return; }
+  if (r.selection - 1 === 1) { setProp(p, "set_radar", !rd); if (rd) radarOff(p); }
+  if (r.selection === 3) setProp(p, "set_hud", h === "full" ? "off" : "full");
+  if (r.selection === 4) setProp(p, "set_minimap", !mm);
 }
 function stats(p) {
   msg(p, `§aCash ${money(cash(p))} §bBank ${money(bank(p))} §7| Story ${prop(p, "story", 0)}/${D.story.length} | Missions ${prop(p, "missions", 0)} | Crimes ${prop(p, "crimes", 0)} | Homes ${JSON.parse(prop(p, "homes", "[]")).length}`);
@@ -1481,6 +1493,14 @@ system.runInterval(() => {
     }
   } catch { }
 }, 10);
+
+// ---------------------------------------------------------------- faster on foot
+system.runInterval(() => {
+  for (const p of world.getAllPlayers()) {
+    if (!prop(p, "set_run", true) || ridingCar(p)) continue;
+    try { p.addEffect("speed", 60, { amplifier: 1, showParticles: false }); } catch { }
+  }
+}, 40);
 
 // ---------------------------------------------------------------- hospitals heal you
 system.runInterval(() => {
