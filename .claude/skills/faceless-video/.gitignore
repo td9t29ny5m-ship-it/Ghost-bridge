@@ -1,0 +1,17 @@
+node_modules/
+.hyperframes/
+.imagegen_tmp/
+*_raw.png
+*_sheet.png
+transcript.json
+log_*.txt
+rb_*.log
+scenes.prev.js
+words_kokoro.js
+template/assets/audio/*
+!template/assets/audio/.gitkeep
+# examples: keep the film description, images and the phone render; voices and Epidemic Sound audio are not redistributed
+examples/*/assets/audio/
+examples/*/assets/sfx/
+examples/*/renders/*
+!examples/*/renders/*_phone.mp4

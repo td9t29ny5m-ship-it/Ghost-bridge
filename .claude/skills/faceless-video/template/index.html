@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <title>faceless-video</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="scenes.js"></script>
+    <script src="words.js"></script>
+    <style>
+      /* ===== fonts (all SIL Open Font License, bundled in assets/fonts) ===== */
+      @font-face { font-family: "Head"; src: url("assets/fonts/Montserrat-ExtraBold.ttf") format("truetype"); font-weight: 800; }
+      @font-face { font-family: "Body"; src: url("assets/fonts/SpaceGrotesk-Bold.ttf") format("truetype"); font-weight: 700; }
+      @font-face { font-family: "Hand"; src: url("assets/fonts/Caveat-Bold.ttf") format("truetype"); font-weight: 700; }
+      @font-face { font-family: "Mono"; src: url("assets/fonts/JetBrainsMono-Regular.ttf") format("truetype"); font-weight: 400; }
+      @font-face { font-family: "Mono"; src: url("assets/fonts/JetBrainsMono-Bold.ttf") format("truetype"); font-weight: 700; }
+      :root { --bg: #e4d9c6; --ink: #161412; --co: #ec5626; --capbg: #fbf8f0; --capfg: #161412; --grain: 0.11; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: var(--bg); }
+      #root { position: relative; width: 1080px; height: 1920px; overflow: hidden; background: var(--bg); }
+      #cam { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
+      .w { position: absolute; }
+      .w img, img.w { display: block; }
+
+      /* ===== the desk: one big sheet of paper, light pools, a key light ===== */
+      #desk { position: absolute; left: -2000px; top: -2000px; width: 9000px; height: 14000px; background: url("assets/img/paper_tex.png") 0 0 / 1024px repeat, var(--bg); background-blend-mode: overlay; }
+      #pools { position: absolute; left: -2000px; top: -2000px; width: 9000px; height: 14000px; pointer-events: none; mix-blend-mode: soft-light; }
+      #light { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: multiply;
+        background: radial-gradient(ellipse 85% 70% at 38% 30%, rgba(255, 246, 228, 0) 42%, rgba(60, 40, 20, 0.24) 100%), linear-gradient(135deg, rgba(255, 244, 222, 0) 0%, rgba(40, 30, 60, 0.07) 100%); }
+      #key { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: soft-light; background: radial-gradient(ellipse 70% 55% at 22% 14%, rgba(255, 238, 205, 0.32), rgba(255, 238, 205, 0) 70%); }
+      .dof { position: absolute; left: 0; right: 0; pointer-events: none; opacity: 0; backdrop-filter: blur(6px); }
+      #dofT { top: 0; height: 360px; -webkit-mask: linear-gradient(to bottom, #000 0%, #000 25%, transparent 100%); mask: linear-gradient(to bottom, #000 0%, #000 25%, transparent 100%); }
+      #dofB { bottom: 0; height: 560px; -webkit-mask: linear-gradient(to top, #000 0%, #000 40%, transparent 100%); mask: linear-gradient(to top, #000 0%, #000 40%, transparent 100%); }
+      #grain { position: absolute; inset: -120px; pointer-events: none; opacity: var(--grain); mix-blend-mode: multiply;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+      .tex::after { content: ""; position: absolute; inset: 0; background: url("assets/img/paper_fib.png") 0 0 / 520px; mix-blend-mode: multiply; opacity: 0.85; pointer-events: none; }
+
+      /* ===== paper things ===== */
+      .paper { background: #fdfbf6; box-shadow: 1px 2px 2px rgba(40, 28, 12, 0.28), 12px 24px 40px -16px rgba(40, 28, 12, 0.45); }
+      .ruled { background-color: #fdfbf5; background-image: linear-gradient(to bottom, transparent 46px, var(--co-line) 46px, var(--co-line) 48px, transparent 48px), repeating-linear-gradient(to bottom, transparent 0 33px, rgba(110, 140, 180, 0.22) 33px 35px); }
+      .card { width: 560px; height: 214px; }
+      .card b { position: absolute; left: 26px; top: 50px; font-family: "Head", sans-serif; font-size: 104px; line-height: 1; color: var(--co); }
+      .card span { position: absolute; left: 250px; top: 70px; right: 24px; font-family: "Mono", monospace; font-weight: 700; font-size: 40px; line-height: 1.1; color: var(--ink); white-space: pre-wrap; }
+      .card.wide { width: 820px; height: 280px; }
+      .card.wide b { font-size: 120px; top: 70px; }
+      .card.wide span { left: 300px; top: 90px; font-size: 46px; }
+      .card img.pr { position: absolute; left: 40px; top: 22px; width: 220px; height: 236px; object-fit: contain; filter: drop-shadow(10px 6px 6px rgba(40, 28, 12, 0.3)); }
+      .card.pr span { left: 300px; }
+      .print { padding: 16px; }
+      .print img { display: block; width: 100%; height: 100%; object-fit: cover; }
+      .print .cap { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; font-family: "Hand", cursive; font-size: 72px; line-height: 1; color: var(--co); }
+      .page { padding: 70px 60px; font-family: "Mono", monospace; font-size: 36px; line-height: 64px; color: #23201c; white-space: pre-wrap; }
+      .page h1 { font: inherit; font-weight: 700; margin-bottom: 40px; }
+      .note { width: 260px; height: 260px; background: #ffd9a8; box-shadow: 0 2px 3px rgba(40, 28, 12, 0.2), 12px 18px 26px -12px rgba(40, 28, 12, 0.45); }
+      .note.yellow { background: #fbe38a; } .note.pink { background: #ffc6c6; } .note.green { background: #c9efc0; }
+      .note div { position: absolute; left: 22px; top: 30px; right: 18px; font-family: "Hand", cursive; font-size: 60px; line-height: 0.95; color: var(--ink); white-space: pre-wrap; }
+      .hw { font-family: "Hand", cursive; line-height: 1; color: var(--co); white-space: nowrap; }
+      .label { height: 120px; padding: 0 40px; background: #fff; display: grid; place-items: center; font-family: "Mono", monospace; font-weight: 700; font-size: 60px; color: var(--ink); box-shadow: 0 2px 3px rgba(40, 28, 12, 0.25), 12px 16px 24px -10px rgba(40, 28, 12, 0.4); border-left: 14px solid var(--co); white-space: nowrap; }
+      .cut { filter: drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff) drop-shadow(10px 16px 14px rgba(40, 28, 12, 0.4)); }
+      .flat { filter: drop-shadow(10px 16px 14px rgba(40, 28, 12, 0.4)); }
+      .mk { clip-path: inset(-60% 100% -60% -8%); }
+      .mk img { width: 100%; height: 100%; }
+      .stamp .rim { position: absolute; inset: 0; padding: 14px; background: url("assets/img/ink_o.png") 0 0 / 1100px auto; -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+      .stamp .tx { position: absolute; inset: 14px; display: grid; place-items: center; text-align: center; font-family: "Head", sans-serif; line-height: 0.98; color: transparent; background: url("assets/img/ink_o.png") -300px -200px / 1100px auto; -webkit-background-clip: text; background-clip: text; white-space: pre; }
+      .stamp.red .rim, .stamp.red .tx { filter: hue-rotate(-12deg) saturate(1.2); }
+      .box { border: 4px solid var(--co); }
+      .box i { position: absolute; width: 22px; height: 22px; background: #fff; border: 4px solid var(--co); }
+      .box i:nth-child(1) { left: -13px; top: -13px; } .box i:nth-child(2) { right: -13px; top: -13px; } .box i:nth-child(3) { left: -13px; bottom: -13px; } .box i:nth-child(4) { right: -13px; bottom: -13px; }
+      .box .tag { position: absolute; left: -4px; top: -52px; padding: 2px 14px 5px; background: var(--co); color: #fff; font-family: "Body", sans-serif; font-size: 31px; white-space: nowrap; }
+      .cur { width: 60px; height: 60px; filter: drop-shadow(10px 6px 8px rgba(40, 28, 12, 0.3)); }
+      .cur svg { width: 52px; height: 64px; }
+      .cur b { position: absolute; left: 36px; top: 54px; padding: 3px 15px 6px; border-radius: 11px; background: var(--co); color: #fff; font-family: "Body", sans-serif; font-weight: 400; font-size: 34px; white-space: nowrap; }
+      .text { font-family: "Head", sans-serif; color: var(--ink); line-height: 1; white-space: pre; }
+
+      /* ===== captions: bottom edge at y 1500, the right 150 px stay free for the Reels UI ===== */
+      #caps { position: absolute; left: 70px; right: 150px; bottom: 420px; height: 320px; pointer-events: none; }
+      .caprow { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font-family: "Body", sans-serif; font-size: 60px; line-height: 1.42; visibility: hidden; }
+      .caprow .ln { background: var(--capbg); color: var(--capfg); padding: 3px 16px 5px; -webkit-box-decoration-break: clone; box-decoration-break: clone; box-shadow: 0 3px 8px rgba(40, 28, 12, 0.22); }
+      .caprow span { white-space: nowrap; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="20.00" data-width="1080" data-height="1920">
+      <div id="cam">
+        <div id="desk"></div>
+        <div id="pools"></div>
+        <div id="items"></div>
+      </div>
+      <div id="light"></div>
+      <div id="key"></div>
+      <div class="dof" id="dofT"></div><div class="dof" id="dofB"></div>
+      <div id="caps"></div>
+      <div id="grain"></div>
+      <audio id="mix" src="assets/audio/mix.wav" data-start="0" data-duration="20.00" data-track-index="0"></audio>
+    </div>
+    <script>
+      // ===================================================================================================
+      // faceless-video desk engine. Everything is a pure function of film time t: render(t) places the camera,
+      // every item and the captions. scenes.js (FILM) describes stations on one desk and the items on them;
+      // words.js (WORDS) carries the word timings of the voice-over. Nothing here keeps state between frames.
+      // ===================================================================================================
+      window.__timelines = window.__timelines || {};
+      const F = window.FILM || { duration: 60, stations: [] };
+      const DUR = F.duration;
+      const ACC = F.accent || "#ec5626";
+      document.documentElement.style.setProperty("--co", ACC);
+      document.documentElement.style.setProperty("--co-line", ACC + "73");
+      const $ = (s) => document.querySelector(s);
+      const C = (x) => Math.min(1, Math.max(0, x));
+      const P = (t, a, b) => C((t - a) / (b - a));
+      const L = (a, b, p) => a + (b - a) * p;
+      const E = {
+        lin: (x) => x,
+        io: (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2),
+        sine: (x) => -(Math.cos(Math.PI * x) - 1) / 2,
+        o: (x) => 1 - Math.pow(1 - x, 3),
+        i: (x) => x * x * x,
+        back: (x) => { const c = 1.70158; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); },
+      };
+      const put = (el, x = 0, y = 0, s = 1, r = 0, o = 1) => { el.style.transform = `translate(${x}px, ${y}px) rotate(${r}deg) scale(${s})`; el.style.opacity = o; };
+      // marker / handwriting reveal: the clip overshoots to the right so the last glyph is never cut
+      const reveal = (el, p) => { el.style.clipPath = `inset(-60% ${(1 - C(p)) * 112 - 12}% -60% -8%)`; };
+
+      // ---------- light pools: a few warm/dark soft spots scattered over the desk ----------
+      { const g = []; for (let i = 0; i < 12; i++) { const x = 600 + ((i * 1973) % 5200), y = 500 + ((i * 3271) % 11000), warm = i % 2 === 0;
+          g.push(`radial-gradient(circle ${1200 + (i % 3) * 200}px at ${x}px ${y}px, ${warm ? "rgba(255,248,230,0.5)" : "rgba(70,45,20,0.3)"}, rgba(0,0,0,0) 70%)`); }
+        $("#pools").style.background = g.join(","); }
+
+      // ---------- camera keys from the stations: [t, cx, cy, zoom, rot, ease, ay, hop] ----------
+      const ST = F.stations.slice().sort((a, b) => a.t - b.t);
+      const K = [];
+      ST.forEach((s, i) => {
+        const nx = ST[i + 1]; const ay = s.ay ?? 820; const z = s.zoom ?? 1;
+        K.push([s.t, s.x, s.y, z, s.rot ?? 0, s.ease ?? "io", ay, s.hop ?? (i > 0 ? 0.18 : 0)]);
+        const leave = nx ? nx.t - (nx.flight ?? 0.9) : DUR;
+        K.push([Math.max(s.t + 0.05, leave), s.x + (s.dx ?? 6), s.y + (s.dy ?? 4), z * (s.push ?? 1.03), s.rot ?? 0, "sine", ay]);
+      });
+      if (!K.length) K.push([0, 540, 960, 1, 0, "io", 820], [DUR, 540, 960, 1, 0, "sine", 820]);
+      function camAt(t) {
+        let i = 0; while (i < K.length - 1 && t >= K[i + 1][0]) i++;
+        const a = K[i], b = K[Math.min(i + 1, K.length - 1)];
+        const p = b === a ? 0 : (E[b[5] || "io"])(P(t, a[0], b[0]));
+        const hop = b === a ? 0 : (b[7] || 0) * Math.sin(Math.PI * p); // crane lift between two shots
+        return { cx: L(a[1], b[1], p), cy: L(a[2], b[2], p), k: Math.exp(L(Math.log(a[3]), Math.log(b[3]), p)) * (1 - hop), r: L(a[4], b[4], p), ay: L(a[6] ?? 820, b[6] ?? 820, p) };
+      }
+      function camSet(t) {
+        const c = camAt(t), c0 = camAt(Math.max(0, t - 1 / 30));
+        const v = Math.hypot((c.cx - c0.cx) * c.k, (c.cy - c0.cy) * c.k) + Math.abs(Math.log(c.k / c0.k)) * 300;
+        const sx = Math.sin(t * 0.9) * 3 + Math.sin(t * 2.3) * 1.5, sy = Math.cos(t * 0.7) * 3 + Math.sin(t * 1.9) * 1.2; // handheld drift
+        const cam = $("#cam");
+        cam.style.transform = `translate(${540 + sx}px, ${c.ay + sy}px) rotate(${c.r}deg) scale(${c.k}) translate(${-c.cx}px, ${-c.cy}px)`;
+        const bl = Math.min(2, Math.max(0, (v - 40) / 45)); cam.style.filter = bl > 0.15 ? `blur(${bl.toFixed(2)}px)` : "none";
+        const dof = C((0.55 - c.k) / 0.3); $("#dofT").style.opacity = dof; $("#dofB").style.opacity = dof; // miniature look on wide shots
+      }
+
+      // ---------- items ----------
+      const MK = { ring: "s08_ring", ring2: "s06_ring1", ring3: "s06_ring2", underline: "s04_underline", line: "s05_line", under2: "s09_under", under3: "s11_under", arrow: "s07_arrow", slash: "s01_slash" };
+      const ITEMS = [];
+      const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+      function build(it, st) {
+        const d = document.createElement("div"); d.className = "w"; d.style.left = `${it.x}px`; d.style.top = `${it.y}px`;
+        if (it.w) d.style.width = `${it.w}px`; if (it.h) d.style.height = `${it.h}px`;
+        const type = it.type;
+        if (type === "card") { d.className += ` card ruled tex paper${it.wide ? " wide" : ""}${it.prop ? " pr" : ""}`; d.innerHTML = `${it.prop ? `<img class="pr" src="${it.prop}" alt="" />` : ""}<b>${esc(it.num ?? "")}</b><span>${esc(it.title ?? "")}</span>`; }
+        else if (type === "print") { d.className += " print paper tex"; if (it.caption) d.style.paddingBottom = "110px"; d.innerHTML = `<img src="${it.src}" alt="" />${it.caption ? `<div class="cap">${esc(it.caption)}</div>` : ""}`; }
+        else if (type === "page") { d.className += " page paper tex"; d.innerHTML = `${it.title ? `<h1>${esc(it.title)}</h1>` : ""}<div class="body"></div>`; if (it.size) d.style.fontSize = `${it.size}px`; if (it.lh) d.style.lineHeight = `${it.lh}px`; }
+        else if (type === "note") { d.className += ` note tex ${it.color || ""}`; d.innerHTML = `<div>${esc(it.text ?? "")}</div>`; if (it.size) d.querySelector("div").style.fontSize = `${it.size}px`; }
+        else if (type === "hand") { d.className += " hw mk"; d.textContent = it.text ?? ""; d.style.fontSize = `${it.size ?? 80}px`; if (it.color) d.style.color = it.color; }
+        else if (type === "text") { d.className += " text"; d.textContent = it.text ?? ""; d.style.fontSize = `${it.size ?? 90}px`; if (it.color) d.style.color = it.color; if (it.font) d.style.fontFamily = it.font; }
+        else if (type === "label") { d.className += " label"; d.textContent = it.text ?? ""; if (it.size) d.style.fontSize = `${it.size}px`; }
+        else if (type === "cutout" || type === "image") { d.className += type === "cutout" ? " cut" : " flat"; d.innerHTML = `<img src="${it.src}" alt="" style="width:${it.w ?? 400}px${it.h ? `;height:${it.h}px` : ""}" />`; }
+        else if (type === "marker") { d.className += " mk"; d.innerHTML = `<img src="assets/mk/${MK[it.kind] || MK.ring}.png" alt="" />`; if (it.flip) d.querySelector("img").style.transform = "scaleY(-1)"; }
+        else if (type === "stamp") { d.className += ` stamp ${it.color === "red" ? "red" : ""}`; d.innerHTML = `<div class="rim"></div><div class="tx" style="font-size:${it.size ?? Math.round((it.h ?? 240) * 0.42)}px">${esc(it.text ?? "")}</div>`; }
+        else if (type === "box") { d.className += " box"; d.innerHTML = `<i></i><i></i><i></i><i></i>${it.tag ? `<div class="tag">${esc(it.tag)}</div>` : ""}`; }
+        else if (type === "cursor") { d.className += " cur"; d.innerHTML = `<svg viewBox="0 0 44 54"><path d="M3 3 L3 43 L13 34 L20 50 L28 46.5 L21 31 L35 31 Z" fill="${ACC}" stroke="#fff" stroke-width="3.2" stroke-linejoin="round" /></svg>${it.name ? `<b>${esc(it.name)}</b>` : ""}`; d.style.left = "0"; d.style.top = "0"; }
+        d.style.opacity = 0;
+        $("#items").appendChild(d);
+        const anim = it.anim || { card: "land", print: "land", page: "land", note: "land", label: "land", cutout: "land", image: "land", hand: "draw", marker: "draw", stamp: "slam", box: "show", text: "pop", cursor: "path" }[type] || "land";
+        ITEMS.push({ ...it, el: d, anim, rot: it.rot ?? 0, at: it.at ?? st.t, dur: it.dur ?? { draw: 0.45, slam: 0.08, pop: 0.3, show: 0.12, type: 2.0, slide: 0.5 }[anim] ?? 0.34 });
+      }
+      ST.forEach((st) => (st.items || []).forEach((it) => build(it, st)));
+
+      function itemAt(it, t) {
+        const el = it.el, a = it.at, p = P(t, a, a + it.dur);
+        if (t < a) { el.style.opacity = 0; return; }
+        let o = 1;
+        if (it.until != null) o = 1 - P(t, it.until, it.until + 0.3);
+        if (o <= 0) { el.style.opacity = 0; return; }
+        const r = it.rot;
+        switch (it.anim) {
+          case "land": { const e = E.o(p); put(el, 0, L(-24, 0, e), L(1.12, 1, e), L(r + 3, r, e), Math.min(o, C(p * 5))); break; }
+          case "slide": { const e = E.o(p); put(el, L(it.fx ?? -1400, 0, e), L(it.fy ?? 200, 0, e), L(1.08, 1, e), L(r * 4, r, e), o); break; }
+          case "pop": { const e = E.back(p); put(el, 0, 0, L(0.6, 1, e), r, Math.min(o, C(p * 4))); break; }
+          case "slam": put(el, 0, 0, L(1.22, 1, E.o(p)), r, o); break;
+          case "show": put(el, 0, 0, 1, r, Math.min(o, p)); break;
+          case "draw": put(el, 0, 0, 1, r, o); reveal(el, E.o(p)); break;
+          case "type": { put(el, 0, 0, 1, r, o); const body = el.querySelector(".body"); const s = (it.lines || []).join("\n"); const n = Math.round(C(p) * s.length); if (el.__n !== n) { body.textContent = s.slice(0, n); el.__n = n; } break; }
+          case "path": { const K2 = it.path || []; if (!K2.length) { el.style.opacity = 0; return; } let i = 0; while (i < K2.length - 1 && t >= K2[i + 1][0]) i++; const A = K2[i], B = K2[Math.min(i + 1, K2.length - 1)];
+            const q = B === A ? 0 : E.io(P(t, A[0], B[0])); const on = t >= K2[0][0] && t <= K2[K2.length - 1][0] + 0.3;
+            const click = (it.clicks || []).some((c) => t > c && t < c + 0.14); put(el, L(A[1], B[1], q), L(A[2], B[2], q), click ? 0.86 : 1, 0, on ? o : 0); break; }
+          default: put(el, 0, 0, 1, r, o);
+        }
+      }
+      // pages with lines type by default once they have landed
+      ITEMS.forEach((it) => { if (it.type === "page" && it.lines && !it.anim_set) { it.typeAt = it.at + 0.3; it.typeDur = it.typeDur ?? Math.min(3, 0.05 * it.lines.join("\n").length); } });
+      function pageAt(it, t) { if (it.type !== "page" || !it.lines) return; const body = it.el.querySelector(".body"); const s = it.lines.join("\n"); const n = Math.round(P(t, it.typeAt, it.typeAt + it.typeDur) * s.length); if (it.el.__n !== n) { body.textContent = s.slice(0, n); it.el.__n = n; } }
+
+      // ---------- captions from word timings: rows of a few words, active word in the accent colour ----------
+      const WORDS = (window.WORDS || []).filter((w) => w.w && w.w.trim());
+      const ROWS = [];
+      { let row = []; const flush = () => { if (row.length) { ROWS.push(row); row = []; } };
+        WORDS.forEach((w, i) => { row.push(w); const nx = WORDS[i + 1]; const chars = row.reduce((n, x) => n + x.w.length + 1, 0);
+          if (/[.!?…]$/.test(w.w) || !nx || nx.s - w.e > 0.45 || row.length >= 5 || chars + nx.w.length > 28) flush(); }); flush(); }
+      const capRows = ROWS.map((row, i) => {
+        const d = document.createElement("div"); d.className = "caprow"; const ln = document.createElement("span"); ln.className = "ln"; d.appendChild(ln);
+        const sp = row.map((w, j) => { const s = document.createElement("span"); s.textContent = w.w; ln.appendChild(s); if (j < row.length - 1) ln.appendChild(document.createTextNode(" ")); return s; });
+        $("#caps").appendChild(d); const nx = ROWS[i + 1]; const end = nx ? Math.min(nx[0].s, row[row.length - 1].e + 0.9) : row[row.length - 1].e + 1.0;
+        return { d, sp, row, a: row[0].s, end, on: null, k: -2 };
+      });
+      function capsAt(t) {
+        capRows.forEach((r) => { const on = t >= r.a && t < r.end; if (on !== r.on) { r.d.style.visibility = on ? "visible" : "hidden"; r.on = on; }
+          if (!on) return; let k = -1; r.row.forEach((w, j) => { if (t >= w.s) k = j; });
+          if (k !== r.k) { r.sp.forEach((s, j) => { s.style.color = j === k ? "var(--co)" : ""; }); r.k = k; } });
+      }
+
+      // ---------- frame ----------
+      const grain = $("#grain");
+      function render(t) {
+        camSet(t); ITEMS.forEach((it) => { itemAt(it, t); pageAt(it, t); }); capsAt(t);
+        const f = Math.floor(t * 24); grain.style.transform = `translate(${((f * 37) % 120) - 60}px, ${((f * 61) % 120) - 60}px)`;
+      }
+      const tl = gsap.timeline({ paused: true });
+      const clock = { t: 0 };
+      tl.fromTo(clock, { t: 0 }, { t: DUR, duration: DUR, ease: "none", onUpdate: () => render(clock.t) }, 0);
+      render(0);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
