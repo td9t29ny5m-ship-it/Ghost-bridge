@@ -56,7 +56,8 @@ function give(p, id, n = 1, name) {
   const left = inv(p).addItem(it);
   if (left) p.dimension.spawnItem(left, p.location);
 }
-function title(p, t, sub) { try { p.onScreenDisplay.setTitle(t, { subtitle: sub, fadeInDuration: 5, stayDuration: 60, fadeOutDuration: 15 }); } catch { } }
+const banners = new Map();
+function title(p, t, sub) { banners.set(p.id, { t, sub: sub ?? "", until: system.currentTick + 70 }); }
 function msg(p, s) { try { p.sendMessage(s); } catch { } }
 function nearest(list, loc) { let b, bd = 1e18; for (const s of list) { const d = flat(V(s), loc); if (d < bd) { bd = d; b = s; } } return [b, bd]; }
 function ridingCar(p) { try { const r = p.getComponent("minecraft:riding")?.entityRidingOn; return r && r.typeId.startsWith("palmera:") ? r : undefined; } catch { } }
@@ -101,7 +102,7 @@ function intro(p) {
   pts.forEach(([name, q], k) => system.runTimeout(() => {
     if (!valid(p)) return;
     shot(p, q, 90, 55, k === 0 ? 0.1 : 4, k * 1.7);
-    system.runTimeout(() => { try { p.onScreenDisplay.setTitle("§d§lPALMERA", { subtitle: name, fadeInDuration: 10, stayDuration: 60, fadeOutDuration: 10 }); } catch { } }, 30);
+    system.runTimeout(() => title(p, "§d§lPALMERA", name), 30);
   }, k * 110));
   system.runTimeout(() => { if (valid(p)) { fade(p); system.runTimeout(() => cmd(p, "camera @s clear"), 10); } }, pts.length * 110);
 }
@@ -133,7 +134,7 @@ function loadMaps() {
   } catch { }
 }
 function radarTick(p) {
-  if (!mapItems || !prop(p, "set_radar", true)) return;
+  if (!mapItems || !prop(p, "set_radar", false)) return;
   const n = D.maps.n, st = D.maps.step;
   const i = Math.max(0, Math.min(n - 1, Math.round(p.location.z / st)));
   const j = Math.max(0, Math.min(n - 1, Math.round(p.location.x / st)));
@@ -172,7 +173,7 @@ world.afterEvents.playerSpawn.subscribe(ev => {
       intro(p);
       msg(p, "§dWelcome to Palmera!§f You have §a$2,500§f, a pistol and a §dPhone§f. Use the Phone to start the §dStory§f, take jobs, buy guns and cars.");
       msg(p, "§7Tips: crouch at a shop counter with a gun out to rob it. Crouch next to a car on the street to steal it. Hurting people brings the cops.");
-      msg(p, "§7Your §fradar map§7 sits in your off-hand and follows you around Palmera. Turn it off in Phone > Settings.");
+      msg(p, "§7Your radar is in the top-right corner. Phone > Settings has more HUD options.");
     } else if (prop(p, "died", false)) {
       setProp(p, "died", false);
       const bill = Math.max(200, Math.floor(cash(p) * 0.1));
@@ -185,6 +186,7 @@ world.afterEvents.playerSpawn.subscribe(ev => {
 });
 
 // ---------------------------------------------------------------- weapons
+const hitFlash = new Map();
 const lastShot = new Map(), mags = new Map(), reloading = new Map(), trigger = new Map();
 function magOf(p, id) { const m = mags.get(p.id) ?? {}; mags.set(p.id, m); if (m[id] === undefined) m[id] = GUNS[id].mag; return m; }
 function startReload(p, id) {
@@ -225,7 +227,7 @@ function shoot(p, dim, origin, dir, g) {
     const head = HUMAN.has(e.typeId) && endLoc.y > e.location.y + 1.45;
     try { e.applyDamage(head ? g.dmg * 2 : g.dmg, { cause: EntityDamageCause.entityAttack, damagingEntity: p }); } catch { }
     particle(dim, "minecraft:critical_hit_emitter", endLoc);
-    try { p.onScreenDisplay.setTitle(head ? "§c" + I.skull : "§f" + I.hit, { fadeInDuration: 0, stayDuration: 3, fadeOutDuration: 2, subtitle: head ? "§cHEADSHOT" : "" }); } catch { }
+    hitFlash.set(p.id, { head, until: system.currentTick + 8 });
   } else if (bh) {
     const b = bh.block;
     if (b.typeId.includes("glass")) { try { b.setType("minecraft:air"); } catch { } sound(dim, "random.glass", endLoc); }
@@ -239,7 +241,7 @@ function fire(p, g, id) {
   const m = magOf(p, id);
   if (m[id] <= 0) {
     if (ammo(p) > 0) startReload(p, id);
-    else { p.onScreenDisplay.setActionBar("§cOut of ammo! Buy more at Sunshine Arms (Phone)."); sound(p.dimension, "random.click", p.location, 1.8); }
+    else { title(p, "§cOut of ammo! Buy more at Sunshine Arms (Phone).", ""); sound(p.dimension, "random.click", p.location, 1.8); }
     return;
   }
   lastShot.set(p.id, now);
@@ -360,7 +362,7 @@ function heat(p) {
     for (const c of dim.getEntities({ location: p.location, maxDistance: 24, families: ["civilian"] })) { try { c.triggerEvent("palmera:scare"); } catch { } }
     if (wanted(p) === 0 && count(dim, p.location, 18, { families: ["civilian"] }) > 0) {
       setWanted(p, 1); setProp(p, "wcd", 400);
-      p.onScreenDisplay.setActionBar("§cShots fired! Someone called the cops.");
+      title(p, "§cShots fired! Someone called the cops.", "");
     }
   } catch { }
 }
@@ -371,7 +373,7 @@ function radio(p) {
   const lines = ["", "§9[Dispatch]§7 Units respond, suspect seen heading " + heading + ".",
     "§9[Dispatch]§7 Shots fired, all units, suspect is armed.", "§9[Dispatch]§7 SWAT is rolling. Suspect heading " + heading + ".",
     "§9[Dispatch]§7 Air unit up, we have eyes in the sky.", "§9[Dispatch]§7 All available units! Lethal force authorized."];
-  if (lines[w]) msg(p, lines[w]);
+  if (lines[w]) title(p, "§9Police radio", lines[w].replace("§9[Dispatch]§7 ", "§7"));
 }
 function addStars(p, n = 1) {
   const before = wanted(p);
@@ -409,7 +411,7 @@ world.afterEvents.entityDie.subscribe(ev => {
       if (turf.includes(g.name)) break;
       const n = prop(k, "turfkills_" + g.name, 0) + 1;
       setProp(k, "turfkills_" + g.name, n);
-      if (n % 5 === 0 && n < 15) msg(k, `§c${g.name} turf: ${n}/15 gang members down.`);
+      if (n % 5 === 0 && n < 15) title(k, `§c${g.name} turf`, `§f${n}/15 down`);
       if (n >= 15) { turf.push(g.name); setProp(k, "turf", JSON.stringify(turf)); title(k, "§4§lTURF TAKEN", `§f${g.name} territory is yours. +$1,000/day`); trophy(k, "turf", "Turf War", "Take over gang turf"); }
       break;
     }
@@ -524,8 +526,8 @@ function robberyTick(p) {
   if (!target) { robbing.delete(p.id); return; }
   const key = target.slice(0, 3).join(",");
   const mine = JSON.parse(prop(p, "biz", "[]")).some(i => D.businesses?.[i]?.slice(0, 3).join(",") === key);
-  if (mine) { p.onScreenDisplay.setActionBar("§7This is your own business."); return; }
-  if ((cooldown.get(key) ?? -1e9) > system.currentTick) { p.onScreenDisplay.setActionBar("§7This place was hit recently. Come back later."); return; }
+  if (mine) { title(p, "§7This is your own business.", ""); return; }
+  if ((cooldown.get(key) ?? -1e9) > system.currentTick) { title(p, "§7This place was hit recently. Come back later.", ""); return; }
   const st = robbing.get(p.id) ?? { key, t: 0 };
   if (st.key !== key) { st.key = key; st.t = 0; }
   st.t += 10; robbing.set(p.id, st);
@@ -1074,7 +1076,7 @@ function dailyTick(p, kind) {
   const v = prop(p, "daily_prog", 0) + 1;
   setProp(p, "daily_prog", v);
   if (v >= n) { setProp(p, "daily_done", true); addCash(p, reward); title(p, "§b§lDAILY CHALLENGE", `§f${label} §a+${money(reward)}`); }
-  else msg(p, `§bDaily: ${label} ${v}/${n}`);
+  else title(p, "§bDaily challenge", `§f${label} ${v}/${n}`);
 }
 function feed(p) {
   const posts = [...D.feed].sort(() => Math.random() - 0.5).slice(0, 5);
@@ -1083,7 +1085,7 @@ function feed(p) {
     .button("§dCall Sol / Benny for a hint").button("Close").show(p).then(r => { if (!r.canceled && r.selection === 0) contacts(p); });
 }
 async function settings(p) {
-  const mm = prop(p, "set_minimap", false), h = prop(p, "set_hud", "full"), rd = prop(p, "set_radar", true);
+  const mm = prop(p, "set_minimap", false), h = prop(p, "set_hud", "full"), rd = prop(p, "set_radar", false);
   const f = new ActionFormData().title("§7Settings").body(`§aCash ${money(cash(p))} §bBank ${money(bank(p))}\n§7Story ${prop(p, "story", 0)}/${D.story.length} | Missions ${prop(p, "missions", 0)} | Crimes ${prop(p, "crimes", 0)} | Palm Tokens ${JSON.parse(prop(p, "tokens", "[]")).length}/${TOKENS.length}`)
     .button("§6Trophies")
     .button(`Radar map (off-hand): ${rd ? "§aON" : "§cOFF"}`).button(`HUD: ${h === "full" ? "§aON" : "§cOFF"}`).button(`Text radar: ${mm ? "§aON" : "§cOFF"}`);
@@ -1153,28 +1155,91 @@ function minimap(p, o) {
   }
   return rows.join("\n");
 }
-function hud(p) {
+const RAD = D.radar;
+const RG = c => String.fromCharCode(c);
+function radarRows(p) {
+  const n = RAD.n, h = (n - 1) / 2, b = RAD.bpg;
+  const ptx = Math.floor(p.location.x / b), ptz = Math.floor(p.location.z / b);
+  const rows = [];
+  for (let dz = -h; dz <= h; dz++) {
+    let line = "";
+    for (let dx = -h; dx <= h; dx++) {
+      const tx = ptx + dx, tz = ptz + dz;
+      line += (tx < 0 || tz < 0 || tx >= RAD.T || tz >= RAD.T) ? G(0x15) : RG(RAD.base + tz * RAD.T + tx);
+    }
+    rows.push(line);
+  }
+  return rows.join("\n");
+}
+function overlayRows(p, o) {
+  const n = RAD.n, h = (n - 1) / 2, b = RAD.bpg;
+  const ptx = Math.floor(p.location.x / b), ptz = Math.floor(p.location.z / b);
+  const cells = new Map();
+  const sub = (x, z) => Math.min(3, Math.floor(((x % b) + b) % b / b * 4)) + 4 * Math.min(3, Math.floor(((z % b) + b) % b / b * 4));
+  const put = (pos, type, pin) => {
+    let tx = Math.floor(pos.x / b) - ptx, tz = Math.floor(pos.z / b) - ptz;
+    let sx = pos.x, sz = pos.z;
+    if (Math.abs(tx) > h || Math.abs(tz) > h) {
+      if (!pin) return;
+      const k = Math.max(Math.abs(tx), Math.abs(tz)) / h;
+      tx = Math.round(tx / k); tz = Math.round(tz / k); sx = b * 1.5; sz = b * 1.5;
+    }
+    const key = `${tx},${tz}`;
+    if (!cells.has(key)) cells.set(key, RG(0xF300 + type * 16 + sub(sx, sz)));
+  };
+  const yaw = ((p.getRotation().y % 360) + 360) % 360;
+  cells.set("0,0", RG(0xF200 + (Math.round(yaw / 45) % 8) * 16 + sub(p.location.x, p.location.z)));
+  if (o && o.pos) put(o.pos, 0, true);
+  const wp = prop(p, "wp", "");
+  if (wp) { try { put(V(JSON.parse(wp).pos), 1, true); } catch { } }
+  try {
+    for (const e of p.dimension.getEntities({ location: p.location, maxDistance: b * 2.6, families: ["palmera_police"] })) put(e.location, 2, wanted(p) > 0);
+    for (const e of p.dimension.getEntities({ location: p.location, maxDistance: b * 2.6, tags: ["mission"] })) put(e.location, 3, false);
+  } catch { }
+  for (const [list, t] of [[D.banks, 4], [D.gunshops, 5], [D.hospitals, 6], [D.police, 7]]) for (const s of list) if (flat(V(s), p.location) < b * 2.6) put(V(s), t, false);
+  const mine = prop(p, "car", "");
+  if (mine && !ridingCar(p)) { try { const c = world.getEntity(mine); if (c) put(c.location, 9, false); } catch { } }
+  const rows = [];
+  for (let dz = -h; dz <= h; dz++) {
+    let line = "";
+    for (let dx = -h; dx <= h; dx++) line += cells.get(`${dx},${dz}`) ?? RG(0xF280);
+    rows.push(line);
+  }
+  return rows.join("\n");
+}
+function statusText(p) {
   const w = wanted(p), o = objective(p), it = held(p), g = it && GUNS[it.typeId];
   let hp = 20; try { hp = Math.ceil(p.getComponent("minecraft:health").currentValue); } catch { }
-  let clock = ""; try { const t = (world.getTimeOfDay() + 6000) % 24000; clock = `  §7${String(Math.floor(t / 1000)).padStart(2, "0")}:${String(Math.floor(t % 1000 * 0.06)).padStart(2, "0")}`; } catch { }
-  let line = `${I.cash} §a${money(cash(p))}  ${I.heart}§c${hp}${clock}\n${I.star.repeat(w)}${I.off.repeat(5 - w)}` + (w && prop(p, "searching", false) && system.currentTick % 20 < 10 ? " §7searching" : "");
-  if (g) {
-    const r = reloading.get(p.id);
-    line += `  ${I.ammo}§f` + (r ? "§eRELOADING" : `${magOf(p, it.typeId)[it.typeId]}§7/${ammo(p)}`);
-  }
+  let clock = ""; try { const t = (world.getTimeOfDay() + 6000) % 24000; clock = `§7${String(Math.floor(t / 1000)).padStart(2, "0")}:${String(Math.floor(t % 1000 * 0.06)).padStart(2, "0")}`; } catch { }
+  const lines = [];
+  const bn = banners.get(p.id);
+  if (bn && bn.until > system.currentTick) lines.push(bn.t, bn.sub);
+  lines.push(`§a§l${money(cash(p))}`);
+  lines.push(`${I.star.repeat(w)}${I.off.repeat(5 - w)}` + (w && prop(p, "searching", false) && system.currentTick % 20 < 10 ? " §7(searching)" : ""));
+  lines.push(`${I.heart}§c${hp}  ${clock}`);
+  if (g) { const r = reloading.get(p.id); lines.push(`${I.ammo}§f ` + (r ? "§eRELOADING" : `${magOf(p, it.typeId)[it.typeId]} §7/ ${ammo(p)}`)); }
   const car = ridingCar(p);
   if (car) {
     let v = { x: 0, z: 0 }; try { v = car.getVelocity(); } catch { }
-    line += `  ${I.speed}§b${Math.round(Math.hypot(v.x, v.z) * 72)} km/h`;
-    try { const h = car.getComponent("minecraft:health"); line += `  ${I.heart}§c${Math.round(h.currentValue / h.effectiveMax * 100)}%`; } catch { }
+    let hpc = ""; try { const hh = car.getComponent("minecraft:health"); hpc = `  ${I.heart}§c${Math.round(hh.currentValue / hh.effectiveMax * 100)}%`; } catch { }
+    lines.push(`§b§l${Math.round(Math.hypot(v.x, v.z) * 72)} §r§bkm/h${hpc}`);
   }
-  let obj = "";
-  if (o) obj = `§d${o.label}` + (o.pos ? ` §f${Math.round(flat(p.location, o.pos))}m ${arrow(p, o.pos)}` : "");
+  const hf = hitFlash.get(p.id);
+  if (hf && hf.until > system.currentTick) lines.push(hf.head ? `§c${I.skull} HEADSHOT` : `§f${I.hit}`);
   const a = arrestState.get(p.id);
-  if (a) obj = `§9§lPOLICE: STOP! §r§f${"█".repeat(Math.floor(a / 6))}`;
-  const mm = prop(p, "set_minimap", false) ? minimap(p, o) + "\n" : "";
-  if (prop(p, "set_hud", "full") === "off") return obj;
-  return mm + line + robHud(p) + (obj ? "\n" + obj : "");
+  if (a) lines.push(`§9§lPOLICE: STOP! §r§f${"█".repeat(Math.floor(a / 6))}`);
+  if (o) lines.push(`§d${o.label}` + (o.pos ? `\n§f${Math.round(flat(p.location, o.pos))}m ${arrow(p, o.pos)}` : ""));
+  const rh = robHud(p);
+  if (rh) lines.push(rh.trim());
+  return lines.join("\n");
+}
+function drawHud(p) {
+  if (prop(p, "set_hud", "full") === "off") { try { p.onScreenDisplay.setActionBar(" "); } catch { } return; }
+  const o = objective(p);
+  try {
+    p.onScreenDisplay.setActionBar(radarRows(p));
+    p.onScreenDisplay.setTitle(overlayRows(p, o), { subtitle: statusText(p), fadeInDuration: 0, stayDuration: 40, fadeOutDuration: 0 });
+  } catch { }
 }
 
 // ---------------------------------------------------------------- cars: parked cars, physics, crashes
@@ -1196,6 +1261,9 @@ function parkedTick(p) {
   }
 }
 const carState = new Map();
+const CARSPEC = { "palmera:car": { top: 0.95, acc: 0.022, grip: 0.55 }, "palmera:sports_car": { top: 1.45, acc: 0.034, grip: 0.42 },
+                  "palmera:bike": { top: 1.2, acc: 0.04, grip: 0.65 } };
+function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; }
 function carPhysics() {
   for (const p of world.getAllPlayers()) {
     const car = ridingCar(p);
@@ -1203,61 +1271,69 @@ function carPhysics() {
     if (car.hasTag("parked")) {
       car.removeTag("parked");
       if (count(p.dimension, p.location, 20, { families: ["civilian"] }) || count(p.dimension, p.location, 30, { families: ["palmera_police"] })) {
-        msg(p, "§cCar alarm! Someone saw you take it."); addStars(p, 1);
+        title(p, "§cCar alarm!", "§fSomeone saw you take it"); addStars(p, 1);
       }
     }
+    const spec = CARSPEC[car.typeId];
     let v; try { v = car.getVelocity(); } catch { continue; }
-    const dim = car.dimension, sp = Math.hypot(v.x, v.z), sports = car.typeId === "palmera:sports_car";
-    const top = sports ? 1.3 : 0.9, st = carState.get(car.id) ?? { sp: 0, vx: 0, vz: 0, vy: 0 };
-    const head = st.sp > 0.05 ? { x: st.vx / st.sp, z: st.vz / st.sp } : { x: 0, z: 0 };
-    // crash: sudden stop with a solid block in front
-    if (st.sp > 0.45 && sp < st.sp * 0.35) {
-      let solid = false;
-      try { const b = dim.getBlock({ x: Math.floor(car.location.x + head.x * 2.4), y: Math.floor(car.location.y + 0.6), z: Math.floor(car.location.z + head.z * 2.4) }); solid = b && !b.isAir && !b.isLiquid; } catch { }
-      if (solid) {
-        sound(dim, "random.explode", car.location, 1.6, 0.6);
-        for (let i = 0; i < 6; i++) particle(dim, "minecraft:basic_smoke_particle", add(car.location, { x: rnd(-1, 1), y: 1, z: rnd(-1, 1) }));
-        try { car.applyDamage(Math.round(st.sp * 25), { cause: EntityDamageCause.entityAttack }); } catch { }
-        if (st.sp > 0.8) try { p.applyDamage(Math.round(st.sp * 6), { cause: EntityDamageCause.entityAttack }); } catch { }
-        cmd(p, `camerashake add @s ${Math.min(1, st.sp * 0.6).toFixed(2)} 0.3 positional`);
-        try { car.applyImpulse({ x: -head.x * st.sp * 0.5, y: 0.15, z: -head.z * st.sp * 0.5 }); } catch { }
-      } else if (st.sp > 0.2) {
-        // momentum: the car coasts instead of stopping dead when you let go
-        try { car.applyImpulse({ x: st.vx * 0.55, y: 0, z: st.vz * 0.55 }); } catch { }
-      }
-    } else if (sp > 0.08 && sp < top) {
-      try { car.applyImpulse({ x: v.x / sp * (sports ? 0.06 : 0.045), y: 0, z: v.z / sp * (sports ? 0.06 : 0.045) }); } catch { }
+    const dim = car.dimension, pos = car.location;
+    const yawP = p.getRotation().y * Math.PI / 180;
+    const face = { x: -Math.sin(yawP), z: Math.cos(yawP) };
+    const st = carState.get(car.id) ?? { vx: 0, vz: 0, sp: 0, hd: yawP, x: pos.x, z: pos.z, vy: 0 };
+    // what the driver is pressing: the mount's own input pushes it along the rider's facing
+    const ix = v.x - st.vx * 0.91, iz = v.z - st.vz * 0.91;
+    const thr = ix * face.x + iz * face.z;
+    let sp = st.sp;
+    if (thr > 0.008) sp = Math.min(spec.top, sp + spec.acc * (1 - sp / spec.top * 0.6));
+    else if (thr < -0.008) sp = Math.max(-0.3, sp - 0.06);
+    else sp *= 0.985;
+    if (Math.abs(sp) < 0.01) sp = 0;
+    // steering: limited turn rate that shrinks with speed
+    const rate = 0.075 / (1 + Math.abs(sp) * 1.4) * Math.min(1, Math.abs(sp) / 0.15 + 0.1);
+    const hd = st.hd + Math.max(-rate, Math.min(rate, angDiff(yawP, st.hd)));
+    // grip: velocity follows heading; low grip at speed = drift
+    const grip = Math.abs(sp) > 0.8 ? spec.grip * 0.6 : spec.grip;
+    const tx = -Math.sin(hd) * sp, tz = Math.cos(hd) * sp;
+    let nvx = st.vx + (tx - st.vx) * grip, nvz = st.vz + (tz - st.vz) * grip;
+    // crash: commanded fast but barely moved
+    const moved = Math.hypot(pos.x - st.x, pos.z - st.z);
+    if (Math.abs(st.sp) > 0.45 && moved < Math.abs(st.sp) * 0.3) {
+      sound(dim, "palmera.explosion", pos, 2.2, 0.5);
+      for (let i = 0; i < 6; i++) particle(dim, "minecraft:basic_smoke_particle", add(pos, { x: rnd(-1, 1), y: 1, z: rnd(-1, 1) }));
+      try { car.applyDamage(Math.round(Math.abs(st.sp) * 25), { cause: EntityDamageCause.entityAttack }); } catch { }
+      if (Math.abs(st.sp) > 0.9) try { p.applyDamage(Math.round(Math.abs(st.sp) * 6), { cause: EntityDamageCause.entityAttack }); } catch { }
+      cmd(p, `camerashake add @s ${Math.min(1, Math.abs(st.sp) * 0.6).toFixed(2)} 0.3 positional`);
+      sp = -st.sp * 0.25; nvx = -st.vx * 0.25; nvz = -st.vz * 0.25;
     }
-    // drifting: sharp direction change at speed -> tire smoke
-    if (sp > 0.5 && st.sp > 0.5) {
-      const turn = Math.abs(Math.atan2(v.x * st.vz - v.z * st.vx, v.x * st.vx + v.z * st.vz));
-      if (turn > 0.12) {
-        for (let i = 0; i < 3; i++) particle(dim, "minecraft:basic_smoke_particle", add(car.location, { x: -v.x / sp * 2 + rnd(-0.8, 0.8), y: 0.2, z: -v.z / sp * 2 + rnd(-0.8, 0.8) }));
-        if (system.currentTick % 6 === 0) sound(dim, "random.fizz", car.location, 1.6, 0.3);
-      }
+    try { car.clearVelocity(); car.applyImpulse({ x: nvx, y: v.y, z: nvz }); } catch { }
+    // tire smoke when sliding
+    const slip = Math.abs(angDiff(Math.atan2(-nvx, nvz), hd));
+    if (Math.abs(sp) > 0.5 && slip > 0.18) {
+      for (let i = 0; i < 2; i++) particle(dim, "minecraft:basic_smoke_particle", add(pos, { x: Math.sin(hd) * 2 + rnd(-0.8, 0.8), y: 0.2, z: -Math.cos(hd) * 2 + rnd(-0.8, 0.8) }));
+      if (system.currentTick % 8 === 0) sound(dim, "random.fizz", pos, 1.6, 0.3);
     }
-    // landing after a jump
-    if (st.vy < -0.7 && v.y > -0.1) { sound(dim, "random.anvil_land", car.location, 0.8, 0.5); cmd(p, "camerashake add @s 0.4 0.2 positional"); }
-    carState.set(car.id, { sp, vx: v.x, vz: v.z, vy: v.y });
-    if (system.currentTick % 40 === 0) sound(dim, "palmera.engine", car.location, 0.7 + sp * 0.9, 0.6);
-    if (sp > 0.35) {
+    if (st.vy < -0.7 && v.y > -0.1) { sound(dim, "random.anvil_land", pos, 0.8, 0.5); cmd(p, "camerashake add @s 0.4 0.2 positional"); }
+    carState.set(car.id, { vx: nvx, vz: nvz, sp, hd, x: pos.x, z: pos.z, vy: v.y });
+    if (system.currentTick % 40 === 0) sound(dim, "palmera.engine", pos, 0.7 + Math.abs(sp) * 0.9, 0.6);
+    const real = Math.hypot(nvx, nvz);
+    if (real > 0.35) {
       try {
-        for (const e of dim.getEntities({ location: car.location, maxDistance: 2.4, excludeFamilies: ["palmera_vehicle", "inanimate"] })) {
+        for (const e of dim.getEntities({ location: pos, maxDistance: 2.4, excludeFamilies: ["palmera_vehicle", "inanimate"] })) {
           if (e.id === p.id || e.typeId === "minecraft:item") continue;
-          e.applyDamage(Math.round(sp * 22), { cause: EntityDamageCause.entityAttack, damagingEntity: p });
-          try { e.applyKnockback(v.x / sp, v.z / sp, sp * 3, 0.5); } catch { }
+          e.applyDamage(Math.round(real * 22), { cause: EntityDamageCause.entityAttack, damagingEntity: p });
+          try { e.applyKnockback(nvx / real, nvz / real, real * 3, 0.5); } catch { }
           sound(dim, "random.hurt", e.location, 0.8);
         }
       } catch { }
     }
     try {
       const h = car.getComponent("minecraft:health");
-      if (h && h.currentValue < h.effectiveMax * 0.35 && system.currentTick % 4 === 0) particle(dim, "minecraft:basic_smoke_particle", add(car.location, { x: 0, y: 1.2, z: 0 }));
-      if (h && h.currentValue < h.effectiveMax * 0.15 && system.currentTick % 4 === 0) particle(dim, "minecraft:basic_flame_particle", add(car.location, { x: 0, y: 1.1, z: 0 }));
+      if (h && h.currentValue < h.effectiveMax * 0.35 && system.currentTick % 4 === 0) particle(dim, "minecraft:basic_smoke_particle", add(pos, { x: 0, y: 1.2, z: 0 }));
+      if (h && h.currentValue < h.effectiveMax * 0.15 && system.currentTick % 4 === 0) particle(dim, "minecraft:basic_flame_particle", add(pos, { x: 0, y: 1.1, z: 0 }));
     } catch { }
   }
 }
-system.runInterval(carPhysics, 2);
+system.runInterval(carPhysics, 1);
 function steerTick() {
   for (const p of world.getAllPlayers()) {
     let v;
@@ -1414,7 +1490,7 @@ system.runInterval(() => {
       if (!h || d > 3) continue;
       const hc = p.getComponent("minecraft:health");
       if (hc.currentValue >= hc.effectiveMax) continue;
-      if (cash(p) < 200) { p.onScreenDisplay.setActionBar("§cTreatment costs $200."); continue; }
+      if (cash(p) < 200) { title(p, "§cTreatment costs $200.", ""); continue; }
       addCash(p, -200); hc.resetToMaxValue();
       try { p.addEffect("regeneration", 100, { amplifier: 1, showParticles: false }); } catch { }
       title(p, "§a§lPATCHED UP", "§7Hospital treatment: $200");
@@ -1461,7 +1537,7 @@ system.runInterval(() => {                       // every 10 ticks: HUD, cash pi
       robberyTick(p);
       carjackTick(p);
       missionTick(p);
-      p.onScreenDisplay.setActionBar(hud(p));
+      drawHud(p);
       arrestTick(p);
       parkedTick(p);
     } catch { }

@@ -325,10 +325,23 @@ def car_cubes(kind):
     return c
 
 
-CAR_GEO = geo('geometry.palmera_car', [{'name': 'body', 'pivot': [0, 0, 0], 'cubes': car_cubes('car')}])
-SPORTS_GEO = geo('geometry.palmera_sports', [{'name': 'body', 'pivot': [0, 0, 0], 'cubes': car_cubes('sports')}])
-POLICE_GEO = geo('geometry.palmera_police_car', [
-    {'name': 'body', 'pivot': [0, 0, 0], 'cubes': car_cubes('car') + [cube([-16.1, 8, -10], [32.2, 4, 22], 'black')]},
+def car_bones(kind, extra=()):
+    cubes = car_cubes(kind)
+    body = [c for c in cubes if c['uv']['north']['uv'] not in ([16, 0],) or c['size'][0] != 4]
+    wheels = [c for c in cubes if c not in body]
+    bones = [{'name': 'body', 'pivot': [0, 0, 0], 'cubes': body + list(extra)}]
+    for i, w in enumerate(wheels):
+        cx, cz = w['origin'][0] + 2, w['origin'][2] + 5
+        rim = [c for c in body if c['uv']['north']['uv'] == [8, 8] and abs(c['origin'][2] + 2 - cz) < 1 and abs(c['origin'][0] + 2 - cx) < 1.5]
+        for r_ in rim:
+            body.remove(r_)
+        bones.append({'name': 'wheel%d' % i, 'parent': 'body', 'pivot': [cx, 5, cz], 'cubes': [w] + rim})
+    return bones
+
+
+CAR_GEO = geo('geometry.palmera_car', car_bones('car'))
+SPORTS_GEO = geo('geometry.palmera_sports', car_bones('sports'))
+POLICE_GEO = geo('geometry.palmera_police_car', car_bones('car', [cube([-16.1, 8, -10], [32.2, 4, 22], 'black')]) + [
     {'name': 'bar', 'pivot': [0, 26, 0], 'cubes': [cube([-10, 26, -3], [20, 2, 5], 'black')]},
     {'name': 'red_light', 'parent': 'bar', 'pivot': [-5, 28, 0], 'cubes': [cube([-9, 28, -2], [8, 2, 3], 'red')]},
     {'name': 'blue_light', 'parent': 'bar', 'pivot': [5, 28, 0], 'cubes': [cube([1, 28, -2], [8, 2, 3], 'blue')]},
@@ -416,6 +429,8 @@ ANIMS = {'format_version': '1.8.0', 'animations': {
     'animation.palmera.flamingo.walk': {'loop': True, 'bones': {
         'leg0': {'rotation': [WALK.format(a=35.0), 0, 0]}, 'leg1': {'rotation': ['-' + WALK.format(a=35.0), 0, 0]},
         'neck': {'rotation': ['math.sin(query.life_time * 90) * 6', 0, 0]}}},
+    'animation.palmera.car.wheels': {'loop': True, 'bones': {
+        'wheel%d' % i: {'rotation': ['-query.modified_distance_moved * 70', 0, 0]} for i in range(4)}},
     'animation.palmera.heli.rotor': {'loop': True, 'bones': {
         'rotor': {'rotation': [0, 'query.life_time * 1440', 0]}, 'tail_rotor': {'rotation': ['query.life_time * 1440', 0, 0]}}},
     'animation.palmera.police.lights': {'loop': True, 'bones': {
@@ -508,7 +523,7 @@ def vehicle(ident, speed, hp, seat_y, ai=None, ncolors=10):
         'minecraft:health': {'value': hp, 'max': hp},
         'minecraft:physics': {}, 'minecraft:pushable': {'is_pushable': False, 'is_pushable_by_piston': True},
         'minecraft:movement': {'value': speed}, 'minecraft:movement.basic': {},
-        'minecraft:navigation.walk': {'avoid_water': True}, 'minecraft:jump.static': {},
+        'minecraft:navigation.walk': {'avoid_water': True},
         'minecraft:variable_max_auto_step': {'base_value': 1.0625, 'jump_prevented_value': 1.0625},
         'minecraft:knockback_resistance': {'value': 1.0},
         'minecraft:damage_sensor': {'triggers': [{'cause': 'fall', 'deals_damage': False},
@@ -952,6 +967,8 @@ def build_addon(out_path, P):
         'maps': {'step': P.map_step, 'n': len(P.map_ids), 'chests': [[c[0], c[1], c[2], len(c[3])] for c in P.map_chests]}
         if hasattr(P, 'map_chests') else None,
     }
+    radar_files, radar_info = radar_glyphs(P)
+    data['radar'] = radar_info
     script = open(__import__('os').path.join(__import__('os').path.dirname(__file__), 'palmera_main.js')).read()
     script = script.replace('__DATA__', json.dumps(data))
 
@@ -990,6 +1007,8 @@ def build_addon(out_path, P):
         tex_data['palmera_' + key] = {'textures': 'textures/items/palmera_' + key}
     rp['font/glyph_E1.png'] = png(glyph_sheet_v2())
     rp['ui/hud_screen.json'] = J(HUD_SCREEN)
+    rp.update(radar_files)
+    rp['textures/ui/palmera_radar_bg.png'] = png(radar_bg())
     rp['textures/ui/palmera_hud_bg.png'] = png(hud_bg())
     import realism
     rp.update(realism.textures())
@@ -1032,7 +1051,8 @@ def build_addon(out_path, P):
             ('sports_car', 0.55, 45, 0.35, None, 'geometry.palmera_sports', 'Sports Car'),
             ('traffic_car', 0.2, 40, 0.55, 'traffic', 'geometry.palmera_car', 'Car')):
         bp['entities/%s.json' % ident] = J(vehicle('palmera:' + ident, speed, hp, seat, ai))
-        rp['entity/%s.entity.json' % ident] = J(client('palmera:' + ident, geoid, car_tex, 'controller.render.palmera_car'))
+        rp['entity/%s.entity.json' % ident] = J(client('palmera:' + ident, geoid, car_tex, 'controller.render.palmera_car',
+                                                       {'wheels': 'animation.palmera.car.wheels'}, ['wheels']))
     rc_all['controller.render.palmera_car'] = rc('car', len(CAR_COLORS))
     bp['entities/bike.json'] = J(vehicle('palmera:bike', 0.5, 35, 0.6))
     rp['entity/bike.entity.json'] = J(client('palmera:bike', 'geometry.palmera_bike', car_tex, 'controller.render.palmera_car'))
@@ -1063,7 +1083,8 @@ def build_addon(out_path, P):
     rp['textures/entity/palmera_police_car.png'] = png(swatch_tex((240, 240, 240)))
     rp['entity/police_car.entity.json'] = J(client('palmera:police_car', 'geometry.palmera_police_car',
                                                    {'default': 'textures/entity/palmera_police_car'}, 'controller.render.palmera_single',
-                                                   {'lights': 'animation.palmera.police.lights'}, ['lights'], egg=('#ffffff', '#2040ff')))
+                                                   {'lights': 'animation.palmera.police.lights', 'wheels': 'animation.palmera.car.wheels'},
+                                                   ['lights', 'wheels'], egg=('#ffffff', '#2040ff')))
     bp['entities/police_heli.json'] = J(heli())
     rp['textures/entity/palmera_heli.png'] = png(swatch_tex((30, 45, 110)))
     rp['entity/police_heli.entity.json'] = J(client('palmera:police_heli', 'geometry.palmera_heli',
@@ -1138,6 +1159,7 @@ def glyph_sheet_v2():
         full(i, c)
     full(6, (12, 14, 18, 28))                                   # rim / corner (nearly invisible but full width)
     full(0x14, (14, 22, 40, 200))
+    full(0x15, (78, 116, 156, 255))
     def disc_bg(i):
         full(i, (16, 18, 24, 210))
     for k in range(8):
@@ -1222,16 +1244,112 @@ def glyph_sheet_v2():
     return big.resize((512, 512), Image.LANCZOS)
 
 
+RADAR_GLYPHS, RADAR_SCALE = 5, 2.6
+RADAR_PX = int(RADAR_GLYPHS * 9 * RADAR_SCALE) + 8
+
+
+def _radar_label(name, text_binding, layer):
+    c = {'type': 'label', 'anchor_from': 'top_left', 'anchor_to': 'top_left', 'offset': [4, 4], 'layer': layer,
+         'text': '#text', 'localize': False, 'color': [1, 1, 1], 'font_scale_factor': RADAR_SCALE, 'line_padding': -2.0,
+         'layer': 32, 'bindings': [{'binding_name': text_binding, 'binding_name_override': '#text', 'binding_type': 'global'}]}
+    return {name: c}
+
+
 HUD_SCREEN = {
     'namespace': 'hud',
+    # map tiles come through the action bar
     'hud_actionbar_text': {
-        'type': 'image', 'size': ['100%c + 10px', '100%c + 8px'],
-        'anchor_from': 'top_left', 'anchor_to': 'top_left', 'offset': [4, 4],
-        'texture': 'textures/ui/palmera_hud_bg', 'alpha': 0.85, 'layer': 30,
-        'controls': [{'actionbar_message': {
-            'type': 'label', 'anchor_from': 'top_left', 'anchor_to': 'top_left', 'offset': [5, 4],
-            'color': [1, 1, 1], 'layer': 31, 'text': '$actionbar_text', 'localize': False,
-            'text_alignment': 'left', 'shadow': True}}]}}
+        'type': 'panel', 'size': [RADAR_PX, RADAR_PX], 'anchor_from': 'top_right', 'anchor_to': 'top_right', 'offset': [-6, 30],
+        'layer': 28,
+        'controls': [
+            {'radar_bg': {'type': 'image', 'texture': 'textures/ui/palmera_radar_bg', 'size': ['100%', '100%'], 'layer': 28}},
+            {'radar_map_fill_a': {'type': 'label', 'anchor_from': 'top_left', 'anchor_to': 'top_left', 'offset': [6.5, 7.0], 'layer': 29,
+                                  'text': '$actionbar_text', 'localize': False, 'color': [1, 1, 1], 'font_scale_factor': RADAR_SCALE,
+                                  'line_padding': -2.0}},
+            {'radar_map_fill_b': {'type': 'label', 'anchor_from': 'top_left', 'anchor_to': 'top_left', 'offset': [5.3, 5.5], 'layer': 29,
+                                  'text': '$actionbar_text', 'localize': False, 'color': [1, 1, 1], 'font_scale_factor': RADAR_SCALE,
+                                  'line_padding': -2.0}},
+            {'radar_map': {'type': 'label', 'anchor_from': 'top_left', 'anchor_to': 'top_left', 'offset': [4, 4], 'layer': 30,
+                           'text': '$actionbar_text', 'localize': False, 'color': [1, 1, 1], 'font_scale_factor': RADAR_SCALE,
+                           'line_padding': -2.0}}]},
+    # arrow/markers overlay (title) and status block (subtitle), both pinned under/over the radar
+    'hud_title_text': {
+        'type': 'panel', 'size': ['100%', '100%'], 'layer': 30,
+        'controls': [
+            {'radar_overlay_panel': {'type': 'panel', 'size': [RADAR_PX, RADAR_PX], 'anchor_from': 'top_right', 'anchor_to': 'top_right',
+                                     'offset': [-6, 30], 'controls': [_radar_label('radar_overlay', '#hud_title_text_string', 31)]}},
+            {'status_panel': {'type': 'image', 'texture': 'textures/ui/palmera_hud_bg', 'alpha': 0.75,
+                              'size': ['100%c + 10px', '100%c + 6px'], 'anchor_from': 'top_right', 'anchor_to': 'top_right',
+                              'offset': [-6, 30 + RADAR_PX + 4], 'layer': 30,
+                              'controls': [{'status': {'type': 'label', 'anchor_from': 'top_right', 'anchor_to': 'top_right',
+                                                       'offset': [-5, 3], 'layer': 31, 'text': '#text', 'localize': False,
+                                                       'text_alignment': 'right', 'shadow': True, 'color': [1, 1, 1],
+                                                       'bindings': [{'binding_name': '#hud_subtitle_text_string',
+                                                                     'binding_name_override': '#text', 'binding_type': 'global'}]}}]}}]}}
+
+
+def radar_bg():
+    from PIL import ImageDraw
+    im = Image.new('RGBA', (128, 128), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([0, 0, 127, 127], radius=14, fill=(66, 84, 66, 255), outline=(15, 15, 20, 255), width=4)
+    return im
+
+
+def radar_glyphs(P):
+    """Cut the styled map art into 32px glyph tiles (pages E2..), plus overlay glyphs for the player arrow (page F2)
+    and markers (page F3) at 4x4 sub-positions inside a tile."""
+    import math as _m
+    import numpy as np
+    from PIL import ImageDraw
+    import generate as g
+    art = g.render_map_art(P)                       # 4 blocks / px
+    bpg = 128 if P.S <= 8192 else 256               # blocks per glyph
+    k = bpg // 4                                    # art px per glyph
+    T = P.S // bpg
+    files = {}
+    tiles = Image.fromarray(art).convert('RGBA')
+    for idx in range(T * T):
+        tz, tx = divmod(idx, T)
+        page, cell = 0xE2 + idx // 256, idx % 256
+        name = 'font/glyph_%X.png' % page
+        if name not in files:
+            files[name] = Image.new('RGBA', (512, 512), (0, 0, 0, 0))
+        tile = tiles.crop((tx * k, tz * k, tx * k + k, tz * k + k)).resize((32, 32), Image.LANCZOS)
+        files[name].paste(tile, ((cell % 16) * 32, (cell // 16) * 32))
+    # overlay glyphs
+    ov = Image.new('RGBA', (512 * 4, 512 * 4), (0, 0, 0, 0))   # drawn at 4x then downsampled
+    mk = Image.new('RGBA', (512 * 4, 512 * 4), (0, 0, 0, 0))
+    d1, d2 = ImageDraw.Draw(ov), ImageDraw.Draw(mk)
+    S4 = 128
+    def guard(d, i):
+        x, y = (i % 16) * S4, (i // 16) * S4
+        d.rectangle([x, y + 60, x + 3, y + 63], fill=(0, 0, 0, 10))
+        d.rectangle([x + S4 - 4, y + 60, x + S4 - 1, y + 63], fill=(0, 0, 0, 10))
+        return x, y
+    for dirn in range(8):
+        for sub in range(16):
+            i = dirn * 16 + sub
+            x, y = guard(d1, i)
+            cx, cy = x + (sub % 4 + 0.5) * 32, y + (sub // 4 + 0.5) * 32
+            a = _m.radians(90 + 45 * dirn)
+            pts = [(cx + 30 * _m.cos(a), cy + 30 * _m.sin(a)), (cx + 26 * _m.cos(a + 2.45), cy + 26 * _m.sin(a + 2.45)),
+                   (cx + 8 * _m.cos(a + _m.pi), cy + 8 * _m.sin(a + _m.pi)), (cx + 26 * _m.cos(a - 2.45), cy + 26 * _m.sin(a - 2.45))]
+            d1.polygon(pts, fill=(255, 255, 255, 255), outline=(10, 10, 10, 255), width=4)
+    guard(d1, 0x80)
+    cols = [(255, 214, 40), (170, 90, 230), (230, 40, 40), (180, 60, 220), (40, 150, 70), (90, 90, 95), (220, 50, 50),
+            (40, 70, 190), (60, 160, 90), (30, 150, 220)]
+    for t, col in enumerate(cols):
+        for sub in range(16):
+            i = t * 16 + sub
+            x, y = guard(d2, i)
+            cx, cy = x + (sub % 4 + 0.5) * 32, y + (sub // 4 + 0.5) * 32
+            r = 22 if t < 4 else 18
+            d2.ellipse([cx - r, cy - r, cx + r, cy + r], fill=col + (255,), outline=(255, 255, 255, 255), width=5)
+    files['font/glyph_F2.png'] = ov.resize((512, 512), Image.LANCZOS)
+    files['font/glyph_F3.png'] = mk.resize((512, 512), Image.LANCZOS)
+    out = {k_: png(v) for k_, v in files.items()}
+    return out, {'bpg': bpg, 'T': T, 'base': 0xE200, 'n': RADAR_GLYPHS}
 
 
 def hud_bg():
