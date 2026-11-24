@@ -4,3 +4,5 @@ transcript.json
 transcribe.err
 renders/*
 !renders/*_phone.mp4
+renders/.*
+renders/work-*/
