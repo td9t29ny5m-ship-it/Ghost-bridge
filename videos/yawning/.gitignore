@@ -1,0 +1,6 @@
+.hyperframes/
+assets/audio/*.wav
+transcript.json
+transcribe.err
+renders/*
+!renders/*_phone.mp4
