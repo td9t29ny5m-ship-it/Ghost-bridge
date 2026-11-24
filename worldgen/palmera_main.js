@@ -68,6 +68,24 @@ function arrow(p, pos) {
   return ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"][((Math.round(rel / 45) % 8) + 8) % 8];
 }
 
+// ---------------------------------------------------------------- trophies
+const TROPHIES = [["jack", "Grand Theft Palmera", "Steal a car from a driver"], ["rob", "Register Ninja", "Rob a store"],
+  ["vault", "Vault Buster", "Crack a bank vault"], ["five", "Most Wanted", "Reach 5 stars"], ["lost5", "Ghost", "Lose a 4+ star wanted level"],
+  ["story", "King of Palmera", "Finish the story"], ["fly", "Sky High", "Fly a helicopter"], ["turf", "Turf War", "Take over gang turf"],
+  ["rich", "Millionaire", "Have $1,000,000 in the bank"], ["taxi", "Cabbie", "Complete 5 taxi fares"], ["token", "Token Hunter", "Find 10 Palm Tokens"]];
+function trophy(p, id, name, desc) {
+  const got = JSON.parse(prop(p, "trophies", "[]"));
+  if (got.includes(id)) return;
+  got.push(id); setProp(p, "trophies", JSON.stringify(got));
+  sound(p.dimension, "random.levelup", p.location, 1.2);
+  msg(p, `§6🏆 Trophy unlocked: §f${name} §7- ${desc}`);
+}
+function trophies(p) {
+  const got = JSON.parse(prop(p, "trophies", "[]"));
+  new ActionFormData().title(`§6Trophies ${got.length}/${TROPHIES.length}`)
+    .body(TROPHIES.map(([id, n, d]) => (got.includes(id) ? "§a✔ §f" : "§8✖ §7") + n + " §8- " + d).join("\n")).button("Close").show(p);
+}
+
 // ---------------------------------------------------------------- cinematic camera
 function fade(p) { cmd(p, "camera @s fade time 0.3 0.8 0.5 color 0 0 0"); }
 function shot(p, target, dist = 60, height = 35, ease = 4, side = 0) {
@@ -329,6 +347,8 @@ function addStars(p, n = 1) {
   const before = wanted(p);
   setWanted(p, wanted(p) + n); setProp(p, "wcd", 700);
   if (wanted(p) !== before) radio(p);
+  if (wanted(p) >= 4) setProp(p, "hadfour", true);
+  if (wanted(p) >= 5) trophy(p, "five", "Most Wanted", "Reach 5 stars");
   setProp(p, "crimes", prop(p, "crimes", 0) + 1);
   sound(p.dimension, "note.bell", p.location, 0.6);
 }
@@ -359,13 +379,15 @@ world.afterEvents.entityDie.subscribe(ev => {
       const n = prop(k, "turfkills_" + g.name, 0) + 1;
       setProp(k, "turfkills_" + g.name, n);
       if (n % 5 === 0 && n < 15) msg(k, `§c${g.name} turf: ${n}/15 gang members down.`);
-      if (n >= 15) { turf.push(g.name); setProp(k, "turf", JSON.stringify(turf)); title(k, "§4§lTURF TAKEN", `§f${g.name} territory is yours. +$1,000/day`); }
+      if (n >= 15) { turf.push(g.name); setProp(k, "turf", JSON.stringify(turf)); title(k, "§4§lTURF TAKEN", `§f${g.name} territory is yours. +$1,000/day`); trophy(k, "turf", "Turf War", "Take over gang turf"); }
       break;
     }
   }
   if (type === "palmera:gangster") dim.spawnItem(new ItemStack("palmera:cash", tags.includes("boss") ? 12 : 2), loc);
   if (type === "palmera:civilian" && Math.random() < 0.5) dim.spawnItem(new ItemStack("palmera:cash", 1), loc);
   if (POLICE.has(type) && Math.random() < 0.5) dim.spawnItem(new ItemStack("palmera:cash", 1), loc);
+  if ((type === "palmera:cop" || type === "palmera:gangster") && Math.random() < 0.18) dim.spawnItem(new ItemStack(Math.random() < 0.8 ? "palmera:pistol" : "palmera:smg", 1), loc);
+  if ((type === "palmera:swat" || type === "palmera:gangster") && k?.typeId === "minecraft:player") { addAmmo(k, type === "palmera:swat" ? 20 : 8); }
   if (k && k.typeId === "minecraft:player" && (type === "palmera:civilian" || POLICE.has(type))) addStars(k, POLICE.has(type) ? 1 : 1);
 });
 const gangHeat = new Map();
@@ -486,6 +508,7 @@ function robberyTick(p) {
     setWanted(p, Math.max(wanted(p) + 2, isBank ? 4 : 2)); setProp(p, "wcd", 800);
     setProp(p, "crimes", prop(p, "crimes", 0) + 1);
     title(p, isBank ? "§6§lVAULT CRACKED" : "§e§lROBBERY", "§a+" + money(loot));
+    if (isBank) trophy(p, "vault", "Vault Buster", "Crack a bank vault"); else trophy(p, "rob", "Register Ninja", "Rob a store");
     market(isBank ? "PALM" : "SUNY", -0.05);
     sound(p.dimension, "palmera.cash", p.location);
     const a = active.get(p.id);
@@ -507,6 +530,9 @@ function jack(p, target) {
   let v = 0;
   try { v = target.getComponent("minecraft:variant")?.value ?? 0; } catch { }
   try { target.remove(); } catch { }
+  const drv = spawn(p.dimension, "palmera:civilian", add(loc, { x: 1.8, y: 0, z: 0 }), "§c" + pick(["Hey! My car!", "Not my car!", "Thief!!"]));
+  if (drv) { try { drv.triggerEvent("palmera:scare"); drv.applyKnockback(1, 0, 0.6, 0.3); } catch { } }
+  trophy(p, "jack", "Grand Theft Palmera", "Steal a car from a driver");
   const car = spawn(p.dimension, "palmera:car", loc, undefined, ["jacked"], "palmera:c" + v);
   if (!car) return;
   try { car.getComponent("minecraft:rideable").addRider(p); } catch { }
@@ -518,7 +544,17 @@ try {
     if (ev.target?.typeId === "palmera:traffic_car") { ev.cancel = true; const p = ev.player, t = ev.target; system.run(() => jack(p, t)); }
   });
 } catch { }
+function honkTick(p) {
+  if (ridingCar(p) || system.currentTick % 40 !== 0) return;
+  try {
+    const b = p.dimension.getBlock({ x: Math.floor(p.location.x), y: Math.floor(p.location.y) - 1, z: Math.floor(p.location.z) });
+    if (!b || !ROAD.has(b.typeId)) return;
+    const c = p.dimension.getEntities({ location: p.location, maxDistance: 9, type: "palmera:traffic_car" })[0];
+    if (c) { sound(c.dimension, "palmera.horn", c.location, 1, 1.5); if (Math.random() < 0.3) msg(p, "§7[Driver] " + pick(["Get off the road!", "Move it!", "Are you crazy?!"])); }
+  } catch { }
+}
 function carjackTick(p) {
+  honkTick(p);
   if (!p.isSneaking || ridingCar(p)) return;
   try {
     const t = p.dimension.getEntities({ location: p.location, maxDistance: 3, type: "palmera:traffic_car" })[0];
@@ -527,15 +563,21 @@ function carjackTick(p) {
 }
 
 // ---------------------------------------------------------------- ambient life
+let worldCounts = { civ: 0, traffic: 0 };
+system.runInterval(() => {
+  try { worldCounts = { civ: OW().getEntities({ type: "palmera:civilian" }).length, traffic: OW().getEntities({ type: "palmera:traffic_car" }).length }; } catch { }
+}, 40);
 function ambient(p) {
   const dim = p.dimension, loc = p.location;
+  const ps = world.getAllPlayers().length;
+  if (worldCounts.civ > 28 * ps && worldCounts.traffic > 14 * ps) return;
   const civ = count(dim, loc, 48, { type: "palmera:civilian" });
-  for (let i = 0; i < 2 && civ + i < 16; i++) {
+  for (let i = 0; i < 2 && civ + i < 16 && worldCounts.civ < 28 * ps; i++) {
     const s = spotNear(p, 14, 36, t => WALKABLE.has(t));
     if (s && s.y > 62 && s.y < 70) spawn(dim, "palmera:civilian", s, pick(D.peds));
   }
   const cars = count(dim, loc, 72, { type: "palmera:traffic_car" });
-  if (cars < 8) { const s = spotNear(p, 30, 60, t => ROAD.has(t)); if (s) spawn(dim, "palmera:traffic_car", s); }
+  if (cars < 8 && worldCounts.traffic < 14 * ps) { const s = spotNear(p, 30, 60, t => ROAD.has(t)); if (s) spawn(dim, "palmera:traffic_car", s); }
   for (const g of D.gangs) {
     if (JSON.parse(prop(p, "turf", "[]")).includes(g.name)) continue;
     if (flat(V(g.pos), loc) < g.r && count(dim, loc, 60, { type: "palmera:gangster" }) < 6) {
@@ -605,7 +647,8 @@ function finishMission(p, ok) {
   try { p.removeTag("gang_heat"); } catch { }
   for (const e of a.ents) { try { if (valid(e)) e.remove(); } catch { } }
   if (ok) {
-    if (a.kind === "story") setProp(p, "story", a.idx + 1);
+    if (a.kind === "story") { setProp(p, "story", a.idx + 1); if (a.idx + 1 >= D.story.length) trophy(p, "story", "King of Palmera", "Finish the story"); }
+    if (a.kind === "taxi") { const n = prop(p, "fares", 0) + 1; setProp(p, "fares", n); if (n >= 5) trophy(p, "taxi", "Cabbie", "Complete 5 taxi fares"); }
     if (/Launch/.test(a.title)) market("ORBT", 0.2);
     if (/Swamp/.test(a.title)) market("GATR", 0.12);
     setProp(p, "missions", prop(p, "missions", 0) + 1);
@@ -710,6 +753,18 @@ function deliveryMission(p) {
     { t: "drive", pos: to.slice(0, 3), r: 10, label: "Deliver the package", limit },
     { t: "cash", amount: pay }] });
 }
+function taxiJob(p) {
+  if (!ridingCar(p)) { msg(p, "§cGet in a car first, then start the taxi job."); return; }
+  const near_ = D.rob.filter(s => { const d = flat(V(s), p.location); return d > 60 && d < 300; });
+  const far_ = D.rob.filter(s => { const d = flat(V(s), p.location); return d > 300 && d < 1100; });
+  if (!near_.length || !far_.length) { msg(p, "§7No fares around here."); return; }
+  const a = pick(near_), b = pick(far_), fare = Math.round(flat(V(a), V(b)) * 1.6 / 10) * 10 + 150;
+  startMission(p, { kind: "taxi", title: "Taxi Fare", sub: `§7Fare ${money(fare)}`, steps: [
+    { t: "drive", pos: a.slice(0, 3), r: 9, label: "Pick up the passenger" },
+    { t: "talk", lines: ["§e[Passenger]§f " + pick(["Take me across town, and step on it!", "Downtown, please. I'm late!", "Follow the GPS, I tip well."])] },
+    { t: "drive", pos: b.slice(0, 3), r: 9, label: "Drop off the passenger", limit: Math.round(flat(V(a), V(b)) / 8 + 30) * 20 },
+    { t: "cash", amount: fare }] });
+}
 function vigilanteMission(p) {
   const spots = D.rob.filter(s => { const d = flat(V(s), p.location); return d > 150 && d < 900; });
   if (!spots.length) { msg(p, "§7No criminals reported nearby."); return; }
@@ -756,13 +811,15 @@ async function jobsForm(p) {
   for (const r of D.races) f.button(`§bRace: ${r.title} §6${money(r.reward)}\n§8Par ${r.par}s`);
   f.button("§aDelivery Run\n§8Drive a package across town, against the clock");
   f.button("§9Vigilante\n§8Hunt down armed criminals");
+  f.button("§eTaxi Driver\n§8Pick up fares in your car");
   const r = await f.show(p);
   if (r.canceled) return;
   const nj = D.jobs.length, nr = D.races.length;
   if (r.selection < nj) jobMission(p, D.jobs[r.selection]);
   else if (r.selection < nj + nr) raceMission(p, D.races[r.selection - nj]);
   else if (r.selection === nj + nr) deliveryMission(p);
-  else vigilanteMission(p);
+  else if (r.selection === nj + nr + 1) vigilanteMission(p);
+  else taxiJob(p);
 }
 async function shopForm(p, cat, name) {
   const list = D.shop.filter(s => s.cat === cat);
@@ -937,12 +994,14 @@ function feed(p) {
 async function settings(p) {
   const mm = prop(p, "set_minimap", false), h = prop(p, "set_hud", "full"), rd = prop(p, "set_radar", true);
   const f = new ActionFormData().title("§7Settings").body(`§aCash ${money(cash(p))} §bBank ${money(bank(p))}\n§7Story ${prop(p, "story", 0)}/${D.story.length} | Missions ${prop(p, "missions", 0)} | Crimes ${prop(p, "crimes", 0)} | Palm Tokens ${JSON.parse(prop(p, "tokens", "[]")).length}/${TOKENS.length}`)
+    .button("§6Trophies")
     .button(`Radar map (off-hand): ${rd ? "§aON" : "§cOFF"}`).button(`HUD: ${h === "full" ? "§aON" : "§cOFF"}`).button(`Text radar: ${mm ? "§aON" : "§cOFF"}`);
   const r = await f.show(p);
   if (r.canceled) return;
-  if (r.selection === 0) { setProp(p, "set_radar", !rd); if (rd) radarOff(p); }
-  if (r.selection === 1) setProp(p, "set_hud", h === "full" ? "off" : "full");
-  if (r.selection === 2) setProp(p, "set_minimap", !mm);
+  if (r.selection === 0) return trophies(p);
+  if (r.selection === 1) { setProp(p, "set_radar", !rd); if (rd) radarOff(p); }
+  if (r.selection === 2) setProp(p, "set_hud", h === "full" ? "off" : "full");
+  if (r.selection === 3) setProp(p, "set_minimap", !mm);
 }
 function stats(p) {
   msg(p, `§aCash ${money(cash(p))} §bBank ${money(bank(p))} §7| Story ${prop(p, "story", 0)}/${D.story.length} | Missions ${prop(p, "missions", 0)} | Crimes ${prop(p, "crimes", 0)} | Homes ${JSON.parse(prop(p, "homes", "[]")).length}`);
@@ -1006,7 +1065,8 @@ function minimap(p, o) {
 function hud(p) {
   const w = wanted(p), o = objective(p), it = held(p), g = it && GUNS[it.typeId];
   let hp = 20; try { hp = Math.ceil(p.getComponent("minecraft:health").currentValue); } catch { }
-  let line = `${I.cash} §a${money(cash(p))}  ${I.heart}§c${hp}\n${I.star.repeat(w)}${I.off.repeat(5 - w)}` + (w && prop(p, "searching", false) && system.currentTick % 20 < 10 ? " §7searching" : "");
+  let clock = ""; try { const t = (world.getTimeOfDay() + 6000) % 24000; clock = `  §7${String(Math.floor(t / 1000)).padStart(2, "0")}:${String(Math.floor(t % 1000 * 0.06)).padStart(2, "0")}`; } catch { }
+  let line = `${I.cash} §a${money(cash(p))}  ${I.heart}§c${hp}${clock}\n${I.star.repeat(w)}${I.off.repeat(5 - w)}` + (w && prop(p, "searching", false) && system.currentTick % 20 < 10 ? " §7searching" : "");
   if (g) {
     const r = reloading.get(p.id);
     line += `  ${I.ammo}§f` + (r ? "§eRELOADING" : `${magOf(p, it.typeId)[it.typeId]}§7/${ammo(p)}`);
@@ -1116,6 +1176,7 @@ function steerTick() {
     const hl = Math.hypot(d.x, d.z) || 1;
     let vel;
     if (v.typeId === "palmera:heli") {
+      if (v.location.y > 110) trophy(p, "fly", "Sky High", "Fly a helicopter");
       const climb = pitch < -25 ? 0.45 : pitch > 35 ? -0.45 : 0;
       const sp = pitch > 60 ? 0.1 : 0.95;
       vel = { x: d.x / hl * sp, y: climb, z: d.z / hl * sp };
@@ -1197,6 +1258,7 @@ function tokenTick(p) {
       got.push(i); setProp(p, "tokens", JSON.stringify(got));
       addCash(p, 500); sound(p.dimension, "random.levelup", p.location, 1.8);
       title(p, "§6§lPALM TOKEN", `§f${got.length}/${TOKENS.length} found  §a+$500`);
+      if (got.length >= 10) trophy(p, "token", "Token Hunter", "Find 10 Palm Tokens");
       if (got.length === TOKENS.length) { addCash(p, 25000); msg(p, "§6You found every Palm Token! +$25,000"); }
     }
   });
@@ -1251,6 +1313,22 @@ system.runInterval(() => {
     }
   } catch { }
 }, 10);
+
+// ---------------------------------------------------------------- hospitals heal you
+system.runInterval(() => {
+  for (const p of world.getAllPlayers()) {
+    try {
+      const [h, d] = nearest(D.hospitals, p.location);
+      if (!h || d > 3) continue;
+      const hc = p.getComponent("minecraft:health");
+      if (hc.currentValue >= hc.effectiveMax) continue;
+      if (cash(p) < 200) { p.onScreenDisplay.setActionBar("§cTreatment costs $200."); continue; }
+      addCash(p, -200); hc.resetToMaxValue();
+      try { p.addEffect("regeneration", 100, { amplifier: 1, showParticles: false }); } catch { }
+      title(p, "§a§lPATCHED UP", "§7Hospital treatment: $200");
+    } catch { }
+  }
+}, 40);
 
 // ---------------------------------------------------------------- pedestrian chatter
 const LINES = {
@@ -1312,6 +1390,7 @@ system.runInterval(() => {                       // every second: wanted decay, 
     const cd = prop(p, "wcd", 600) - 20;
     if (cd <= 0) {
       setWanted(p, w - 1); setProp(p, "wcd", 600);
+      if (w - 1 === 0 && prop(p, "hadfour", false)) { setProp(p, "hadfour", false); trophy(p, "lost5", "Ghost", "Lose a 4+ star wanted level"); }
       if (w - 1 === 0) { msg(p, "§aYou lost the cops."); if (!ps.some(x => wanted(x) > 0)) clearPolice(); }
     } else setProp(p, "wcd", cd);
   }
@@ -1327,6 +1406,7 @@ system.runInterval(() => {                       // every in-game day: property 
     const owned = JSON.parse(prop(p, "homes", "[]"));
     const inc = owned.reduce((s, i) => s + (D.safehouses[i]?.income ?? 0), 0) + JSON.parse(prop(p, "biz", "[]")).length * 1500
       + JSON.parse(prop(p, "turf", "[]")).length * 1000;
+    if (bank(p) >= 1000000) trophy(p, "rich", "Millionaire", "Have $1,000,000 in the bank");
     if (inc) { setProp(p, "bank", bank(p) + inc); msg(p, `§2Your properties earned ${money(inc)} today (paid to your bank).`); }
   }
 }, 24000);
