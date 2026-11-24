@@ -842,6 +842,15 @@
 ]
 }
 },
+"minecraft:chest[facing=north]": {
+"name": "minecraft:chest",
+"states": {
+"minecraft:cardinal_direction": [
+"string",
+"north"
+]
+}
+},
 "minecraft:composter": {
 "name": "minecraft:composter",
 "states": {

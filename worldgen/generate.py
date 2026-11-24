@@ -38,6 +38,7 @@ from functools import partial
 from multiprocessing import get_context
 
 import numpy as np
+from PIL import Image
 from scipy import ndimage
 
 SEA = 62                      # water surface block y
@@ -1332,6 +1333,7 @@ BUILDERS.update({'business': build_business, 'traffic': build_traffic_light, 'bu
 
 
 STANDING_SIGN = B('oak_sign', rotation=8)
+CHEST = B('chest', facing='north')
 COMPOSTER = B('composter')
 STREETS_NS = ['OCEAN AVE', 'PALM AVE', 'CORAL AVE', 'FLAMINGO AVE', 'HIBISCUS AVE', 'MANGO AVE', 'SUNSET AVE',
               'MARINA AVE', 'BANYAN AVE', 'PELICAN AVE', 'MANATEE AVE', 'SEAGRAPE AVE', 'TARPON AVE', 'ORCHID AVE']
@@ -2130,6 +2132,14 @@ def plan_world(S, seed):
     row = np.nonzero((zone[sz_] == Z_RESORT) & (TOP[sz_] == SAND) & ~P.occ[sz_])[0]
     sx_ = int(row.max()) - 12 if len(row) else X(0.86)
     P.spawn = (sx_, int(H[sz_, sx_]) + 1, sz_)
+    # radar maps: scale-2 maps (512 blocks) centred every 256 blocks, stored in chests deep under the spawn
+    P.map_step, P.map_scale = 256, 2
+    nmap = S // P.map_step + 1
+    P.map_ids = [[0x50414C4D0000 + i * nmap + j for j in range(nmap)] for i in range(nmap)]   # [row z][col x]
+    flat_ids = [mid for row in P.map_ids for mid in row]
+    P.map_chests = []
+    for k in range(0, len(flat_ids), 27):
+        P.map_chests.append((sx_ - 30 + len(P.map_chests), -50, sz_ + 40, flat_ids[k:k + 27]))
     P.key_centers = key_centers
     P.sbox = np.array([s_[:4] for s_ in P.structs], np.int64).reshape(-1, 4)
     # coarse minimap for the add-on: one char per 16x16 cell
@@ -2300,6 +2310,9 @@ def render_region(P, rx, rz):
     dy = np.where(d == LILY, SEA + 1, H[dz_, dx_] + 1)
     a[dy - YMIN, dz_, dx_] = d
 
+    for (cx_, cy_, cz_, _ids) in getattr(P, 'map_chests', []):
+        if x0 <= cx_ < x0 + RS and z0 <= cz_ < z0 + RS:
+            a[cy_ - YMIN, cz_ - z0, cx_ - x0] = CHEST
     # buildings
     signs = []
     sb = P.sbox
@@ -2452,14 +2465,77 @@ def region_job(args):
             for lx in range(32):
                 ch = a[:, lz * 16:(lz + 1) * 16, lx * 16:(lx + 1) * 16]
                 cx, cz = rx * 32 + lx, rz * 32 + lz
+                extra = [bedrock.chest_nbt(c_[0], c_[1], c_[2], c_[3], P.map_scale) for c_ in getattr(P, 'map_chests', [])
+                         if (c_[0] >> 4, c_[2] >> 4) == (cx, cz)]
                 recs += bedrock.chunk_records(ch, bio[lz * 16:(lz + 1) * 16, lx * 16:(lx + 1) * 16], cx, cz, PAL_BE,
-                                              AIR, BIOMES, list(by_chunk.get((cx, cz), {}).values()), YMIN)
+                                              AIR, BIOMES, list(by_chunk.get((cx, cz), {}).values()), YMIN, extra)
         bedrock.spool(os.path.join(spooldir, f'{rx}.{rz}.spool'), recs)
     # top-down view for the preview map
     nz = a != AIR
     top = NY - 1 - np.argmax(nz[::-1], axis=0)
     zz, xx = np.mgrid[0:RS, 0:RS]
     return rx, rz, a[top, zz, xx], top + YMIN, len(signs)
+
+
+# --------------------------------------------------------------------------- styled map art (radar)
+MAP_LABELS = [(0.69, 0.43, 'VISTA MARINA'), (0.85, 0.18, 'CORAL STRAND'), (0.74, 0.76, 'PORT SOLANO'),
+              (0.645, 0.19, 'AIRPORT'), (0.34, 0.60, 'THE SAWGRASS'), (0.30, 0.95, 'SUNSET KEYS'),
+              (0.215, 0.31, 'PORT ISLA'), (0.32, 0.27, 'LAKE SOLANO'), (0.40, 0.20, 'CITRUS GROVE'),
+              (0.68, 0.06, 'SPACEPORT'), (0.44, 0.535, 'OKEE JUNCTION'), (0.29, 0.75, 'MANGROVE POINT'),
+              (0.36, 0.41, 'PALMETTO'), (0.905, 0.47, 'MILLIONAIRE ISLES'), (0.405, 0.21, 'LAKEVIEW')]
+
+
+def render_map_art(P):
+    """GTA-style map at 4 blocks per pixel: dark land, white roads, grey buildings, blue water, POI icons, labels."""
+    from PIL import ImageDraw
+    S, f = P.S, 1 << P.map_scale
+    n = S // f
+    frac = lambda m: m.reshape(n, f, n, f).mean(axis=(1, 3))
+    zone = P.zone[f // 2::f, f // 2::f]
+    base = np.zeros((n, n, 3), np.float32)
+    pal = {Z_WILD: (66, 84, 66), Z_FARM: (92, 100, 70), Z_SWAMP: (60, 78, 60), Z_CITY: (52, 56, 62), Z_SUB: (60, 66, 66),
+           Z_TOWN: (60, 66, 66), Z_AIR: (66, 70, 74), Z_PORT: (62, 64, 68), Z_KEYS: (70, 90, 70), Z_RESORT: (66, 84, 66),
+           Z_SPACE: (66, 72, 70), Z_ISLE: (70, 92, 72), Z_GOLF: (80, 120, 80), Z_PARK: (74, 104, 76)}
+    base[:] = (66, 84, 66)
+    for z_, c in pal.items():
+        base[zone == z_] = c
+    def mix(col, a):
+        a = np.clip(a, 0, 1)[..., None]
+        base[:] = base * (1 - a) + np.array(col, np.float32) * a
+    land = P.H >= SEA
+    mix((190, 178, 136), frac((P.TOP == SAND) & land) * 0.9)
+    mix((78, 116, 156), frac(~land))
+    bld = P.occ & (P.road == 0) & land & ~np.isin(P.zone, [Z_FARM, Z_GOLF])
+    mix((116, 120, 130), frac(bld) * 1.1)
+    mix((134, 136, 142), frac(P.road == R_SIDE) * 0.7)
+    mix((36, 38, 42), frac(P.road == R_RUN) * 1.4)
+    mix((238, 238, 242), frac(np.isin(P.road, [R_ASPH, R_WHITE, R_YEL])) * 1.7)
+    img = Image.fromarray(np.clip(base, 0, 255).astype(np.uint8)).convert('RGBA')
+    d = ImageDraw.Draw(img)
+    def icon(x, z, col, mark):
+        px, pz = x / f, z / f
+        d.ellipse([px - 6, pz - 6, px + 6, pz + 6], fill=col, outline=(255, 255, 255, 255), width=2)
+        if mark == '+':
+            d.rectangle([px - 1, pz - 4, px + 1, pz + 4], fill=(255, 255, 255, 255))
+            d.rectangle([px - 4, pz - 1, px + 4, pz + 1], fill=(255, 255, 255, 255))
+        elif mark == '$':
+            d.text((px - 3, pz - 6), '$', fill=(255, 255, 255, 255), font_size=11)
+        elif mark == '*':
+            d.regular_polygon((px, pz, 4), 5, fill=(255, 220, 60, 255))
+        elif mark == 'g':
+            d.rectangle([px - 4, pz - 2, px + 4, pz], fill=(255, 255, 255, 255))
+            d.rectangle([px - 3, pz, px - 1, pz + 3], fill=(255, 255, 255, 255))
+    sp = getattr(P, 'spots', {})
+    for key, col, mark in (('hospital', (210, 50, 50, 255), '+'), ('police', (40, 70, 190, 255), '*'),
+                           ('bank', (40, 150, 70, 255), '$'), ('guns', (80, 80, 86, 255), 'g')):
+        for s_ in sp.get(key, []):
+            icon(s_[0], s_[2], col, mark)
+    for lu, lv, t in MAP_LABELS:
+        x, y = lu * S / f, lv * S / f
+        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            d.text((x + dx, y + dy), t, fill=(20, 20, 24, 255), font_size=13, anchor='mm')
+        d.text((x, y), t, fill=(255, 255, 255, 255), font_size=13, anchor='mm')
+    return np.asarray(img).copy()
 
 
 # --------------------------------------------------------------------------- level.dat
@@ -2646,12 +2722,27 @@ def main():
     bp, rp = packs_bedrock.build_addon(os.path.join(args.out, 'Palmera_Life.mcaddon'), PLAN)
     print('  Bedrock add-on: Palmera_Life.mcaddon')
     if FORMAT in ('bedrock', 'both'):
+        art = render_map_art(PLAN)
+        Image.fromarray(art[:, :, :3]).save(os.path.join(args.out, 'map_art.png'))
+        mrecs = []
+        half = 64 << PLAN.map_scale
+        f = 1 << PLAN.map_scale
+        pad = np.zeros((art.shape[0] + 128, art.shape[1] + 128, 4), np.uint8)
+        pad[..., :3] = (72, 108, 148)
+        pad[..., 3] = 255
+        pad[64:64 + art.shape[0], 64:64 + art.shape[1]] = art
+        for i, row in enumerate(PLAN.map_ids):
+            for j, mid in enumerate(row):
+                xc, zc = j * PLAN.map_step, i * PLAN.map_step
+                px, pz = (xc - half) // f + 64, (zc - half) // f + 64
+                mrecs.append(bedrock.map_record(mid, xc, zc, PLAN.map_scale, pad[pz:pz + 128, px:px + 128]))
+        bedrock.spool(os.path.join(spooldir, 'maps.spool'), mrecs)
+        print(f'  radar maps      {len(mrecs)}', flush=True)
         spools = sorted(os.path.join(spooldir, f) for f in os.listdir(spooldir))
         ntab, nrec = bedrock.write_leveldb(os.path.join(world_be, 'db'), bedrock.merged(spools))
         print(f'  LevelDB: {nrec} records in {ntab} tables  {time.time() - t0:6.1f}s', flush=True)
         bedrock.write_level_dat(os.path.join(world_be, 'level.dat'), WORLD_NAME, PLAN.spawn, args.seed, S)
         open(os.path.join(world_be, 'levelname.txt'), 'w').write(WORLD_NAME)
-        from PIL import Image
         import io as _io
         buf = _io.BytesIO()
         Image.open(os.path.join(args.out, 'map_preview.png')).convert('RGB').resize((256, 256)).save(buf, 'JPEG', quality=88)

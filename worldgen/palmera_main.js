@@ -77,6 +77,51 @@ function boot() {
 }
 system.run(boot);
 
+// ---------------------------------------------------------------- radar: pre-rendered map tiles in the off-hand
+let mapItems = null;
+const radarTile = new Map();
+function loadMaps() {
+  if (mapItems || !D.maps) return;
+  try {
+    const dim = OW(), items = [];
+    for (const c of D.maps.chests) {
+      const b = dim.getBlock({ x: c[0], y: c[1], z: c[2] });
+      const inv = b && b.getComponent("minecraft:inventory")?.container;
+      if (!inv) return;
+      for (let i = 0; i < c[3]; i++) items.push(inv.getItem(i));
+    }
+    if (items.length && items.every(Boolean)) mapItems = items;
+  } catch { }
+}
+function radarTick(p) {
+  if (!mapItems || !prop(p, "set_radar", true)) return;
+  const n = D.maps.n, st = D.maps.step;
+  const i = Math.max(0, Math.min(n - 1, Math.round(p.location.z / st)));
+  const j = Math.max(0, Math.min(n - 1, Math.round(p.location.x / st)));
+  const k = i * n + j;
+  try {
+    const eq = p.getComponent("minecraft:equippable");
+    const off = eq.getEquipment("Offhand");
+    if (off && off.typeId !== "minecraft:filled_map") return;            // never replace a shield/totem etc.
+    if (radarTile.get(p.id) === k && off) return;
+    eq.setEquipment("Offhand", mapItems[k].clone());
+    radarTile.set(p.id, k);
+  } catch { }
+}
+function radarOff(p) {
+  try {
+    const eq = p.getComponent("minecraft:equippable");
+    const off = eq.getEquipment("Offhand");
+    if (off && off.typeId === "minecraft:filled_map") eq.setEquipment("Offhand", undefined);
+  } catch { }
+  radarTile.delete(p.id);
+}
+if (D.maps) {
+  const cs = D.maps.chests, xs = cs.map(c => c[0]);
+  system.run(() => cmd(OW(), `tickingarea add ${Math.min(...xs)} -51 ${cs[0][2]} ${Math.max(...xs)} -49 ${cs[0][2]} palmera_maps true`));
+}
+system.runInterval(() => { loadMaps(); for (const p of world.getAllPlayers()) radarTick(p); }, 10);
+
 world.afterEvents.playerSpawn.subscribe(ev => {
   const p = ev.player;
   system.runTimeout(() => {
@@ -88,6 +133,7 @@ world.afterEvents.playerSpawn.subscribe(ev => {
       title(p, "§d§lPALMERA", "§bWelcome to the sunshine state");
       msg(p, "§dWelcome to Palmera!§f You have §a$2,500§f, a pistol and a §dPhone§f. Use the Phone to start the §dStory§f, take jobs, buy guns and cars.");
       msg(p, "§7Tips: crouch at a shop counter with a gun out to rob it. Crouch next to a car on the street to steal it. Hurting people brings the cops.");
+      msg(p, "§7Your §fradar map§7 sits in your off-hand and follows you around Palmera. Turn it off in Phone > Settings.");
     } else if (prop(p, "died", false)) {
       setProp(p, "died", false);
       const bill = Math.max(200, Math.floor(cash(p) * 0.1));
@@ -749,13 +795,14 @@ function feed(p) {
   new ActionFormData().title("§5Feed").body(posts.join("\n\n")).button("Close").show(p);
 }
 async function settings(p) {
-  const mm = prop(p, "set_minimap", true), h = prop(p, "set_hud", "full");
+  const mm = prop(p, "set_minimap", false), h = prop(p, "set_hud", "full"), rd = prop(p, "set_radar", true);
   const f = new ActionFormData().title("§7Settings").body(`§aCash ${money(cash(p))} §bBank ${money(bank(p))}\n§7Story ${prop(p, "story", 0)}/${D.story.length} | Missions ${prop(p, "missions", 0)} | Crimes ${prop(p, "crimes", 0)} | Palm Tokens ${JSON.parse(prop(p, "tokens", "[]")).length}/${TOKENS.length}`)
-    .button(`Minimap: ${mm ? "§aON" : "§cOFF"}`).button(`HUD: ${h === "full" ? "§aON" : "§cOFF"}`);
+    .button(`Radar map (off-hand): ${rd ? "§aON" : "§cOFF"}`).button(`HUD: ${h === "full" ? "§aON" : "§cOFF"}`).button(`Text radar: ${mm ? "§aON" : "§cOFF"}`);
   const r = await f.show(p);
   if (r.canceled) return;
-  if (r.selection === 0) setProp(p, "set_minimap", !mm);
+  if (r.selection === 0) { setProp(p, "set_radar", !rd); if (rd) radarOff(p); }
   if (r.selection === 1) setProp(p, "set_hud", h === "full" ? "off" : "full");
+  if (r.selection === 2) setProp(p, "set_minimap", !mm);
 }
 function stats(p) {
   msg(p, `§aCash ${money(cash(p))} §bBank ${money(bank(p))} §7| Story ${prop(p, "story", 0)}/${D.story.length} | Missions ${prop(p, "missions", 0)} | Crimes ${prop(p, "crimes", 0)} | Homes ${JSON.parse(prop(p, "homes", "[]")).length}`);
@@ -834,7 +881,7 @@ function hud(p) {
   if (o) obj = `§d${o.label}` + (o.pos ? ` §f${Math.round(flat(p.location, o.pos))}m ${arrow(p, o.pos)}` : "");
   const a = arrestState.get(p.id);
   if (a) obj = `§9§lPOLICE: STOP! §r§f${"█".repeat(Math.floor(a / 6))}`;
-  const mm = prop(p, "set_minimap", true) ? minimap(p, o) + "\n" : "";
+  const mm = prop(p, "set_minimap", false) ? minimap(p, o) + "\n" : "";
   if (prop(p, "set_hud", "full") === "off") return obj;
   return mm + line + robHud(p) + (obj ? "\n" + obj : "");
 }

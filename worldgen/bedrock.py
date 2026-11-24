@@ -46,7 +46,7 @@ def _s(out, s):
 
 def _tag(out, name, typ, val):
     tid = {'byte': 1, 'short': 2, 'int': 3, 'long': 4, 'float': 5, 'double': 6, 'string': 8, 'compound': 10,
-           'list': 9, 'intlist': 9}[typ]
+           'list': 9, 'intlist': 9, 'bytes': 7}[typ]
     out.append(tid)
     _s(out, name)
     if typ == 'byte':
@@ -67,6 +67,9 @@ def _tag(out, name, typ, val):
         for k, (t, v) in val.items():
             _tag(out, k, t, v)
         out.append(0)
+    elif typ == 'bytes':
+        out += struct.pack('<i', len(val))
+        out += val
     elif typ == 'intlist':
         out.append(3)
         out += struct.pack('<i', len(val))
@@ -133,7 +136,7 @@ def storage(sec_xzy, pal, lut):
     return pack_words(lut[sec_xzy], len(u)) + struct.pack('<i', len(u)) + b''.join(pal.raw[i] for i in u)
 
 
-def chunk_records(a, biome2d, cx, cz, pal, air_id, biome_names, signs, ymin=-64):
+def chunk_records(a, biome2d, cx, cz, pal, air_id, biome_names, signs, ymin=-64, extra_be=()):
     """a: (NY,16,16) block ids indexed [y,z,x]. Returns list of (key, value)."""
     key = struct.pack('<ii', cx, cz)
     recs = [(key + b'\x2c', bytes([40])), (key + b'\x36', struct.pack('<i', 2))]
@@ -166,8 +169,8 @@ def chunk_records(a, biome2d, cx, cz, pal, air_id, biome_names, signs, ymin=-64)
         xzy = np.repeat(col.reshape(16, 16, 1), 16, axis=2).ravel().astype(np.uint32)
         bsec = pack_words(xzy, len(u)) + struct.pack('<i', len(u)) + u.astype('<i4').tobytes()
     recs.append((key + b'\x2b', hm + bsec * (ny // 16) + b'\xff'))
-    if signs:
-        be = b''.join(sign_nbt(*s_) for s_ in signs)
+    if signs or extra_be:
+        be = b''.join(sign_nbt(*s_) for s_ in signs) + b''.join(extra_be)
         recs.append((key + b'\x31', be))
     return recs
 
@@ -422,3 +425,24 @@ def package_mcworld(world_dir, out_path, bp_files=None, rp_files=None, bp_uuid=N
             z.writestr('world_resource_packs.json', json.dumps([{'pack_id': rp_uuid, 'version': [1, 0, 0]}]))
         if icon:
             z.writestr('world_icon.jpeg', icon)
+
+
+# --------------------------------------------------------------------------- maps (pre-rendered, locked) + storage chests
+def map_record(map_id, x_center, z_center, scale, rgba):
+    """rgba: (128,128,4) uint8, row = z, col = x. Bedrock stores 4 bytes per pixel (R,G,B,A)."""
+    comp = {'mapId': ('long', map_id), 'parentMapId': ('long', -1), 'dimension': ('byte', 0), 'fullyExplored': ('byte', 1),
+            'mapLocked': ('byte', 1), 'scale': ('byte', scale), 'height': ('short', 128), 'width': ('short', 128),
+            'xCenter': ('int', x_center), 'zCenter': ('int', z_center), 'unlimitedTracking': ('byte', 0),
+            'decorations': ('list', []), 'colors': ('bytes', bytes(rgba.astype('uint8').tobytes()))}
+    return (b'map_' + str(map_id).encode(), nbt_root(comp))
+
+
+def chest_nbt(x, y, z, map_ids, scale):
+    items = []
+    for slot, mid in enumerate(map_ids):
+        items.append({'Name': ('string', 'minecraft:filled_map'), 'Count': ('byte', 1), 'Damage': ('short', 0),
+                      'Slot': ('byte', slot), 'WasPickedUp': ('byte', 0),
+                      'tag': ('compound', {'map_uuid': ('long', mid), 'map_is_init': ('byte', 1), 'map_scale': ('int', scale),
+                                           'map_display_players': ('byte', 1)})})
+    return nbt_root({'id': ('string', 'Chest'), 'isMovable': ('byte', 1), 'x': ('int', x), 'y': ('int', y), 'z': ('int', z),
+                     'Findable': ('byte', 0), 'Items': ('list', items)})

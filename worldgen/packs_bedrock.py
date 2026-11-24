@@ -925,6 +925,8 @@ def build_addon(out_path, P):
         'races': races, 'landmarks': landmarks, 'gangs': gang_zones, 'feed': FEED,
         'mm': [''.join(str(int(c)) for c in row) for row in P.minimap] if hasattr(P, 'minimap') else [], 'mmcell': 16,
         'parked': parked,
+        'maps': {'step': P.map_step, 'n': len(P.map_ids), 'chests': [[c[0], c[1], c[2], len(c[3])] for c in P.map_chests]}
+        if hasattr(P, 'map_chests') else None,
     }
     script = open(__import__('os').path.join(__import__('os').path.dirname(__file__), 'palmera_main.js')).read()
     script = script.replace('__DATA__', json.dumps(data))
