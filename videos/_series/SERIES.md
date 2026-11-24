@@ -1,6 +1,13 @@
-# Channel format — "how your brain works" shorts
+# Channel format — "Why does that happen?" shorts (for every age)
 
-One niche (psychology / how your brain works), one look, one voice, so every episode feels like the same channel.
+One niche: **everyday "why does that happen?" questions about your brain and body**, things an 8-year-old and an 80-year-old both
+experience and both get curious about. One look, one voice, so every episode feels like the same channel.
+
+## All-ages rules (check every script)
+- **The topic is something everyone has felt:** yawning, hiccups, brain freeze, déjà vu, songs stuck in your head. No dating, money, politics, horror, gore or crude jokes.
+- **Plain words:** a 10-year-old must understand every sentence. No jargon ("meta-analysis" → "100 years of studies"; "cognitive" → "your brain"). Name the scientist once at most.
+- **Kind tone:** curious and playful, never mocking. Safe advice only (nothing a kid shouldn't try).
+- **Wonder, then a twist:** every episode ends with something viewers want to tell a friend or try right now (good for shares and comments).
 Reference episode: `videos/zeigarnik/` (Ep. 1, "Don't watch this to the end").
 
 ## Fixed identity (don't change between episodes)
@@ -31,14 +38,16 @@ Reference episode: `videos/zeigarnik/` (Ep. 1, "Don't watch this to the end").
 - Captions: huggingface is blocked, so `hyperframes transcribe` can't run. Use `tools/align.mjs` (aligns the known script to pauses found by `ffmpeg silencedetect`): `node tools/align.mjs vo.txt transcript.json '<segments json>'`, then `words.mjs`. Use `words.fix.json` to show years as digits ("twenty twenty-five," → "2025,").
 - GSAP: jsdelivr is blocked. Copy `assets/vendor/gsap.min.js` from an earlier episode and point `index.html` at it.
 
-## Episode ideas (same niche, each has a built-in hook)
-1. ✅ Zeigarnik effect — "Don't watch this to the end."
-2. Doorway effect — "Walking through a door just deleted your memory."
-3. Spotlight effect — "Nobody noticed. I promise. Here's the study."
-4. Baader-Meinhof (frequency illusion) — "You're about to see this everywhere."
-5. IKEA effect — "Why you overvalue things you built badly."
-6. Peak-end rule — "Your brain only remembers two moments of anything."
-7. Mere exposure effect — "You'll like this video more the second time."
-8. Hedonic adaptation — "Why the new phone stops feeling new in a week."
-9. The "Google effect" (digital amnesia) — "You forgot this because you can search it."
-10. Choice overload (jam study and its replication problems) — "The famous jam study has a twist."
+## Episode ideas (all ages, each has a built-in hook)
+1. ✅ Unfinished things stick in your head — "Don't watch this to the end." (Zeigarnik)
+2. Why yawns are contagious — "You'll yawn before this video ends."
+3. Why you can't tickle yourself — "Try it right now. It won't work. Here's why."
+4. Brain freeze — "Your brain can't even feel pain. So why does ice cream hurt?"
+5. Songs stuck in your head — "This video will get rid of your earworm." (chewing gum study)
+6. Why time speeds up as you get older — "This summer felt shorter than when you were 8. You're not imagining it."
+7. Déjà vu — "You've seen this video before. Haven't you?"
+8. Walking through a door makes you forget — "The doorway is deleting your memory."
+9. Why we have hiccups — "Your hiccups might be left over from tadpoles."
+10. Goosebumps — "Your body is trying to puff up fur you don't have."
+11. Why onions make you cry — "The onion is fighting back."
+12. Why your own voice sounds weird on recordings — "That's what you really sound like. Sorry."

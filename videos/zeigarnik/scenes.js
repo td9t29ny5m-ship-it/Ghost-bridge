@@ -51,7 +51,7 @@ window.FILM = {
     ] },
     // "In 2025, scientists pooled almost a century of these studies. The memory part? It didn't hold up."
     { t: 29.25, flight: 0.7, x: 1300, y: 3990, zoom: 1.08, items: [
-      { type: "label", text: "2025 · META-ANALYSIS", x: 880, y: 3580, size: 44, rot: -2, at: 29.32 },
+      { type: "label", text: "2025 · 100 YEARS OF STUDIES", x: 880, y: 3580, size: 40, rot: -2, at: 29.32 },
       { type: "cutout", src: "assets/img/books.png", w: 300, x: 880, y: 3760, rot: -4, at: 31.78 },
       { type: "cutout", src: "assets/img/chart_down.png", w: 290, x: 1270, y: 3760, rot: 5, at: 33.74 },
       { type: "hand", text: "didn't hold up", x: 900, y: 4110, size: 80, rot: -4, at: 34.64 },
