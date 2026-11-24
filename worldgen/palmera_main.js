@@ -8,7 +8,8 @@ const WALKABLE = new Set(["minecraft:smooth_stone", "minecraft:sand", "minecraft
 const ROAD = new Set(["minecraft:gray_concrete", "minecraft:yellow_concrete", "minecraft:white_concrete", "minecraft:black_concrete"]);
 const SKIP = new Set(["minecraft:item", "minecraft:xp_orb", "minecraft:arrow", "minecraft:snowball", "palmera:bullet"]);
 const POLICE = new Set(["palmera:cop", "palmera:swat", "palmera:police_car", "palmera:police_heli"]);
-const CARS = new Set(["palmera:car", "palmera:sports_car"]);
+const CARS = new Set(["palmera:car", "palmera:sports_car", "palmera:bike"]);
+const FLYERS = new Set(["palmera:heli", "palmera:speedboat"]);
 const G = c => String.fromCharCode(0xE100 + c);
 const I = { cash: G(0x20), star: G(0x21), off: G(0x22), ammo: G(0x23), heart: G(0x24), speed: G(0x25), phone: G(0x26), hit: G(0x27), skull: G(0x28) };
 const TILE = [G(0), G(1), G(2), G(3), G(4), G(5)], ARROW = [0, 1, 2, 3, 4, 5, 6, 7].map(k => G(8 + k));
@@ -428,6 +429,7 @@ function robberyTick(p) {
     setWanted(p, Math.max(wanted(p) + 2, isBank ? 4 : 2)); setProp(p, "wcd", 800);
     setProp(p, "crimes", prop(p, "crimes", 0) + 1);
     title(p, isBank ? "§6§lVAULT CRACKED" : "§e§lROBBERY", "§a+" + money(loot));
+    market(isBank ? "PALM" : "SUNY", -0.05);
     sound(p.dimension, "random.levelup", p.location);
     const a = active.get(p.id);
     if (a) { if (isBank) a.heisted = true; else a.robbed = true; }
@@ -540,6 +542,8 @@ function finishMission(p, ok) {
   for (const e of a.ents) { try { if (valid(e)) e.remove(); } catch { } }
   if (ok) {
     if (a.kind === "story") setProp(p, "story", a.idx + 1);
+    if (/Launch/.test(a.title)) market("ORBT", 0.2);
+    if (/Swamp/.test(a.title)) market("GATR", 0.12);
     setProp(p, "missions", prop(p, "missions", 0) + 1);
     title(p, "§6§lMISSION COMPLETE", "§f" + a.title);
     sound(p.dimension, "random.levelup", p.location);
@@ -673,11 +677,12 @@ async function phone(p) {
     .button(`§eTaxi\n§8Fast travel ($250)`, "textures/ui/palmera_app_gps")
     .button(`§9Call Lawyer\n§8Clear wanted level`, "textures/ui/palmera_app_lawyer")
     .button("§5Feed\n§8What's happening", "textures/ui/palmera_app_feed")
+    .button("§6Exchange\n§8Stocks", "textures/ui/palmera_app_bank")
     .button(active.has(p.id) ? "§8Cancel current mission" : "§7Settings & Stats", active.has(p.id) ? "textures/ui/palmera_app_stats" : "textures/ui/palmera_app_settings");
   const r = await f.show(p);
   if (r.canceled) return;
   [() => storyMission(p), () => jobsForm(p), () => shopForm(p, "arms", "§6Sunshine Arms"), () => shopForm(p, "cars", "§bCoastline Motors"),
-  () => estateForm(p), () => bankForm(p), () => gpsForm(p), () => taxi(p), () => lawyer(p), () => feed(p),
+  () => estateForm(p), () => bankForm(p), () => gpsForm(p), () => taxi(p), () => lawyer(p), () => feed(p), () => exchange(p),
   () => active.has(p.id) ? finishMission(p, false) : settings(p)][r.selection]?.();
 }
 async function jobsForm(p) {
@@ -698,8 +703,10 @@ async function shopForm(p, cat, name) {
   const list = D.shop.filter(s => s.cat === cat);
   const f = new ActionFormData().title(name).body(`§aYou have ${money(cash(p))}`);
   for (const s of list) f.button(`${s.label}\n§2${money(s.price)}`, s.icon);
+  if (cat === "cars") f.button("§aQuick Coat Respray\n§2$1,000 §8(drive in first)", "textures/ui/palmera_app_cars");
   const r = await f.show(p);
   if (r.canceled) return;
+  if (r.selection === list.length) { respray(p); return; }
   buy(p, list[r.selection]);
 }
 function buy(p, s) {
@@ -714,8 +721,17 @@ function buy(p, s) {
   else if (k === "medkit") give(p, "minecraft:golden_apple", 3, "§aMedkit");
   else if (k === "car_sedan") spawnCar(p, "palmera:car");
   else if (k === "car_sports") spawnCar(p, "palmera:sports_car");
+  else if (k === "car_bike") spawnCar(p, "palmera:bike");
+  else if (k === "car_heli") spawnCar(p, "palmera:heli");
+  else if (k === "car_boat") {
+    const s = spotNear(p, 2, 8, t => t === "minecraft:water");
+    if (!s) { addCash(p, s ? 0 : 20000); msg(p, "§cStand next to open water to launch a boat. (refunded)"); return; }
+    const b = spawn(p.dimension, "palmera:speedboat", add(s, { x: 0, y: 0.2, z: 0 }), undefined, [], "palmera:c" + Math.floor(Math.random() * 10));
+    if (b) setProp(p, "car", b.id);
+  }
   sound(p.dimension, "random.orb", p.location);
   msg(p, `§aBought ${s.label} for ${money(s.price)}.`);
+  market("CSTL", 0.01);
 }
 function spawnCar(p, type) {
   const old = prop(p, "car", "");
@@ -723,6 +739,53 @@ function spawnCar(p, type) {
   const d = p.getViewDirection();
   const car = spawn(p.dimension, type, add(p.location, { x: d.x * 4, y: 0.5, z: d.z * 4 }), undefined, [], "palmera:c" + Math.floor(Math.random() * 10));
   if (car) { setProp(p, "car", car.id); msg(p, "§bYour car is parked in front of you. Interact with it to drive."); }
+}
+// ---------------------------------------------------------------- respray + stock market
+function respray(p) {
+  const car = ridingCar(p);
+  if (!car) { msg(p, "§cDrive a car in first."); return; }
+  if (cash(p) < 1000) { msg(p, "§cA respray costs $1,000."); return; }
+  addCash(p, -1000);
+  try { car.triggerEvent("palmera:c" + Math.floor(Math.random() * 10)); } catch { }
+  sound(p.dimension, "random.fizz", p.location, 0.8);
+  if (wanted(p) <= 2) { setWanted(p, 0); msg(p, "§a[Quick Coat]§f Fresh paint, new plates. The cops lost track of you."); if (!world.getAllPlayers().some(x => wanted(x) > 0)) clearPolice(); }
+  else msg(p, "§a[Quick Coat]§f Nice color. The cops still know it's you, though.");
+}
+const TICKERS = { SUNY: ["Sunny Mart Corp", 42], PALM: ["Palm Bank", 120], CSTL: ["Coastline Motors", 65], GATR: ["Gator Energy", 18],
+                  ORBT: ["Orbital Palmera", 230], NEON: ["Neon Nights Ent.", 31] };
+function prices() { try { return JSON.parse(world.getDynamicProperty("market") ?? "{}"); } catch { return {}; } }
+function market(t, pct) {
+  const m = prices();
+  for (const k in TICKERS) if (m[k] === undefined) m[k] = TICKERS[k][1];
+  if (t) m[t] = Math.max(1, m[t] * (1 + pct));
+  try { world.setDynamicProperty("market", JSON.stringify(m)); } catch { }
+  return m;
+}
+system.runInterval(() => {
+  const m = market();
+  for (const k in m) m[k] = Math.max(1, +(m[k] * (1 + (Math.random() - 0.48) * 0.06)).toFixed(2));
+  try { world.setDynamicProperty("market", JSON.stringify(m)); } catch { }
+}, 1200);
+async function exchange(p) {
+  const m = market(), own = JSON.parse(prop(p, "stocks", "{}"));
+  const keys = Object.keys(TICKERS);
+  const f = new ActionFormData().title("§6Palmera Exchange").body("§7Prices move every minute. Robbing a Sunny Mart hurts SUNY; crashing the spaceport deal lifts ORBT...");
+  for (const k of keys) f.button(`§f${k} §7${TICKERS[k][0]}\n§a$${m[k].toFixed(2)} §8owned ${own[k] ?? 0}`);
+  const r = await f.show(p);
+  if (r.canceled) return;
+  const k = keys[r.selection];
+  const g = await new ActionFormData().title(`§6${k}`).body(`§f${TICKERS[k][0]} at §a$${m[k].toFixed(2)}§f. You own ${own[k] ?? 0}.`)
+    .button("Buy 10").button("Buy 100").button("Sell all").show(p);
+  if (g.canceled) return;
+  if (g.selection < 2) {
+    const n = g.selection ? 100 : 10, cost = Math.ceil(n * m[k]);
+    if (cash(p) < cost) { msg(p, "§cNot enough cash."); return; }
+    addCash(p, -cost); own[k] = (own[k] ?? 0) + n; market(k, 0.002 * n / 10);
+  } else {
+    const n = own[k] ?? 0; addCash(p, Math.floor(n * m[k])); own[k] = 0; market(k, -0.002 * n / 10);
+    msg(p, `§aSold ${n} ${k} for ${money(n * m[k])}.`);
+  }
+  setProp(p, "stocks", JSON.stringify(own));
 }
 async function estateForm(p) {
   const owned = JSON.parse(prop(p, "homes", "[]"));
@@ -967,6 +1030,28 @@ function carPhysics() {
   }
 }
 system.runInterval(carPhysics, 2);
+function steerTick() {
+  for (const p of world.getAllPlayers()) {
+    let v;
+    try { v = p.getComponent("minecraft:riding")?.entityRidingOn; } catch { }
+    if (!v || !FLYERS.has(v.typeId)) continue;
+    const d = p.getViewDirection(), pitch = p.getRotation().x;          // negative = looking up
+    const hl = Math.hypot(d.x, d.z) || 1;
+    let vel;
+    if (v.typeId === "palmera:heli") {
+      const climb = pitch < -25 ? 0.45 : pitch > 35 ? -0.45 : 0;
+      const sp = pitch > 60 ? 0.1 : 0.95;
+      vel = { x: d.x / hl * sp, y: climb, z: d.z / hl * sp };
+      if (system.currentTick % 8 === 0) sound(v.dimension, "mob.blaze.breathe", v.location, 0.6, 0.7);
+    } else {
+      let cur = { y: 0 }; try { cur = v.getVelocity(); } catch { }
+      vel = { x: d.x / hl * 0.85, y: cur.y, z: d.z / hl * 0.85 };
+      if (system.currentTick % 4 === 0) particle(v.dimension, "minecraft:water_splash_particle", add(v.location, { x: -d.x * 2, y: 0.3, z: -d.z * 2 }));
+    }
+    try { v.clearVelocity(); v.applyImpulse(vel); v.setRotation({ x: 0, y: p.getRotation().y }); } catch { }
+  }
+}
+system.runInterval(steerTick, 1);
 
 // ---------------------------------------------------------------- smarter police: deploy from cars, arrests
 const arrestState = new Map();

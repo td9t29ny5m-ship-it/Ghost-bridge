@@ -75,7 +75,8 @@ SHOP = [
     ('minigun', 'Minigun', 45000, 'arms'), ('rocket', 'Rocket Launcher', 25000, 'arms'),
     ('ammo', 'Ammo x60', 150, 'arms'), ('ammo300', 'Ammo x300', 650, 'arms'), ('grenade', 'Grenades x4', 600, 'arms'),
     ('armor', 'Body Armor', 1500, 'arms'), ('medkit', 'Medkits x3', 300, 'arms'), ('bat', 'Baseball Bat', 100, 'arms'),
-    ('car_sedan', 'Sedan', 4000, 'cars'), ('car_sports', 'Sports Car', 15000, 'cars'),
+    ('car_sedan', 'Sedan', 4000, 'cars'), ('car_sports', 'Sports Car', 15000, 'cars'), ('car_bike', 'Motorcycle', 8000, 'cars'),
+    ('car_boat', 'Speedboat (stand by water)', 20000, 'cars'), ('car_heli', 'Helicopter', 75000, 'cars'),
 ]
 
 
@@ -333,6 +334,17 @@ HELI_GEO = geo('geometry.palmera_heli', [
         cube([-60, 40, -2], [120, 1, 4], 'dark'), cube([-2, 40, -60], [4, 1, 120], 'dark')]},
     {'name': 'tail_rotor', 'parent': 'body', 'pivot': [2, 40, 68], 'cubes': [cube([2, 32, 67], [1, 16, 2], 'dark')]},
 ], w=10, h=5)
+BIKE_GEO = geo('geometry.palmera_bike', [{'name': 'body', 'pivot': [0, 0, 0], 'cubes': [
+    cube([-1.5, 0, -16], [3, 10, 10], 'tire'), cube([-1.5, 0, 8], [3, 10, 10], 'tire'),
+    cube([-1.6, 3, -13], [3.2, 4, 4], 'chrome'), cube([-1.6, 3, 11], [3.2, 4, 4], 'chrome'),
+    cube([-3, 8, -8], [6, 6, 18], 'body'), cube([-2.5, 14, -2], [5, 2, 10], 'black'),
+    cube([-1, 9, -13], [2, 9, 2], 'chrome', [0, 9, -12], [-20, 0, 0]), cube([-7, 18, -14], [14, 1.5, 1.5], 'black'),
+    cube([-1.5, 12, -15], [3, 2, 1], 'light'), cube([-1.5, 11, 11], [3, 2, 1], 'tail'), cube([-2, 5, 4], [4, 4, 8], 'dark')]}], w=3, h=2)
+BOAT_GEO = geo('geometry.palmera_boat', [{'name': 'body', 'pivot': [0, 0, 0], 'cubes': [
+    cube([-14, 0, -32], [28, 10, 60], 'body'), cube([-10, 0, -44], [20, 9, 12], 'body', [0, 0, -38], [-12, 0, 0]),
+    cube([-14, 10, -32], [28, 1, 60], 'white'), cube([-12, 6, -18], [24, 5, 40], 'dark'),
+    cube([-10, 11, -14], [20, 8, 2], 'glass', [0, 11, -14], [-35, 0, 0]), cube([-11, 11, 6], [22, 5, 10], 'white'),
+    cube([-4, 2, 28], [8, 10, 6], 'black'), cube([-14.1, 3, -32], [28.2, 2, 60], 'red')]}], w=5, h=2)
 GATOR_GEO = geo('geometry.palmera_gator', [
     {'name': 'body', 'pivot': [0, 4, 0], 'cubes': [cube([-6, 2, -14], [12, 6, 26], 'green'),
                                                     cube([-5, 8, -12], [10, 1, 22], 'dark')]},
@@ -1008,6 +1020,31 @@ def build_addon(out_path, P):
         bp['entities/%s.json' % ident] = J(vehicle('palmera:' + ident, speed, hp, seat, ai))
         rp['entity/%s.entity.json' % ident] = J(client('palmera:' + ident, geoid, car_tex, 'controller.render.palmera_car'))
     rc_all['controller.render.palmera_car'] = rc('car', len(CAR_COLORS))
+    bp['entities/bike.json'] = J(vehicle('palmera:bike', 0.5, 35, 0.6))
+    rp['entity/bike.entity.json'] = J(client('palmera:bike', 'geometry.palmera_bike', car_tex, 'controller.render.palmera_car'))
+    rp['models/entity/palmera_bike.geo.json'] = J(BIKE_GEO)
+    for ident, geoid, hp, extra in (('speedboat', 'geometry.palmera_boat', 60, {
+            'minecraft:buoyant': {'base_buoyancy': 1.0, 'apply_gravity': True, 'simulate_waves': True, 'big_wave_probability': 0.03,
+                                  'big_wave_speed': 10.0, 'liquid_blocks': ['minecraft:water', 'minecraft:flowing_water']}}),
+            ('heli', 'geometry.palmera_heli', 90, {'minecraft:physics': {'has_gravity': False}, 'minecraft:can_fly': {}})):
+        c = {'minecraft:type_family': {'family': ['palmera_vehicle', 'inanimate', 'palmera_' + ident]},
+             'minecraft:collision_box': {'width': 2.6 if ident == 'heli' else 1.8, 'height': 2.4 if ident == 'heli' else 0.9},
+             'minecraft:health': {'value': hp, 'max': hp}, 'minecraft:physics': {},
+             'minecraft:pushable': {'is_pushable': False, 'is_pushable_by_piston': False},
+             'minecraft:knockback_resistance': {'value': 1.0}, 'minecraft:nameable': {}, 'minecraft:persistent': {},
+             'minecraft:damage_sensor': {'triggers': [{'cause': 'fall', 'deals_damage': False}, {'cause': 'drowning', 'deals_damage': False}]},
+             'minecraft:rideable': {'seat_count': 2, 'crouching_skip_interact': True, 'family_types': ['player'],
+                                    'interact_text': 'action.interact.ride.horse',
+                                    'seats': [{'position': [0, 0.9 if ident == 'heli' else 0.4, -0.4]}, {'position': [0, 0.9 if ident == 'heli' else 0.4, 0.6]}]}}
+        c.update(extra)
+        groups = {'c%d' % i: {'minecraft:variant': {'value': i}} for i in range(len(CAR_COLORS))}
+        bp['entities/%s.json' % ident] = J({'format_version': '1.21.0', 'minecraft:entity': {
+            'description': {'identifier': 'palmera:' + ident, 'is_spawnable': True, 'is_summonable': True, 'is_experimental': False},
+            'component_groups': groups, 'components': c,
+            'events': {'palmera:c%d' % i: {'add': {'component_groups': ['c%d' % i]}} for i in range(len(CAR_COLORS))}}})
+        anims = ({'rotor': 'animation.palmera.heli.rotor'}, ['rotor']) if ident == 'heli' else (None, None)
+        rp['entity/%s.entity.json' % ident] = J(client('palmera:' + ident, geoid, car_tex, 'controller.render.palmera_car', anims[0], anims[1]))
+    rp['models/entity/palmera_boat.geo.json'] = J(BOAT_GEO)
     bp['entities/police_car.json'] = J(vehicle('palmera:police_car', 0.45, 70, 0.55, 'police_car', ncolors=1))
     rp['textures/entity/palmera_police_car.png'] = png(swatch_tex((240, 240, 240)))
     rp['entity/police_car.entity.json'] = J(client('palmera:police_car', 'geometry.palmera_police_car',
@@ -1055,7 +1092,8 @@ def build_addon(out_path, P):
     rp['animations/palmera.animation.json'] = J(ANIMS)
     names = {'civilian': 'Civilian', 'cop': 'Police Officer', 'swat': 'SWAT', 'gangster': 'Gang Member', 'car': 'Sedan',
              'sports_car': 'Sports Car', 'traffic_car': 'Car', 'police_car': 'Police Car', 'police_heli': 'Police Helicopter',
-             'gator': 'Alligator', 'flamingo': 'Flamingo', 'bullet': 'Bullet'}
+             'gator': 'Alligator', 'flamingo': 'Flamingo', 'bullet': 'Bullet', 'bike': 'Motorcycle', 'speedboat': 'Speedboat',
+             'heli': 'Helicopter'}
     rp['texts/en_US.lang'] = ''.join('entity.palmera:%s.name=%s\nitem.spawn_egg.entity.palmera:%s.name=%s\n' % (k, v, k, v)
                                      for k, v in names.items()) + 'action.interact.steal=Steal\n' + block_lang
     rp['texts/languages.json'] = J(['en_US'])
