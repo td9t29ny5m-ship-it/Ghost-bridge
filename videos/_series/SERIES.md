@@ -10,16 +10,17 @@ experience and both get curious about. One look, one voice, so every episode fee
 - **Wonder, then a twist:** every episode ends with something viewers want to tell a friend or try right now (good for shares and comments).
 Reference episode: `videos/zeigarnik/` (Ep. 1, "Don't watch this to the end").
 
-## Fixed identity (v2 — "POP" format; reference: `videos/octopus/`)
-- **Topics:** jaw-dropping facts about animals, space, the human body and the weird world, the kind kids AND grandparents share.
-- **Look:** `_series/pop-template/`: full-screen real photos (Openverse, CC0/CC BY/BY-SA, credited in `CREDITS.md`) that hard-cut every 1–3 s
-  with a zoom punch + flash, big white/yellow outlined titles, Twemoji stickers, count-up numbers, `#1/#2/#3` badges,
-  TikTok-style 1–3-word captions, yellow progress bar.
-- **Voice:** Microsoft neural `en-US-AndrewMultilingualNeural` at `+12%` via `tools/voice_edge.py` (needs the content-creator-studio environment; gives exact word timings).
-- **Sound:** `tools/gen_audio.py` lo-fi bed + whoosh on every cut + pop on every overlay (`tools/pop_mix.mjs`).
-- **Length:** 30–40 s. **Ending:** "Which one blew your mind? Comment 1, 2 or 3." (comments boost reach).
-- **Build:** `python3 tools/voice_edge.py .` → `words.mjs transcript.json .` → photos `tools/find_photos.py` → write `scenes.js` (shots) →
-  `node tools/pop_apply.mjs .` → `node tools/pop_mix.mjs .` → `hyperframes render`.
+## Fixed identity (v3 — desk style; reference: `videos/octopus-desk/`)
+- **Topics:** jaw-dropping facts about animals, space, the human body and the weird world, for every age.
+- **Look:** the faceless-video "editing desk" (cream paper, index cards, marker, stamp) with **Microsoft Fluent 3D emoji**
+  as the cut-outs (`npm pack @lobehub/fluent-emoji-3d`, files named by codepoint, e.g. `1f419.webp` = octopus; upscale to 512 px).
+  No AI images, no stock photos. Captions 70 px. A new station every 2–4 s, `zoom: 1.08`, flights 0.6–0.7 s.
+- **Voice:** Microsoft neural `en-US-AndrewMultilingualNeural` at `+12%` via `tools/voice_edge.py` (needs the content-creator-studio
+  environment; it writes exact word timings to `transcript.json`, then run `words.mjs`).
+- **Sound:** `tools/gen_audio.py` lo-fi bed + foley; the skill's `mix.mjs` places them.
+- **Structure:** 3-claim hook (0–4 s) → "#1 / #2 / #3" index cards → "the craziest part" → "Which one blew your mind? Comment 1, 2 or 3",
+  ending back on the hook desk (loop).
+- **Length:** 30–40 s.
 
 ## Retention rules (the script)
 1. **Hook in the first second.** The first line is a command, a contradiction or a shocking claim ("Don't watch this to the end."). Hook text is ON SCREEN at frame 0. No intros, no "hey guys".
