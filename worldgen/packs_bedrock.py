@@ -926,7 +926,7 @@ def build_addon(out_path, P):
                   {'name': 'Neon Saints', 'pos': near(rob, 0.215, 0.39), 'r': 160, 'skins': [0, 1, 2]}]
     data = {
         'guns': {'palmera:' + k: {'dmg': v[0], 'cd': v[1], 'range': v[2], 'pellets': v[3], 'ammo': v[4], 'spread': v[5],
-                                  'sound': v[6], 'pitch': v[7], 'explode': v[8], 'mag': GUN_EXTRA[k][0], 'reload': GUN_EXTRA[k][1],
+                                  'sound': 'palmera.gun.' + k, 'pitch': 1.0, 'explode': v[8], 'mag': GUN_EXTRA[k][0], 'reload': GUN_EXTRA[k][1],
                                   'auto': GUN_EXTRA[k][2], 'recoil': GUN_EXTRA[k][3], 'zoom': k == 'sniper', 'name': ITEMS[k][0],
                                   'particle': 'minecraft:basic_flame_particle' if k == 'rocket' else 'minecraft:basic_crit_particle'}
                  for k, v in GUNS.items()},
@@ -986,6 +986,8 @@ def build_addon(out_path, P):
     rp['textures/ui/palmera_hud_bg.png'] = png(hud_bg())
     import realism
     rp.update(realism.textures())
+    import sounds
+    rp.update(sounds.build())
     for app, (col, letter) in APPS.items():
         rp['textures/ui/palmera_app_%s.png' % app] = png(app_icon(col, letter))
     rp['textures/item_texture.json'] = J({'resource_pack_name': 'palmera', 'texture_name': 'atlas.items', 'texture_data': tex_data})

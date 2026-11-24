@@ -68,6 +68,26 @@ function arrow(p, pos) {
   return ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"][((Math.round(rel / 45) % 8) + 8) % 8];
 }
 
+// ---------------------------------------------------------------- cinematic camera
+function fade(p) { cmd(p, "camera @s fade time 0.3 0.8 0.5 color 0 0 0"); }
+function shot(p, target, dist = 60, height = 35, ease = 4, side = 0) {
+  const a = side + Math.random() * 0.6;
+  const pos = { x: target[0] + Math.cos(a) * dist, y: target[1] + height, z: target[2] + Math.sin(a) * dist };
+  cmd(p, `camera @s set minecraft:free ease ${ease} in_out_sine pos ${pos.x.toFixed(1)} ${pos.y.toFixed(1)} ${pos.z.toFixed(1)} facing ${target[0]} ${target[1]} ${target[2]}`);
+}
+function intro(p) {
+  const pts = [];
+  const lm = n => D.landmarks.find(l => l[0].startsWith(n))?.[1];
+  if (D.banks[0]) pts.push(["§fVISTA MARINA", D.banks[0]]);
+  for (const n of ["Coral Strand", "Port Solano", "Millionaire Isles"]) { const q = lm(n); if (q) pts.push(["§f" + n.toUpperCase(), q]); }
+  pts.forEach(([name, q], k) => system.runTimeout(() => {
+    if (!valid(p)) return;
+    shot(p, q, 90, 55, k === 0 ? 0.1 : 4, k * 1.7);
+    system.runTimeout(() => { try { p.onScreenDisplay.setTitle("§d§lPALMERA", { subtitle: name, fadeInDuration: 10, stayDuration: 60, fadeOutDuration: 10 }); } catch { } }, 30);
+  }, k * 110));
+  system.runTimeout(() => { if (valid(p)) { fade(p); system.runTimeout(() => cmd(p, "camera @s clear"), 10); } }, pts.length * 110);
+}
+
 // ---------------------------------------------------------------- world setup / join
 let booted = false;
 function boot() {
@@ -131,7 +151,7 @@ world.afterEvents.playerSpawn.subscribe(ev => {
       setProp(p, "joined", true);
       setScore("pl_cash", p, 2500); setScore("pl_ammo", p, 60); setWanted(p, 0);
       give(p, "palmera:phone"); give(p, "palmera:pistol");
-      title(p, "§d§lPALMERA", "§bWelcome to the sunshine state");
+      intro(p);
       msg(p, "§dWelcome to Palmera!§f You have §a$2,500§f, a pistol and a §dPhone§f. Use the Phone to start the §dStory§f, take jobs, buy guns and cars.");
       msg(p, "§7Tips: crouch at a shop counter with a gun out to rob it. Crouch next to a car on the street to steal it. Hurting people brings the cops.");
       msg(p, "§7Your §fradar map§7 sits in your off-hand and follows you around Palmera. Turn it off in Phone > Settings.");
@@ -139,6 +159,7 @@ world.afterEvents.playerSpawn.subscribe(ev => {
       setProp(p, "died", false);
       const bill = Math.max(200, Math.floor(cash(p) * 0.1));
       addCash(p, -bill);
+      fade(p);
       title(p, "§4§lHOSPITALIZED", "§7Hospital bill: " + money(bill));
     }
     setWanted(p, wanted(p));
@@ -152,7 +173,7 @@ function startReload(p, id) {
   const g = GUNS[id];
   if (reloading.has(p.id) || ammo(p) <= 0) return;
   reloading.set(p.id, { id, until: system.currentTick + g.reload });
-  sound(p.dimension, "random.click", p.location, 0.8);
+  sound(p.dimension, "palmera.reload", p.location, 1);
   system.runTimeout(() => {
     const r = reloading.get(p.id); if (!r || r.id !== id) return;
     reloading.delete(p.id);
@@ -206,7 +227,7 @@ function fire(p, g, id) {
   lastShot.set(p.id, now);
   m[id] -= 1;
   const dim = p.dimension, head = p.getHeadLocation(), d0 = p.getViewDirection();
-  sound(dim, g.sound, head, g.pitch, 2);
+  sound(dim, g.sound, head, rnd(0.94, 1.06), 2);
   particle(dim, "minecraft:basic_flame_particle", add(head, mul(d0, 1.2)));
   cmd(p, `camerashake add @s ${g.recoil} 0.1 positional`);
   heat(p);
@@ -217,6 +238,7 @@ function fire(p, g, id) {
   if (m[id] <= 0 && ammo(p) > 0) startReload(p, id);
 }
 function boom(dim, loc, r, src) {
+  sound(dim, "palmera.explosion", loc, rnd(0.9, 1.1), 3);
   try { dim.createExplosion(loc, r, { breaksBlocks: false, causesFire: false, source: src }); }
   catch { particle(dim, "minecraft:huge_explosion_emitter", loc); }
 }
@@ -426,7 +448,7 @@ function heliTick() {
     const d = dist(goal, h.location), step = Math.min(d, 7);
     const np = d > 0.1 ? add(h.location, mul(norm({ x: goal.x - h.location.x, y: goal.y - h.location.y, z: goal.z - h.location.z }), step)) : h.location;
     try { h.teleport(np, { facingLocation: t.location }); } catch { }
-    if (system.currentTick % 40 === 0) sound(h.dimension, "mob.blaze.breathe", h.location, 0.5, 2);
+    if (system.currentTick % 40 === 0) sound(h.dimension, "palmera.rotor", h.location, 1, 3);
   }
 }
 
@@ -465,7 +487,7 @@ function robberyTick(p) {
     setProp(p, "crimes", prop(p, "crimes", 0) + 1);
     title(p, isBank ? "§6§lVAULT CRACKED" : "§e§lROBBERY", "§a+" + money(loot));
     market(isBank ? "PALM" : "SUNY", -0.05);
-    sound(p.dimension, "random.levelup", p.location);
+    sound(p.dimension, "palmera.cash", p.location);
     const a = active.get(p.id);
     if (a) { if (isBank) a.heisted = true; else a.robbed = true; }
   }
@@ -550,6 +572,12 @@ function startMission(p, m) {
   if (active.has(p.id)) { msg(p, "§cFinish or cancel your current mission first."); return; }
   active.set(p.id, Object.assign({ i: 0, ents: [] }, m));
   title(p, "§d§l" + m.title, m.sub ?? "");
+  const first = m.steps.find(st => st.pos);
+  if (first && flat(V(first.pos), p.location) > 40) {
+    shot(p, first.pos, 45, 25, 0.1);
+    system.runTimeout(() => shot(p, first.pos, 35, 18, 3, 1.2), 2);
+    system.runTimeout(() => { fade(p); system.runTimeout(() => cmd(p, "camera @s clear"), 10); }, 90);
+  }
   enterStep(p);
 }
 function stepOf(p) { const a = active.get(p.id); return a && a.steps[a.i]; }
@@ -700,6 +728,7 @@ function raceMission(p, r) {
 
 // ---------------------------------------------------------------- phone
 async function phone(p) {
+  sound(p.dimension, "palmera.phone", p.location, 1, 0.6);
   const story = D.story[prop(p, "story", 0)];
   const f = new ActionFormData().title(`§d${I.phone} Palmera Phone`)
     .body(`§aCash ${money(cash(p))}   §bBank ${money(bank(p))}   §fAmmo ${ammo(p)}   §eWanted ${"★".repeat(wanted(p)) || "-"}`)
@@ -765,7 +794,7 @@ function buy(p, s) {
     const b = spawn(p.dimension, "palmera:speedboat", add(s, { x: 0, y: 0.2, z: 0 }), undefined, [], "palmera:c" + Math.floor(Math.random() * 10));
     if (b) setProp(p, "car", b.id);
   }
-  sound(p.dimension, "random.orb", p.location);
+  sound(p.dimension, "palmera.cash", p.location);
   msg(p, `§aBought ${s.label} for ${money(s.price)}.`);
   market("CSTL", 0.01);
 }
@@ -889,6 +918,7 @@ async function taxi(p) {
   addCash(p, -250);
   const [n, pos] = dests[r.selection];
   title(p, "§e§lTAXI", "§7Heading to " + n + "...");
+  system.runTimeout(() => fade(p), 30);
   system.runTimeout(() => { try { p.teleport({ x: pos[0] + 0.5, y: pos[1] + 1, z: pos[2] + 2.5 }); } catch { } }, 40);
 }
 function lawyer(p) {
@@ -1058,7 +1088,7 @@ function carPhysics() {
     // landing after a jump
     if (st.vy < -0.7 && v.y > -0.1) { sound(dim, "random.anvil_land", car.location, 0.8, 0.5); cmd(p, "camerashake add @s 0.4 0.2 positional"); }
     carState.set(car.id, { sp, vx: v.x, vz: v.z, vy: v.y });
-    if (system.currentTick % 6 === 0) sound(dim, "minecart.base", car.location, 0.6 + sp * 0.8, 0.5);
+    if (system.currentTick % 40 === 0) sound(dim, "palmera.engine", car.location, 0.7 + sp * 0.9, 0.6);
     if (sp > 0.35) {
       try {
         for (const e of dim.getEntities({ location: car.location, maxDistance: 2.4, excludeFamilies: ["palmera_vehicle", "inanimate"] })) {
@@ -1089,7 +1119,7 @@ function steerTick() {
       const climb = pitch < -25 ? 0.45 : pitch > 35 ? -0.45 : 0;
       const sp = pitch > 60 ? 0.1 : 0.95;
       vel = { x: d.x / hl * sp, y: climb, z: d.z / hl * sp };
-      if (system.currentTick % 8 === 0) sound(v.dimension, "mob.blaze.breathe", v.location, 0.6, 0.7);
+      if (system.currentTick % 40 === 0) sound(v.dimension, "palmera.rotor", v.location, 1, 1);
     } else {
       let cur = { y: 0 }; try { cur = v.getVelocity(); } catch { }
       vel = { x: d.x / hl * 0.85, y: cur.y, z: d.z / hl * 0.85 };
@@ -1116,7 +1146,8 @@ function arrestTick(p) {
     addCash(p, -fine); setWanted(p, 0);
     if (active.has(p.id)) finishMission(p, false);
     const [st] = nearest(D.police, p.location);
-    if (st) { try { p.teleport(V(st)); } catch { } }
+    fade(p);
+    if (st) system.runTimeout(() => { try { p.teleport(V(st)); } catch { } }, 10);
     title(p, "§9§lARRESTED", "§7Fine: " + money(fine) + " - released from the station");
     if (!world.getAllPlayers().some(x => wanted(x) > 0)) clearPolice();
   }
@@ -1285,7 +1316,7 @@ system.runInterval(() => {                       // every second: wanted decay, 
     } else setProp(p, "wcd", cd);
   }
   if (system.currentTick % 40 === 0) {
-    try { for (const c of OW().getEntities({ type: "palmera:police_car" })) sound(c.dimension, "note.bit", c.location, system.currentTick % 80 === 0 ? 1.4 : 1.1, 3); } catch { }
+    try { for (const c of OW().getEntities({ type: "palmera:police_car" })) if (system.currentTick % 80 === 0) sound(c.dimension, "palmera.siren", c.location, 1, 3); } catch { }
   }
 }, 20);
 
